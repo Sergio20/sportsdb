@@ -87,7 +87,7 @@ select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     <div class="seg" id="compSeg" role="group" aria-label="Competición"><button data-comp="E" aria-pressed="true">Euroliga</button><button data-comp="U" aria-pressed="false">EuroCup</button></div>
   </header>
   <div class="games" id="games"></div>
-  <div id="alerts" hidden></div>
+  <div id="alerts"></div>
   <div id="top"></div>
   <section class="panel" id="calc" hidden>
     <h2>¿Tiene valor el hándicap que te ofrecen?</h2>
@@ -241,7 +241,9 @@ function desfase(h, pbp) {
 function renderAlerts() {
   const gs = S.games.concat(S.other).filter(g => g.h && g.h.Live), al = gs.filter(g => g.al).sort((x, y) => y.al.z - x.al.z), box = $('#alerts');
   document.title = (al.length ? '(' + al.length + ') ' : '') + 'SportsDB en vivo';
-  box.hidden = !gs.length; if (!gs.length) return;
+  const next = S.games.concat(S.other).filter(g => !g.played && !(g.h && +g.h.ScoreA + +g.h.ScoreB > 0)).map(g => g.utcDate).sort()[0];
+  box.hidden = false;
+  if (!gs.length) { box.innerHTML = `<section class="panel"><h2>Desfases ahora</h2><div class="muted">Ahora no hay ningún partido en directo de Euroliga ni EuroCup${next ? '; el próximo empieza el ' + esc(new Date(next).toLocaleString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })) : ''}. Los avisos aparecerán aquí solos en cuanto haya partidos en juego.</div></section>`; return; }
   box.innerHTML = `<section class="panel"><h2>Desfases ahora</h2>${al.map(g => { const x = g.al, h = g.h;
     return `<div class="alert ${x.level}"><div class="st"><span class="tag">Desfase ${x.level}</span><span>${COMP[g.comp]} · ${esc(h.TeamA)} <strong>${x.sa}-${x.sb}</strong> ${esc(h.TeamB)} · ${esc(periodTxt(h))}</span></div>
       <div><strong>${esc(x.fav)}</strong>, favorito por ${nf(x.pre, 0)} según sus últimos partidos,${x.M < 0 ? 'pierde por ' + nf(-x.M) : x.M > 0 ? 'gana solo por ' + nf(x.M) : 'va empatado'}. Con esos mismos tiros y su acierto habitual, ${esc(x.fav)} llevaría ${nf(Math.abs(x.favLuck), 0)} puntos ${x.favLuck < 0 ? 'más' : 'menos'} y ${esc(x.dog)} ${nf(Math.abs(x.dogLuck), 0)} ${x.dogLuck > 0 ? 'menos' : 'más'}: ${nf(x.gap, 0)} puntos del marcador vienen de un acierto fuera de lo normal.</div>
