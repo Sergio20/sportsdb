@@ -30,7 +30,14 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   Arriba, «Desfases ahora» revisa cada 20 s todos los partidos en directo de las dos competiciones
   y avisa cuando un favorito claro va peor de lo previsto por un acierto anormal (umbrales `FAV`,
   `GAP`, `Z`). Para probarlo sin partidos en directo: `en-vivo.html?demo=25` repite la última
-  jornada jugada parada en el minuto 25.
+  jornada jugada parada en el minuto 25. «Contexto del partido» muestra el nivel de cada equipo,
+  si es recién llegado a la Euroliga y sus jugadores clave (marca los que no han aparecido en
+  ninguna jugada pasados 10 minutos). Los datos los incrusta `export_live.py`.
+- `scripts/remontadas.py`: estudio con el histórico de qué pasa cuando el favorito va perdiendo
+  al final de cada cuarto (cuánto recupera, cuántas veces cubre +2,5…+8,5) y cuánto bajan los
+  equipos que suben de EuroCup a Euroliga (de ahí `EUROCUP_GAP` en `export_live.py`).
+- En local no hay `python` en el PATH: usar `%LOCALAPPDATA%\Programs\Python\Python312\python.exe`.
+  La base se saca de la rama `data` a `data/deportes.db` (carpeta ignorada por git).
 
 ## Reglas
 
@@ -44,6 +51,7 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
 - Calendario de LaLiga (la fuente solo trae partidos jugados).
 - Histórico completo de ligas nacionales extranjeras (Flashscore solo da lo reciente).
 - Validar el modelo en vivo contra cuotas reales con el registro de apuestas.
-- El «favorito» del panel en vivo sale de la diferencia de puntos de los últimos 30 partidos sin
-  distinguir competición: un equipo que viene de la EuroCup queda sobrevalorado en Euroliga.
-- Comprobar con el histórico cuántas veces el aviso de desfase acaba cubriendo el hándicap justo.
+- `EUROCUP_GAP` (9) sale de solo 6 equipos: revisarlo cuando haya más ascensos.
+- Las bajas solo se detectan una vez empezado el partido; no hay fuente gratuita de lesiones previas.
+- No hay cuotas en directo de baloncesto guardadas: no se puede medir cuánto se equivoca la casa,
+  solo cuánto remonta el favorito. El registro de apuestas del panel es la forma de ir midiéndolo.

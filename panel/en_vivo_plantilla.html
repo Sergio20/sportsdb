@@ -71,6 +71,8 @@ th.grp { text-align: center; border-left: 1px solid var(--line) } td.b { border-
 .tag { font: 600 11px var(--body); text-transform: uppercase; letter-spacing: .06em; padding: 2px 6px; border-radius: 4px; background: var(--series-2); color: #fff }
 .alert { border: 1px solid var(--line); border-left: 4px solid var(--series-2); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 10px }
 .alert.fuerte { border-left-color: var(--live) } .alert.fuerte .tag { background: var(--live) }
+.note.warn { background: color-mix(in srgb, var(--series-2) 14%, var(--surface)) }
+.ctx { display: flex; flex-direction: column; gap: 10px; min-width: 0 } .ctx h3 { font: 600 18px var(--display); margin: 0 }
 .alert .st { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; color: var(--fg-2) }
 #view, #top { display: flex; flex-direction: column; gap: 18px }
 .calc { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 16px; align-items: end }
@@ -223,6 +225,28 @@ function model(h, A, B, el) {
   const xp = (t, b) => b ? 2 * t.FieldGoalsAttempted2 * b.p2 / 100 + 3 * t.FieldGoalsAttempted3 * b.p3 / 100 + t.FreeThrowsAttempted * b.ft / 100 : null;
   return { Q, M, r, mean, sd, pA: r > 0 ? phi(mean / sd) : (M > 0 ? 1 : 0), xA: xp(A, bA), xB: xp(B, bB), known: !!(bA && bB) };
 }
+// Jugadores clave (BASE[equipo].pl) que no aparecen en ninguna jugada pasados 10 minutos: no juegan.
+const pid = s => String(s || '').trim().replace(/^P/, '');
+function absent(code, pbp, el) {
+  const b = BASE[(code || '').trim()]; if (!b || !b.pl || !pbp || el < 10) return [];
+  const seen = new Set(allPlays(pbp).map(p => pid(p.PLAYER_ID)));
+  return b.pl.filter(p => !seen.has(p[0]));
+}
+const absTxt = ps => ps.map(p => esc(p[1]) + ' (' + nf(p[2], 1) + ' pts)').join(', ');
+// Cuadro de contexto: nivel, experiencia en Euroliga y jugadores clave de cada equipo.
+function contextPanel(codes, names, pbp, el) {
+  const team = (code, name) => { const b = BASE[(code || '').trim()];
+    if (!b) return `<div class="ctx"><h3>${esc(name)}</h3><div class="muted small">Sin partidos recientes en la base de datos.</div></div>`;
+    const out = new Set(absent(code, pbp, el).map(p => p[0])), notes = [];
+    if (b.new) notes.push(`<div class="note warn"><strong>Recién llegado a la Euroliga</strong>: la temporada pasada no la jugó. Los equipos que suben de la EuroCup rinden de media 9-10 puntos por partido peor que allí (6 casos desde 2021). Su nivel ya está corregido, pero hay pocos datos: fíate menos de la estimación.</div>`);
+    else if (b.ec) notes.push(`<div class="muted small">${b.ec} de sus últimos ${b.n} partidos son de EuroCup; su nivel está pasado a escala Euroliga.</div>`);
+    if (out.size) notes.push(`<div class="note warn"><strong>No ha jugado todavía</strong>: ${absTxt(b.pl.filter(p => out.has(p[0])))}. Puede ser baja o decisión técnica.</div>`);
+    return `<div class="ctx"><h3>${esc(name)}</h3><div class="kpis"><div class="kpi"><div class="v">${signed(b.pf - b.pa, 1)}</div><div class="k">Nivel · diferencia por partido</div></div>
+      <div class="kpi"><div class="v">${b.elx}</div><div class="k">Temporadas previas en Euroliga</div></div></div>${notes.join('')}
+      <div class="scroll"><table><thead><tr><th class="l">Jugadores clave</th><th>Pts</th><th>Min</th><th></th></tr></thead><tbody>${(b.pl || []).map(p => `<tr><td class="l">${esc(p[1])}</td><td>${nf(p[2], 1)}</td><td>${nf(p[3], 0)}</td><td class="l">${!pbp || el < 10 ? '' : out.has(p[0]) ? '<span class="neg">No ha jugado</span>' : '<span class="pos">Juega</span>'}</td></tr>`).join('')}</tbody></table></div></div>`; };
+  return `<div class="panel"><h2>Contexto del partido</h2><div class="grid2">${team(codes[0], names[0])}${team(codes[1], names[1])}</div>
+    <div class="muted small">Nivel = diferencia media de puntos en sus últimos partidos de Euroliga y EuroCup (los de EuroCup, rebajados 9 puntos). Jugadores clave = los que más minutos juegan en sus últimos 10 partidos de esta temporada. La fuente oficial no publica las bajas antes del partido: aquí se detectan cuando, pasados 10 minutos, un jugador clave no ha aparecido en ninguna jugada. Revisa las lesiones de última hora en la web de cada club.</div></div>`;
+}
 // Varianza de los puntos anotados con unos tiros dados, si el equipo acertara lo habitual.
 const luckVar = (t, b) => 4 * t.FieldGoalsAttempted2 * b.p2 / 100 * (1 - b.p2 / 100) + 9 * t.FieldGoalsAttempted3 * b.p3 / 100 * (1 - b.p3 / 100) + t.FreeThrowsAttempted * b.ft / 100 * (1 - b.ft / 100);
 function desfase(h, pbp) {
@@ -235,7 +259,8 @@ function desfase(h, pbp) {
   const gap = dogLuck - favLuck, sd = Math.sqrt(luckVar(A, bA) + luckVar(B, bB)), z = sd > 0 ? gap / sd : 0;
   if (Math.abs(pre) < FAV || gap < GAP || z < Z || s * mod.M >= Math.abs(pre) * el / 40) return null;
   const tf = teamAgg(s > 0 ? A : B), td = teamAgg(s > 0 ? B : A), bf = s > 0 ? bA : bB, bd = s > 0 ? bB : bA;
-  return { level: z >= Z_STRONG && gap >= GAP_STRONG ? 'fuerte' : 'moderado', fav: s > 0 ? h.TeamA : h.TeamB, dog: s > 0 ? h.TeamB : h.TeamA, pre: Math.abs(pre), M: s * mod.M,
+  const fc = s > 0 ? h.CodeTeamA : h.CodeTeamB, dc = s > 0 ? h.CodeTeamB : h.CodeTeamA;
+  return { favNew: !!bf.new, favOut: absent(fc, pbp, el), dogOut: absent(dc, pbp, el), level: z >= Z_STRONG && gap >= GAP_STRONG ? 'fuerte' : 'moderado', fav: s > 0 ? h.TeamA : h.TeamB, dog: s > 0 ? h.TeamB : h.TeamA, pre: Math.abs(pre), M: s * mod.M,
     gap, z, favLuck, dogLuck, fair: Math.round(-s * mod.mean * 2) / 2, sa: A.Points, sb: B.Points, favEfg: tf.efg, favBase: bf.efg, dogEfg: td.efg, dogBase: bd.efg };
 }
 function renderAlerts() {
@@ -251,6 +276,9 @@ function renderAlerts() {
         <div class="kpi"><div class="v">${nf(x.favEfg, 0)} %</div><div class="k">Acierto efectivo ${esc(x.fav)} · habitual ${nf(x.favBase, 0)} %</div></div>
         <div class="kpi"><div class="v">${nf(x.dogEfg, 0)} %</div><div class="k">Acierto efectivo ${esc(x.dog)} · habitual ${nf(x.dogBase, 0)} %</div></div>
         <div class="kpi"><div class="v">1 de cada ${nf(1 / (1 - phi(x.z)), 0)}</div><div class="k">Así de raro es este acierto</div></div></div>
+      ${x.favNew ? `<div class="note warn">Ojo: ${esc(x.fav)} es recién llegado a la Euroliga; su condición de favorito se basa en pocos partidos en esta competición.</div>` : ''}
+      ${x.favOut.length ? `<div class="note warn">Ojo: a ${esc(x.fav)} le faltan jugadores clave: ${absTxt(x.favOut)}. Su acierto habitual puede no servir hoy.</div>` : ''}
+      ${x.dogOut.length ? `<div class="muted small">A ${esc(x.dog)} le faltan: ${absTxt(x.dogOut)}.</div>` : ''}
       <div><button class="btn" data-go="${g.comp}|${g.gameCode}">Ver partido y calcular el hándicap</button></div></div>`; }).join('')
     || `<div class="muted">Ningún desfase claro en ${gs.length === 1 ? 'el partido' : 'los ' + gs.length + ' partidos'} en directo de Euroliga y EuroCup.</div>`}
     <div class="muted small">Salta cuando un favorito claro va peor de lo previsto y al menos ${GAP} puntos del marcador se explican por un acierto anormal (él por debajo de lo suyo, el rival por encima). Se revisan todos los partidos en directo cada 20 segundos. Hay valor si te ofrecen al favorito un hándicap mayor que el justo; el aviso no ve lesiones, faltas ni rotaciones, y una buena defensa también baja el acierto del rival, así que no es una señal segura.</div></section>`;
@@ -319,7 +347,8 @@ function render() {
   const g = S.games.find(x => x.gameCode === S.code), h = D && D.h;
   if (!h || !D.box || !D.box.Stats || D.box.Stats.length < 2) {
     $('#top').innerHTML = ''; $('#calc').hidden = true;
-    v.innerHTML = `<div class="panel"><div class="board"><div class="t r">${esc(g.local.club.name)}</div><div class="clock">${esc(new Date(g.utcDate).toLocaleString('es-ES', { weekday: 'long', hour: '2-digit', minute: '2-digit' }))}</div><div class="t">${esc(g.road.club.name)}</div></div><div class="empty">El partido todavía no ha empezado. Los datos aparecerán aquí en cuanto arranque.</div></div>`; return; }
+    v.innerHTML = `<div class="panel"><div class="board"><div class="t r">${esc(g.local.club.name)}</div><div class="clock">${esc(new Date(g.utcDate).toLocaleString('es-ES', { weekday: 'long', hour: '2-digit', minute: '2-digit' }))}</div><div class="t">${esc(g.road.club.name)}</div></div><div class="empty">El partido todavía no ha empezado. Los datos aparecerán aquí en cuanto arranque.</div></div>
+      ${contextPanel([g.local.club.code, g.road.club.code], [g.local.club.name, g.road.club.name], null, 0)}`; return; }
   const fromPbp = D.pbp && allPlays(D.pbp).length > 5, tots = fromPbp ? pbpTotals(D.pbp, h) : null;
   const A = fromPbp ? Object.assign({}, D.box.Stats[0].totr, tots[0]) : D.box.Stats[0].totr, B = fromPbp ? Object.assign({}, D.box.Stats[1].totr, tots[1]) : D.box.Stats[1].totr;
   const a = teamAgg(A), b = teamAgg(B), el = h.Live ? elapsed(h) : Math.max(40, elapsed(h) || 40), isLive = !!h.Live;
@@ -353,7 +382,8 @@ function render() {
       <div class="kpi"><div class="v">${maxA >= maxB ? '+' + maxA : '+' + maxB}</div><div class="k">Máxima ventaja · ${esc(maxA >= maxB ? h.CodeTeamA : h.CodeTeamB)}</div></div>
     </div>${isLive ? '<div class="muted small">La proyección reparte el ritmo de anotación actual sobre los 40 minutos; no tiene en cuenta faltas tácticas del final ni rotaciones.</div>' : ''}</div>${reading}`;
   updateCalc();
-  v.innerHTML = `<div class="panel"><h2>Tiro: hoy frente a lo habitual</h2>${shootingTable(h, A, B, a, b)}</div>
+  v.innerHTML = `${contextPanel([h.CodeTeamA, h.CodeTeamB], [h.TeamA, h.TeamB], D.pbp, el)}
+    <div class="panel"><h2>Tiro: hoy frente a lo habitual</h2>${shootingTable(h, A, B, a, b)}</div>
     <div class="panel"><h2>Diferencia en el marcador</h2><div class="muted small"><span class="sw" style="background:var(--series)"></span>Por encima de cero gana ${esc(h.TeamA)}; por debajo, ${esc(h.TeamB)}</div><div class="chart" id="lead"></div></div>
     <div class="grid2"><div class="panel"><h2>Resto de estadísticas</h2>${statsTable(h, A, B)}</div>
       <div class="panel"><h2>Últimas jugadas</h2><div class="plays small">${plays.map(p => `<div><span class="muted">${esc(p.MARKERTIME)}</span><span class="muted">${esc((p.CODETEAM || '').trim())}</span><span>${esc(p.PLAYER)} · ${esc(p.PLAYINFO)}${p.POINTS_A != null ? ` <strong>(${p.POINTS_A}-${p.POINTS_B})</strong>` : ''}</span></div>`).join('') || '<div class="muted">Sin jugadas todavía.</div>'}</div></div></div>
