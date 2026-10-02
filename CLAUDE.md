@@ -27,6 +27,10 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
 - `panel/en_vivo_plantilla.html`: panel en directo de Euroliga/EuroCup. Lee en el navegador
   `live.euroleague.net/api/*` cada 5 s. Incluye el modelo de margen restante (constantes `K`,
   ajustadas con 2.660 partidos) y un registro de apuestas guardado en `localStorage`.
+  Arriba, «Desfases ahora» revisa cada 20 s todos los partidos en directo de las dos competiciones
+  y avisa cuando un favorito claro va peor de lo previsto por un acierto anormal (umbrales `FAV`,
+  `GAP`, `Z`). Para probarlo sin partidos en directo: `en-vivo.html?demo=25` repite la última
+  jornada jugada parada en el minuto 25.
 
 ## Reglas
 
@@ -40,3 +44,6 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
 - Calendario de LaLiga (la fuente solo trae partidos jugados).
 - Histórico completo de ligas nacionales extranjeras (Flashscore solo da lo reciente).
 - Validar el modelo en vivo contra cuotas reales con el registro de apuestas.
+- El «favorito» del panel en vivo sale de la diferencia de puntos de los últimos 30 partidos sin
+  distinguir competición: un equipo que viene de la EuroCup queda sobrevalorado en Euroliga.
+- Comprobar con el histórico cuántas veces el aviso de desfase acaba cubriendo el hándicap justo.

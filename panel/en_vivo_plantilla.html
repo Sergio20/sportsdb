@@ -68,6 +68,10 @@ th.grp { text-align: center; border-left: 1px solid var(--line) } td.b { border-
 .btn:hover { border-color: var(--accent); color: var(--accent) }
 .btn.x { padding: 2px 8px; font-weight: 500 }
 .empty { padding: 26px 8px; text-align: center; color: var(--fg-2) }
+.tag { font: 600 11px var(--body); text-transform: uppercase; letter-spacing: .06em; padding: 2px 6px; border-radius: 4px; background: var(--series-2); color: #fff }
+.alert { border: 1px solid var(--line); border-left: 4px solid var(--series-2); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 10px }
+.alert.fuerte { border-left-color: var(--live) } .alert.fuerte .tag { background: var(--live) }
+.alert .st { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; color: var(--fg-2) }
 #view, #top { display: flex; flex-direction: column; gap: 18px }
 .calc { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 16px; align-items: end }
 .field { display: flex; flex-direction: column; gap: 4px } .field label { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-2); font-weight: 600 }
@@ -83,6 +87,7 @@ select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     <div class="seg" id="compSeg" role="group" aria-label="Competición"><button data-comp="E" aria-pressed="true">Euroliga</button><button data-comp="U" aria-pressed="false">EuroCup</button></div>
   </header>
   <div class="games" id="games"></div>
+  <div id="alerts" hidden></div>
   <div id="top"></div>
   <section class="panel" id="calc" hidden>
     <h2>¿Tiene valor el hándicap que te ofrecen?</h2>
@@ -122,23 +127,30 @@ const nf = (v, d) => v == null || !isFinite(v) ? '–' : Number(v).toLocaleStrin
 const signed = (v, d) => v == null || !isFinite(v) ? '–' : (v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v), d);
 const cls = v => v > 0.05 ? 'pos' : v < -0.05 ? 'neg' : '';
 const pc = (m, a) => a ? 100 * m / a : null;
-const S = { comp: 'E', year: null, games: [], code: null, data: null, timer: null };
+const S = { comp: 'E', year: null, games: [], other: [], code: null, data: null, timer: null }; // other = partidos de la otra competición (solo para los avisos)
+const COMP = { E: 'Euroliga', U: 'EuroCup' };
+// Aviso de desfase: favorito claro (FAV puntos o más antes de empezar) al que el acierto anormal de los dos equipos le cuesta GAP puntos o más.
+const FAV = 5, GAP = 6, Z = 1.5, Z_STRONG = 2.2, GAP_STRONG = 9, MIN_EL = 8;
+// Repetición: «?demo=25» muestra la última jornada jugada tal como estaba en el minuto 25.
+const DEMO = Math.max(0, Math.min(39, +new URLSearchParams(location.search).get('demo') || 0));
 
 function seasonYear() { const d = new Date(); return d.getMonth() >= 6 ? d.getFullYear() : d.getFullYear() - 1; }
 async function getJSON(url) { const r = await fetch(url, { cache: 'no-store' }); if (!r.ok) throw new Error(r.status); const t = await r.text(); return t.trim() ? JSON.parse(t) : null; }
-const live = (ep, code) => getJSON(`${API}${ep}?gamecode=${code}&seasoncode=${S.comp}${S.year}`);
+const live = (ep, code, comp) => getJSON(`${API}${ep}?gamecode=${code}&seasoncode=${comp || S.comp}${S.year}`);
 const localDay = iso => { const d = new Date(iso); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 
-async function loadGames() {
-  S.year = seasonYear();
-  const d = await getJSON(`${GAMES}${S.comp}/seasons/${S.comp}${S.year}/games?limit=1000`);
+async function dayGames(comp) {
+  const d = await getJSON(`${GAMES}${comp}/seasons/${comp}${S.year}/games?limit=1000`);
   const all = (d && d.data || []).filter(g => g.utcDate && !g.local.club.isVirtual && !g.road.club.isVirtual);
   const today = localDay(new Date().toISOString());
   const days = [...new Set(all.map(g => localDay(g.utcDate)))].sort();
   // el día de hoy; si hoy no hay partidos, el próximo día con partidos (o el último jugado)
-  const day = days.includes(today) ? today : (days.find(x => x > today) || days[days.length - 1]);
-  S.day = day;
-  S.games = all.filter(g => localDay(g.utcDate) === day).sort((a, b) => a.utcDate.localeCompare(b.utcDate));
+  const day = DEMO ? (days.filter(x => x < today).pop() || days[0]) : days.includes(today) ? today : (days.find(x => x > today) || days[days.length - 1]);
+  return all.filter(g => localDay(g.utcDate) === day).sort((a, b) => a.utcDate.localeCompare(b.utcDate)).map(g => Object.assign(g, { comp }));
+}
+async function loadGames() {
+  S.year = seasonYear();
+  [S.games, S.other] = await Promise.all([dayGames(S.comp), dayGames(S.comp === 'E' ? 'U' : 'E').catch(() => [])]);
   await refreshHeaders();
   if (!S.games.some(g => g.gameCode === S.code)) {
     const liveG = S.games.find(g => g.h && g.h.Live);
@@ -146,7 +158,14 @@ async function loadGames() {
   }
 }
 async function refreshHeaders() {
-  await Promise.all(S.games.map(async g => { try { g.h = await live('Header', g.gameCode); } catch (e) { /* se mantiene el anterior */ } }));
+  await Promise.all(S.games.concat(S.other).map(async g => { try { g.h = await live('Header', g.gameCode, g.comp); } catch (e) { /* se mantiene el anterior */ } }));
+}
+// Revisa todos los partidos en directo de las dos competiciones en busca de desfases.
+async function scan() {
+  await Promise.all(S.games.concat(S.other).map(async g => {
+    if (!g.h || !(g.h.Live || (DEMO && +g.h.ScoreA + +g.h.ScoreB > 0))) { g.al = null; return; }
+    try { const [h, pbp] = demoCut(g.h, await live('PlaybyPlay', g.gameCode, g.comp)); g.h = h; g.al = desfase(h, pbp); } catch (e) { /* se mantiene el aviso anterior */ }
+  }));
 }
 function stateOf(g) {
   const h = g.h;
@@ -163,7 +182,7 @@ function elapsed(h) {
 }
 function renderGames() {
   $('#games').innerHTML = S.games.map(g => { const st = stateOf(g), h = g.h, sa = h && (st.live || st.txt === 'Final') ? h.ScoreA : (g.played ? g.local.score : ''), sb = h && (st.live || st.txt === 'Final') ? h.ScoreB : (g.played ? g.road.score : '');
-    return `<button class="game" data-code="${g.gameCode}" aria-pressed="${g.gameCode === S.code}"><div class="st">${st.live ? '<span class="dot"></span>' : ''}${esc(st.txt)}</div><div class="row"><span>${esc(g.local.club.abbreviatedName || g.local.club.name)}</span><b>${esc(sa)}</b></div><div class="row"><span>${esc(g.road.club.abbreviatedName || g.road.club.name)}</span><b>${esc(sb)}</b></div></button>`; }).join('')
+    return `<button class="game" data-code="${g.gameCode}" aria-pressed="${g.gameCode === S.code}"><div class="st">${st.live ? '<span class="dot"></span>' : ''}${esc(st.txt)}${st.live && g.al ? ' <span class="tag">Desfase</span>' : ''}</div><div class="row"><span>${esc(g.local.club.abbreviatedName || g.local.club.name)}</span><b>${esc(sa)}</b></div><div class="row"><span>${esc(g.road.club.abbreviatedName || g.road.club.name)}</span><b>${esc(sb)}</b></div></button>`; }).join('')
     || '<div class="muted">No hay partidos programados.</div>';
 }
 
@@ -176,10 +195,11 @@ function teamAgg(t) { // t = totales del boxscore
 async function loadGame(slow) {
   if (!S.code) { S.data = null; return; }
   const code = S.code, prev = S.data && S.data.code === code ? S.data : {};
-  const [h, pbp, box] = await Promise.all([live('Header', code), live('PlaybyPlay', code).catch(() => prev.pbp || null), slow || !prev.box ? live('Boxscore', code).catch(() => prev.box || null) : Promise.resolve(prev.box)]);
+  const [h0, pbp0, box] = await Promise.all([live('Header', code), live('PlaybyPlay', code).catch(() => prev.pbp || null), slow || !prev.box ? live('Boxscore', code).catch(() => prev.box || null) : Promise.resolve(prev.box)]);
   if (code !== S.code) return;
+  const [h, pbp] = h0 ? demoCut(h0, pbp0) : [h0, pbp0];
   S.data = { code, h, box, pbp };
-  const g = S.games.find(x => x.gameCode === code); if (g && h) g.h = h;
+  const g = S.games.find(x => x.gameCode === code); if (g && h) { g.h = h; g.al = h.Live ? desfase(h, pbp) : null; }
 }
 const PERIODS = ['FirstQuarter', 'SecondQuarter', 'ThirdQuarter', 'ForthQuarter', 'ExtraTime'];
 const allPlays = pbp => pbp ? PERIODS.flatMap(k => pbp[k] || []) : [];
@@ -202,6 +222,44 @@ function model(h, A, B, el) {
   const mean = M + r * (K.home + K.q * Q + K.m * M), sd = Math.max(0.01, K.sd * Math.sqrt(r));
   const xp = (t, b) => b ? 2 * t.FieldGoalsAttempted2 * b.p2 / 100 + 3 * t.FieldGoalsAttempted3 * b.p3 / 100 + t.FreeThrowsAttempted * b.ft / 100 : null;
   return { Q, M, r, mean, sd, pA: r > 0 ? phi(mean / sd) : (M > 0 ? 1 : 0), xA: xp(A, bA), xB: xp(B, bB), known: !!(bA && bB) };
+}
+// Varianza de los puntos anotados con unos tiros dados, si el equipo acertara lo habitual.
+const luckVar = (t, b) => 4 * t.FieldGoalsAttempted2 * b.p2 / 100 * (1 - b.p2 / 100) + 9 * t.FieldGoalsAttempted3 * b.p3 / 100 * (1 - b.p3 / 100) + t.FreeThrowsAttempted * b.ft / 100 * (1 - b.ft / 100);
+function desfase(h, pbp) {
+  const bA = BASE[(h.CodeTeamA || '').trim()], bB = BASE[(h.CodeTeamB || '').trim()];
+  if (!bA || !bB || !pbp || allPlays(pbp).length < 6) return null;
+  const [A, B] = pbpTotals(pbp, h), el = elapsed(h), mod = model(h, A, B, el);
+  if (el < MIN_EL || mod.r <= 0) return null;
+  const pre = 40 * (K.home + K.q * mod.Q), s = pre >= 0 ? 1 : -1; // diferencia esperada antes de empezar; s = 1 si el favorito es A
+  const lA = A.Points - mod.xA, lB = B.Points - mod.xB, favLuck = s > 0 ? lA : lB, dogLuck = s > 0 ? lB : lA;
+  const gap = dogLuck - favLuck, sd = Math.sqrt(luckVar(A, bA) + luckVar(B, bB)), z = sd > 0 ? gap / sd : 0;
+  if (Math.abs(pre) < FAV || gap < GAP || z < Z || s * mod.M >= Math.abs(pre) * el / 40) return null;
+  const tf = teamAgg(s > 0 ? A : B), td = teamAgg(s > 0 ? B : A), bf = s > 0 ? bA : bB, bd = s > 0 ? bB : bA;
+  return { level: z >= Z_STRONG && gap >= GAP_STRONG ? 'fuerte' : 'moderado', fav: s > 0 ? h.TeamA : h.TeamB, dog: s > 0 ? h.TeamB : h.TeamA, pre: Math.abs(pre), M: s * mod.M,
+    gap, z, favLuck, dogLuck, fair: Math.round(-s * mod.mean * 2) / 2, sa: A.Points, sb: B.Points, favEfg: tf.efg, favBase: bf.efg, dogEfg: td.efg, dogBase: bd.efg };
+}
+function renderAlerts() {
+  const gs = S.games.concat(S.other).filter(g => g.h && g.h.Live), al = gs.filter(g => g.al).sort((x, y) => y.al.z - x.al.z), box = $('#alerts');
+  document.title = (al.length ? '(' + al.length + ') ' : '') + 'SportsDB en vivo';
+  box.hidden = !gs.length; if (!gs.length) return;
+  box.innerHTML = `<section class="panel"><h2>Desfases ahora</h2>${al.map(g => { const x = g.al, h = g.h;
+    return `<div class="alert ${x.level}"><div class="st"><span class="tag">Desfase ${x.level}</span><span>${COMP[g.comp]} · ${esc(h.TeamA)} <strong>${x.sa}-${x.sb}</strong> ${esc(h.TeamB)} · ${esc(periodTxt(h))}</span></div>
+      <div><strong>${esc(x.fav)}</strong>, favorito por ${nf(x.pre, 0)} según sus últimos partidos,${x.M < 0 ? 'pierde por ' + nf(-x.M) : x.M > 0 ? 'gana solo por ' + nf(x.M) : 'va empatado'}. Con esos mismos tiros y su acierto habitual, ${esc(x.fav)} llevaría ${nf(Math.abs(x.favLuck), 0)} puntos ${x.favLuck < 0 ? 'más' : 'menos'} y ${esc(x.dog)} ${nf(Math.abs(x.dogLuck), 0)} ${x.dogLuck > 0 ? 'menos' : 'más'}: ${nf(x.gap, 0)} puntos del marcador vienen de un acierto fuera de lo normal.</div>
+      <div class="kpis"><div class="kpi"><div class="v">${signed(x.fair, 1)}</div><div class="k">Hándicap justo · ${esc(x.fav)}</div></div>
+        <div class="kpi"><div class="v">${nf(x.favEfg, 0)} %</div><div class="k">Acierto efectivo ${esc(x.fav)} · habitual ${nf(x.favBase, 0)} %</div></div>
+        <div class="kpi"><div class="v">${nf(x.dogEfg, 0)} %</div><div class="k">Acierto efectivo ${esc(x.dog)} · habitual ${nf(x.dogBase, 0)} %</div></div>
+        <div class="kpi"><div class="v">1 de cada ${nf(1 / (1 - phi(x.z)), 0)}</div><div class="k">Así de raro es este acierto</div></div></div>
+      <div><button class="btn" data-go="${g.comp}|${g.gameCode}">Ver partido y calcular el hándicap</button></div></div>`; }).join('')
+    || `<div class="muted">Ningún desfase claro en ${gs.length === 1 ? 'el partido' : 'los ' + gs.length + ' partidos'} en directo de Euroliga y EuroCup.</div>`}
+    <div class="muted small">Salta cuando un favorito claro va peor de lo previsto y al menos ${GAP} puntos del marcador se explican por un acierto anormal (él por debajo de lo suyo, el rival por encima). Se revisan todos los partidos en directo cada 20 segundos. Hay valor si te ofrecen al favorito un hándicap mayor que el justo; el aviso no ve lesiones, faltas ni rotaciones, y una buena defensa también baja el acierto del rival, así que no es una señal segura.</div></section>`;
+}
+// Repetición de un partido ya jugado: lo deja como estaba en el minuto DEMO.
+const playMin = p => { const [m, s] = String(p.MARKERTIME || '0:0').split(':').map(Number), mi = +p.MINUTE || 1; return (mi <= 40 ? Math.ceil(mi / 10) * 10 : 40 + Math.ceil((mi - 40) / 5) * 5) - ((m || 0) + (s || 0) / 60); };
+function demoCut(h, pbp) {
+  if (!DEMO || !pbp || h.Live) return [h, pbp];
+  const cut = {}; PERIODS.forEach(k => { cut[k] = (pbp[k] || []).filter(p => playMin(p) <= DEMO); });
+  const [A, B] = pbpTotals(cut, h), q = Math.ceil(DEMO / 10), rem = q * 10 - DEMO;
+  return [Object.assign({}, h, { Live: true, Quarter: q, RemainingPartialTime: rem + ':00', ScoreA: A.Points, ScoreB: B.Points }), cut];
 }
 function updateCalc() {
   const D = S.data, box = $('#calc'); if (!D || !D.mod || !D.live) { box.hidden = true; return; }
@@ -253,7 +311,7 @@ function leadChart(el, h, rows) {
 }
 
 function render() {
-  renderGames();
+  renderGames(); renderAlerts();
   const D = S.data, v = $('#view');
   if (!S.code) { $('#top').innerHTML = ''; $('#calc').hidden = true; v.innerHTML = '<div class="panel"><div class="empty">No hay partidos de esta competición en el calendario.</div></div>'; return; }
   const g = S.games.find(x => x.gameCode === S.code), h = D && D.h;
@@ -307,16 +365,20 @@ async function tick(mode) { // 'full' = calendario; 'slow' = todos los marcadore
   if (busy && mode === 'fast') return; busy = true;
   try {
     if (mode === 'full' || !S.games.length) await loadGames(); else if (mode === 'slow') await refreshHeaders();
+    if (mode !== 'fast') await scan();
     await loadGame(mode !== 'fast');
-    $('#status').textContent = 'Datos oficiales de Euroleague · marcador y tiro cada 5 segundos, jugadores cada 20 · última lectura ' + new Date().toLocaleTimeString('es-ES');
+    $('#status').textContent = (DEMO ? 'REPETICIÓN: última jornada jugada, parada en el minuto ' + DEMO + ' · ' : '') + 'Datos oficiales de Euroleague · marcador y tiro cada 5 segundos, jugadores y avisos cada 20 · última lectura ' + new Date().toLocaleTimeString('es-ES');
   } catch (e) {
     $('#status').textContent = 'No se ha podido leer la fuente (' + new Date().toLocaleTimeString('es-ES') + '). Se reintenta solo; comprueba la conexión a internet.';
   }
   busy = false; render();
 }
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-comp],[data-code]'); if (!t) return;
-  if (t.dataset.comp) { S.comp = t.dataset.comp; S.code = null; S.games = []; S.data = null; document.querySelectorAll('#compSeg button').forEach(b => b.setAttribute('aria-pressed', b === t)); $('#view').innerHTML = '<div class="empty">Buscando partidos…</div>'; tick('full'); }
+  const t = e.target.closest('[data-go],[data-comp],[data-code]'); if (!t) return;
+  if (t.dataset.go) { const [c, code] = t.dataset.go.split('|');
+    if (c !== S.comp) { S.comp = c; [S.games, S.other] = [S.other, S.games]; document.querySelectorAll('#compSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.comp === c)); }
+    S.code = +code; S.data = null; tick('slow'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  else if (t.dataset.comp) { S.comp = t.dataset.comp; S.code = null; S.games = []; S.other = []; S.data = null; document.querySelectorAll('#compSeg button').forEach(b => b.setAttribute('aria-pressed', b === t)); $('#view').innerHTML = '<div class="empty">Buscando partidos…</div>'; tick('full'); }
   else { S.code = +t.dataset.code; S.data = null; tick('slow'); }
 });
 let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(render, 200); });
