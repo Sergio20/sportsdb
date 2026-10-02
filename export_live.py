@@ -12,11 +12,14 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+import sys
 from pathlib import Path
 
 from sportsdb.common import DEFAULT_DB
 
 ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT / "scripts"))
+import remontadas  # noqa: E402
 TEMPLATE = ROOT / "panel" / "en_vivo_plantilla.html"
 LAST_N = 30
 # Los equipos que suben de la EuroCup rinden en Euroliga unos 9-10 puntos por partido peor que en la
@@ -113,12 +116,15 @@ def export(db=DEFAULT_DB, out=None):
     out = Path(out) if out else db.parent / "SportsDB en vivo.html"
     con = sqlite3.connect(db)
     base = baseline(con)
+    hist = remontadas.cases(con)
     con.close()
     html = TEMPLATE.read_text(encoding="utf-8")
     a, b = html.index("/*BASELINE*/"), html.index("/*END*/")
     html = html[:a] + "/*BASELINE*/" + json.dumps(base, separators=(",", ":")) + html[b:]
+    a, b = html.index("/*HISTORY*/"), html.index("/*ENDHISTORY*/")
+    html = html[:a] + "/*HISTORY*/" + json.dumps(hist, separators=(",", ":")) + html[b:]
     out.write_text(html, encoding="utf-8")
-    print(f"Panel en vivo escrito en {out} ({len(base)} equipos con valores habituales)")
+    print(f"Panel en vivo escrito en {out} ({len(base)} equipos con valores habituales, {len(hist)} remontadas del histórico)")
     return out
 
 

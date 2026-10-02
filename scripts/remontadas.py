@@ -68,7 +68,7 @@ def load(con):
     return games, halves
 
 
-def pregame(games):
+def pregame(games, verbose=True):
     """Añade a cada partido la diferencia prevista para el local, sin mirar el futuro."""
     by_league = defaultdict(list)
     for g in games:
@@ -94,7 +94,8 @@ def pregame(games):
         for g in gs:
             if g["exp"] is not None:
                 g["exp"] = my + b * (g["exp"] - mx)
-        print(f"{lg}: {n} partidos con favorito calculable · factor campo {hca:+.1f} · ajuste {b:.2f}")
+        if verbose:
+            print(f"{lg}: {n} partidos con favorito calculable · factor campo {hca:+.1f} · ajuste {b:.2f}")
 
 
 def study(games, halves):
@@ -190,6 +191,15 @@ def promoted(games):
         da = sum(a - b for a, b in pairs) / len(pairs)
         print(f"  Media: rinden {da:.1f} puntos por partido peor en Euroliga que en la EuroCup del año anterior ({len(pairs)} casos)")
     return pairs
+
+
+def cases(con) -> list:
+    """Casos compactos para el panel en vivo: [cuarto, puntos que pierde, diferencia final del favorito,
+    diferencia de acierto efectivo rival - favorito en la 1.ª parte (solo al descanso, si no null)]."""
+    games, halves = load(con)
+    pregame(games, verbose=False)
+    return [[r["q"], r["deficit"], r["final"], round(r["efg_dog"] - r["efg_fav"], 1) if r.get("efg_fav") is not None and r.get("efg_dog") is not None else None]
+            for r in study(games, halves)]
 
 
 def main():

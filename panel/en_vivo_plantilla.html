@@ -117,6 +117,8 @@ select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 (function () {
 'use strict';
 const BASE = /*BASELINE*/{}/*END*/;
+// Remontadas del histórico (scripts/remontadas.py): [cuarto, puntos que perdía el favorito, diferencia final, eFG rival - favorito al descanso]
+const HIST = /*HISTORY*/[]/*ENDHISTORY*/;
 const API = 'https://live.euroleague.net/api/', GAMES = 'https://api-live.euroleague.net/v2/competitions/';
 const FAST = 5000, SLOW = 20000;
 // Modelo del margen restante, ajustado con 2.660 partidos de Euroliga y EuroCup (2021-26) al final de cada cuarto:
@@ -263,6 +265,23 @@ function desfase(h, pbp) {
   return { favNew: !!bf.new, favOut: absent(fc, pbp, el), dogOut: absent(dc, pbp, el), level: z >= Z_STRONG && gap >= GAP_STRONG ? 'fuerte' : 'moderado', fav: s > 0 ? h.TeamA : h.TeamB, dog: s > 0 ? h.TeamB : h.TeamA, pre: Math.abs(pre), M: s * mod.M,
     gap, z, favLuck, dogLuck, fair: Math.round(-s * mod.mean * 2) / 2, sa: A.Points, sb: B.Points, favEfg: tf.efg, favBase: bf.efg, dogEfg: td.efg, dogBase: bd.efg };
 }
+// Qué pasó en el histórico con favoritos que perdían por lo mismo en un momento parecido del partido.
+const DEF_BUCKETS = [[1, 5], [6, 9], [10, 14], [15, 99]], MOMENT = { 1: 'al final del 1.er cuarto', 2: 'al descanso', 3: 'al final del 3.er cuarto' };
+function history(x, el) {
+  if (x.M >= 0 || !HIST.length) return null;
+  const q = el < 15 ? 1 : el < 25 ? 2 : 3, d = -x.M, [lo, hi] = DEF_BUCKETS.find(([a, b]) => d >= a && d <= b);
+  let cs = HIST.filter(c => c[0] === q && c[1] >= lo && c[1] <= hi), similar = false;
+  if (q === 2 && x.dogEfg - x.favEfg >= 15) { const s = cs.filter(c => c[3] != null && c[3] >= 15); if (s.length >= 15) { cs = s; similar = true; } }
+  if (cs.length < 8) return null;
+  const cover = l => 100 * cs.filter(c => c[2] + l > 0).length / cs.length, now = d + 0.5;
+  const lines = [[now, cover(now)]]; if (x.fair > 0 && x.fair !== now) lines.push([x.fair, cover(x.fair)]);
+  return { n: cs.length, q, lo, hi, similar, rec: cs.reduce((s, c) => s + c[2] + c[1], 0) / cs.length, win: cover(0), lines: lines.sort((a, b) => a[0] - b[0]) };
+}
+function historyTxt(x, el) {
+  const r = history(x, el); if (!r) return '';
+  return `<div class="note"><strong>En el histórico</strong> (${r.n} partidos de Euroliga, EuroCup y Liga Endesa con un favorito perdiendo de ${r.lo}${r.hi < 99 ? ' a ' + r.hi : ' o más'} ${MOMENT[r.q]}${r.similar ? ' y con el rival tirando 15 puntos o más mejor de eFG' : ''}): recuperó de media ${signed(r.rec, 1)} puntos y ganó el ${nf(r.win, 0)} %. `
+    + r.lines.map(([l, p], i) => `${i ? 'con' : 'Con'} <strong>${signed(l, 1)}</strong> habría acertado el <strong>${nf(p, 0)} %</strong> (cuota justa ${p > 0 ? nf(100 / p, 2) : '–'})`).join('; ') + '.</div>';
+}
 function renderAlerts() {
   const gs = S.games.concat(S.other).filter(g => g.h && g.h.Live), al = gs.filter(g => g.al).sort((x, y) => y.al.z - x.al.z), box = $('#alerts');
   document.title = (al.length ? '(' + al.length + ') ' : '') + 'SportsDB en vivo';
@@ -271,11 +290,12 @@ function renderAlerts() {
   if (!gs.length) { box.innerHTML = `<section class="panel"><h2>Desfases ahora</h2><div class="muted">Ahora no hay ningún partido en directo de Euroliga ni EuroCup${next ? '; el próximo empieza el ' + esc(new Date(next).toLocaleString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })) : ''}. Los avisos aparecerán aquí solos en cuanto haya partidos en juego.</div></section>`; return; }
   box.innerHTML = `<section class="panel"><h2>Desfases ahora</h2>${al.map(g => { const x = g.al, h = g.h;
     return `<div class="alert ${x.level}"><div class="st"><span class="tag">Desfase ${x.level}</span><span>${COMP[g.comp]} · ${esc(h.TeamA)} <strong>${x.sa}-${x.sb}</strong> ${esc(h.TeamB)} · ${esc(periodTxt(h))}</span></div>
-      <div><strong>${esc(x.fav)}</strong>, favorito por ${nf(x.pre, 0)} según sus últimos partidos,${x.M < 0 ? 'pierde por ' + nf(-x.M) : x.M > 0 ? 'gana solo por ' + nf(x.M) : 'va empatado'}. Con esos mismos tiros y su acierto habitual, ${esc(x.fav)} llevaría ${nf(Math.abs(x.favLuck), 0)} puntos ${x.favLuck < 0 ? 'más' : 'menos'} y ${esc(x.dog)} ${nf(Math.abs(x.dogLuck), 0)} ${x.dogLuck > 0 ? 'menos' : 'más'}: ${nf(x.gap, 0)} puntos del marcador vienen de un acierto fuera de lo normal.</div>
+      <div><strong>${esc(x.fav)}</strong>, favorito por ${nf(x.pre, 0)} según sus últimos partidos, ${x.M < 0 ? 'pierde por ' + nf(-x.M) : x.M > 0 ? 'gana solo por ' + nf(x.M) : 'va empatado'}. Con esos mismos tiros y su acierto habitual, ${esc(x.fav)} llevaría ${nf(Math.abs(x.favLuck), 0)} puntos ${x.favLuck < 0 ? 'más' : 'menos'} y ${esc(x.dog)} ${nf(Math.abs(x.dogLuck), 0)} ${x.dogLuck > 0 ? 'menos' : 'más'}: ${nf(x.gap, 0)} puntos del marcador vienen de un acierto fuera de lo normal.</div>
       <div class="kpis"><div class="kpi"><div class="v">${signed(x.fair, 1)}</div><div class="k">Hándicap justo · ${esc(x.fav)}</div></div>
         <div class="kpi"><div class="v">${nf(x.favEfg, 0)} %</div><div class="k">Acierto efectivo ${esc(x.fav)} · habitual ${nf(x.favBase, 0)} %</div></div>
         <div class="kpi"><div class="v">${nf(x.dogEfg, 0)} %</div><div class="k">Acierto efectivo ${esc(x.dog)} · habitual ${nf(x.dogBase, 0)} %</div></div>
         <div class="kpi"><div class="v">1 de cada ${nf(1 / (1 - phi(x.z)), 0)}</div><div class="k">Así de raro es este acierto</div></div></div>
+      ${historyTxt(x, elapsed(h))}
       ${x.favNew ? `<div class="note warn">Ojo: ${esc(x.fav)} es recién llegado a la Euroliga; su condición de favorito se basa en pocos partidos en esta competición.</div>` : ''}
       ${x.favOut.length ? `<div class="note warn">Ojo: a ${esc(x.fav)} le faltan jugadores clave: ${absTxt(x.favOut)}. Su acierto habitual puede no servir hoy.</div>` : ''}
       ${x.dogOut.length ? `<div class="muted small">A ${esc(x.dog)} le faltan: ${absTxt(x.dogOut)}.</div>` : ''}
