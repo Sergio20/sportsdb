@@ -1,0 +1,84 @@
+name: Actualizar datos y publicar la web
+
+on:
+  schedule:
+    - cron: "10 6 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: sportsdb
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Recuperar la base de datos (rama data)
+        id: db
+        run: |
+          mkdir -p data
+          if git fetch --depth=1 origin data; then
+            git show FETCH_HEAD:deportes_db.zip > /tmp/deportes_db.zip
+          else
+            cp deportes_db.zip /tmp/deportes_db.zip
+            echo "bootstrap=1" >> "$GITHUB_OUTPUT"
+          fi
+          unzip -o /tmp/deportes_db.zip -d data
+          python scripts/check_db.py data/deportes.db --save /tmp/antes.json
+
+      - name: Actualizar datos
+        if: github.event_name != 'push'
+        run: python update_db.py || echo "::warning::Alguna fuente ha fallado; se publica con los datos disponibles"
+
+      - name: Comprobar la base de datos
+        run: python scripts/check_db.py data/deportes.db --compare /tmp/antes.json
+
+      - name: Construir la web
+        run: python build_site.py
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Guardar la base de datos (rama data, un solo commit)
+        if: github.event_name != 'push' || steps.db.outputs.bootstrap == '1'
+        run: |
+          python scripts/check_db.py data/deportes.db --checkpoint
+          tmp=$(mktemp -d)
+          (cd data && zip -q -9 "$tmp/deportes_db.zip" deportes.db)
+          cd "$tmp"
+          git init -q -b data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deportes_db.zip
+          git commit -q -m "Base de datos $(date -u +%Y-%m-%d)"
+          git push --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" data
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
