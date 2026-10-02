@@ -124,7 +124,8 @@ def export(db=DEFAULT_DB, out=None):
     a, b = html.index("/*HISTORY*/"), html.index("/*ENDHISTORY*/")
     html = html[:a] + "/*HISTORY*/" + json.dumps(hist, separators=(",", ":")) + html[b:]
     out.write_text(html, encoding="utf-8")
-    print(f"Panel en vivo escrito en {out} ({len(base)} equipos con valores habituales, {len(hist)} remontadas del histórico)")
+    print(f"Panel en vivo escrito en {out} ({len(base)} equipos con valores habituales, "
+          f"{len(hist['fav'])} remontadas y {len(hist['pace'])} ventajas de 10+ del histórico)")
     return out
 
 

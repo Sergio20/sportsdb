@@ -33,6 +33,14 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   jornada jugada parada en el minuto 25. «Contexto del partido» muestra el nivel de cada equipo,
   si es recién llegado a la Euroliga y sus jugadores clave (marca los que no han aparecido en
   ninguna jugada pasados 10 minutos). Los datos los incrusta `export_live.py`.
+  Segundo aviso, «Ritmo insostenible»: gana de 10+ anotando 20+ puntos por encima de su media ante
+  un rival de su nivel (umbrales `LEAD`, `PACE_EXTRA`, `LEVEL_GAP`). Cada aviso trae «En el
+  histórico» con los casos parecidos (`HISTORY`, de `scripts/remontadas.py`). En el registro de
+  apuestas, la columna «Ahora» da para cada apuesta abierta la probabilidad actual y el «cierre
+  justo» (importe × cuota × probabilidad) para decidir si aceptar el cash out de la casa.
+  La fuente corta (error 429) si se le pide mucho: el escaneo lee como mucho 3 partidos por vuelta
+  y cada uno cada 45 s (`SCAN_MAX`, `SCAN_EVERY`); tras un fallo la página espera 30 s.
+- `scripts/cronologia.py E2026 22 26`: un partido minuto a minuto (marcador, ritmo, máxima ventaja).
 - `scripts/remontadas.py`: estudio con el histórico de qué pasa cuando el favorito va perdiendo
   al final de cada cuarto (cuánto recupera, cuántas veces cubre +2,5…+8,5) y cuánto bajan los
   equipos que suben de EuroCup a Euroliga (de ahí `EUROCUP_GAP` en `export_live.py`).

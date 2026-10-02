@@ -75,17 +75,22 @@ def pregame(games, verbose=True):
         by_league[g["league"]].append(g)
     for lg, gs in by_league.items():
         hist = defaultdict(lambda: deque(maxlen=LAST_N))
+        scored = defaultdict(lambda: deque(maxlen=LAST_N))   # puntos anotados, para el ritmo habitual
         # factor campo de la competición (media de toda la muestra; varía poco entre temporadas)
         hca = sum(g["hs"] - g["as_"] for g in gs) / len(gs)
         for g in gs:
             h, a = hist[g["hc"]], hist[g["ac"]]
             if len(h) >= MIN_GAMES and len(a) >= MIN_GAMES:
                 g["exp"] = hca + (sum(h) / len(h) - sum(a) / len(a)) / 2
+                g["pf_h"] = sum(scored[g["hc"]]) / len(scored[g["hc"]])
+                g["pf_a"] = sum(scored[g["ac"]]) / len(scored[g["ac"]])
             else:
                 g["exp"] = None
             m = g["hs"] - g["as_"]
             h.append(m - hca)
             a.append(-m + hca)
+            scored[g["hc"]].append(g["hs"])
+            scored[g["ac"]].append(g["as_"])
         # calibración: la diferencia prevista se ajusta a la real con una recta
         xs = [(g["exp"], g["hs"] - g["as_"]) for g in gs if g["exp"] is not None]
         n = len(xs)
@@ -121,6 +126,55 @@ def study(games, halves):
                 row["efg_fav"], row["efg_dog"] = efg(hf), efg(hd)
             rows.append(row)
     return rows
+
+
+PACE_EXTRA = 20   # ritmo anómalo: anota a un ritmo de 20+ puntos por encima de su media
+LEVEL_GAP = 3     # el que pierde no es peor que el que gana por más de 3 puntos previstos
+
+
+def pace_study(games):
+    """Equipo que gana de 10+ anotando a un ritmo muy superior al suyo ante un rival de su nivel (o mejor)."""
+    rows = []
+    for g in games:
+        if g["exp"] is None:
+            continue
+        cum_h = cum_a = 0
+        for p in (1, 2, 3):
+            cum_h += g["q"][p][0]
+            cum_a += g["q"][p][1]
+            lead = cum_h - cum_a
+            if abs(lead) < 10:
+                continue
+            s = 1 if lead > 0 else -1                # 1 = gana el local
+            pace = (cum_h if s > 0 else cum_a) * 4 / p
+            usual = g["pf_h"] if s > 0 else g["pf_a"]
+            trail_exp = -s * g["exp"]                # diferencia prevista para el que pierde
+            if trail_exp < -LEVEL_GAP:
+                continue
+            rows.append(dict(q=p, lead=abs(lead), extra=pace - usual, trail_exp=trail_exp,
+                             final=-s * (g["hs"] - g["as_"]), league=g["league"],   # diferencia final del que iba perdiendo
+                             who=f'{g["ht"]} - {g["at"]} {g["hs"]}-{g["as_"]}'))
+    return rows
+
+
+def pace_report(rows):
+    print(f"\nEQUIPO QUE GANA DE 10+ ANTE UN RIVAL DE SU NIVEL O MEJOR: ¿importa que anote a un ritmo anormal?")
+    print(f"«Ritmo anormal» = va camino de anotar {PACE_EXTRA}+ puntos más que su media. «+X» = el que pierde cubre ese hándicap.")
+    lines = [4.5, 8.5, 12.5, 16.5]
+    for p, name in ((1, "Final del 1.er cuarto"), (2, "Descanso"), (3, "Final del 3.er cuarto")):
+        print(f"\n== {name} ==")
+        print(f"{'Ventaja':<9}{'Ritmo':<10}{'Casos':>6}{'Recorta':>9}{'Gana':>7}" + "".join(f"{'+' + str(l):>8}" for l in lines) + f"{'+ventaja':>10}")
+        for lo, hi in ((10, 14), (15, 19), (20, 99)):
+            for lab, cond in (("anormal", lambda r: r["extra"] >= PACE_EXTRA), ("normal", lambda r: r["extra"] < PACE_EXTRA)):
+                sub = [r for r in rows if r["q"] == p and lo <= r["lead"] <= hi and cond(r)]
+                n = len(sub)
+                if n < 5:
+                    continue
+                rec = sum(r["final"] + r["lead"] for r in sub) / n
+                out = f"{f'{lo}-{hi}' if hi < 99 else f'{lo}+':<9}{lab:<10}{n:>6}{rec:>+9.1f}{pct(sum(r['final'] > 0 for r in sub), n):>7}"
+                out += "".join(f"{pct(sum(r['final'] + l > 0 for r in sub), n):>8}" for l in lines)
+                out += f"{pct(sum(r['final'] + r['lead'] + 0.5 > 0 for r in sub), n):>10}"
+                print(out)
 
 
 def pct(x, n):
@@ -198,8 +252,11 @@ def cases(con) -> list:
     diferencia de acierto efectivo rival - favorito en la 1.ª parte (solo al descanso, si no null)]."""
     games, halves = load(con)
     pregame(games, verbose=False)
-    return [[r["q"], r["deficit"], r["final"], round(r["efg_dog"] - r["efg_fav"], 1) if r.get("efg_fav") is not None and r.get("efg_dog") is not None else None]
-            for r in study(games, halves)]
+    fav = [[r["q"], r["deficit"], r["final"], round(r["efg_dog"] - r["efg_fav"], 1) if r.get("efg_fav") is not None and r.get("efg_dog") is not None else None]
+           for r in study(games, halves)]
+    # [cuarto, ventaja del que gana, diferencia final del que pierde, puntos de ritmo por encima de su media]
+    pace = [[r["q"], r["lead"], r["final"], round(r["extra"])] for r in pace_study(games)]
+    return {"fav": fav, "pace": pace}
 
 
 def main():
@@ -212,6 +269,7 @@ def main():
     pregame(games)
     rows = study(games, halves)
     report(rows, games)
+    pace_report(pace_study(games))
     promoted(games)
     if a.json:
         Path(a.json).write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
