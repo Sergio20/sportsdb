@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SportsDB en vivo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: marcador arriba, indicadores de ritmo, tabla de tiro frente a lo habitual, evolución y jugadores. */
+:root {
+  --bg: #f2f4f1; --surface: #ffffff; --surface-2: #e8ece7; --line: #d3d9d2;
+  --fg: #15201b; --fg-2: #4a5850; --fg-3: #6f7c74;
+  --accent: #0d6657; --accent-fg: #ffffff; --accent-soft: #d9ebe6;
+  --series: #2a78d6; --series-soft: rgba(42,120,214,.12); --series-2: #eb6834;
+  --win: #1c7c45; --loss: #b3352f; --live: #c62828;
+  --display: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "Barlow", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #0f1513; --surface: #171f1c; --surface-2: #212b27; --line: #2f3b36;
+  --fg: #eef3ef; --fg-2: #b4c0b9; --fg-3: #8a978f;
+  --accent: #4fc3ac; --accent-fg: #06221c; --accent-soft: #1d3a34;
+  --series: #5a9cec; --series-soft: rgba(90,156,236,.16); --series-2: #e0703f;
+  --win: #7fdba0; --loss: #f29c96; --live: #ff6b6b; color-scheme: dark } }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font: 15px/1.45 var(--body); margin: 0 }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 16px; padding-block: 18px 48px; display: flex; flex-direction: column; gap: 18px }
+h1, h2 { font-family: var(--display); margin: 0; letter-spacing: .01em }
+h1 { font-size: 30px; font-weight: 700; line-height: 1 } h2 { font-size: 21px; font-weight: 600 }
+.muted { color: var(--fg-3) } .small { font-size: 13px }
+header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; padding-bottom: 12px; border-bottom: 2px solid var(--fg) }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--surface) }
+.seg button { font: 600 14px var(--body); padding: 8px 12px; border: 0; background: transparent; color: var(--fg-2); cursor: pointer }
+.seg button + button { border-left: 1px solid var(--line) }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg) }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.games { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px }
+.game { flex: 0 0 auto; min-width: 190px; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; cursor: pointer; color: var(--fg); font: 14px var(--body) }
+.game[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent) }
+.game .st { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-3); display: flex; gap: 6px; align-items: center }
+.game .row { display: flex; justify-content: space-between; gap: 10px; font-weight: 500 } .game .row b { font-variant-numeric: tabular-nums }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--live); display: inline-block }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; display: flex; flex-direction: column; gap: 12px }
+.board { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 16px; align-items: center }
+.board .t { font: 600 22px/1.1 var(--display) } .board .t.r { text-align: right }
+.board .sc { font: 700 64px/1 var(--display); font-variant-numeric: tabular-nums; white-space: nowrap }
+.board .clock { text-align: center; font-weight: 600; color: var(--fg-2) } .board .clock.live { color: var(--live) }
+@media (max-width: 600px) { .board .sc { font-size: 44px } .board .t { font-size: 17px } }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start }
+@media (max-width: 860px) { .grid2 { grid-template-columns: minmax(0, 1fr) } }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px }
+.kpi { background: var(--surface-2); border-radius: 6px; padding: 10px 12px }
+.kpi .v { font: 700 26px/1.1 var(--display); font-variant-numeric: tabular-nums } .kpi .k { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-2) }
+.scroll { overflow-x: auto }
+table { border-collapse: collapse; width: 100%; font-size: 14px }
+th { font: 600 12px var(--body); text-transform: uppercase; letter-spacing: .06em; color: var(--fg-3); text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap }
+td { padding: 7px 8px; border-bottom: 1px solid var(--surface-2); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap }
+th.l, td.l { text-align: left } td.strong { font-weight: 600 } tr:last-child td { border-bottom: 0 }
+th.grp { text-align: center; border-left: 1px solid var(--line) } td.b { border-left: 1px solid var(--line) }
+.pos { color: var(--win); font-weight: 600 } .neg { color: var(--loss); font-weight: 600 }
+.on { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--win); margin-right: 6px }
+.note { font-size: 13px; color: var(--fg-2); background: var(--accent-soft); border-radius: 6px; padding: 9px 12px }
+.chart { position: relative } .chart svg { display: block; width: 100%; height: auto } .chart text { font: 12px var(--body); fill: var(--fg-3) }
+.tip { position: absolute; pointer-events: none; background: var(--fg); color: var(--bg); font-size: 13px; padding: 6px 9px; border-radius: 5px; white-space: nowrap; transform: translate(-50%, -115%) }
+.plays div { padding: 6px 0; border-bottom: 1px solid var(--surface-2); display: grid; grid-template-columns: 54px 64px minmax(0, 1fr); gap: 8px }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px }
+.btn { font: 600 14px var(--body); padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer }
+.btn:hover { border-color: var(--accent); color: var(--accent) }
+.btn.x { padding: 2px 8px; font-weight: 500 }
+.empty { padding: 26px 8px; text-align: center; color: var(--fg-2) }
+#view, #top { display: flex; flex-direction: column; gap: 18px }
+.calc { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 16px; align-items: end }
+.field { display: flex; flex-direction: column; gap: 4px } .field label { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-2); font-weight: 600 }
+select, input[type=number] { font: 500 15px var(--body); padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); width: 100% }
+select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+[hidden] { display: none !important }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><h1>SportsDB en vivo</h1><div class="muted small" id="status">Cargando…</div></div>
+    <div class="seg" id="compSeg" role="group" aria-label="Competición"><button data-comp="E" aria-pressed="true">Euroliga</button><button data-comp="U" aria-pressed="false">EuroCup</button></div>
+  </header>
+  <div class="games" id="games"></div>
+  <div id="top"></div>
+  <section class="panel" id="calc" hidden>
+    <h2>¿Tiene valor el hándicap que te ofrecen?</h2>
+    <div class="calc">
+      <div class="field"><label for="cTeam">Equipo</label><select id="cTeam"></select></div>
+      <div class="field"><label for="cLine">Hándicap (p. ej. 7,5 o -3,5)</label><input type="number" id="cLine" step="0.5" value="5.5"></div>
+      <div class="field"><label for="cOdd">Cuota</label><input type="number" id="cOdd" step="0.01" min="1" value="1.85"></div>
+      <div class="field"><label for="cStake">Importe (€)</label><input type="number" id="cStake" step="1" min="0" value="10"></div>
+      <div class="kpi"><div class="v" id="cProb">–</div><div class="k">Probabilidad de acertar</div></div>
+      <div class="kpi"><div class="v" id="cFair">–</div><div class="k">Cuota justa</div></div>
+      <div class="kpi"><div class="v" id="cEv">–</div><div class="k">Valor esperado por euro</div></div>
+    </div>
+    <div><button class="btn" id="cSave">Anotar esta apuesta</button> <span class="muted small" id="cSaved"></span></div>
+    <div class="muted small" id="cNote"></div>
+  </section>
+  <div id="view"><div class="empty">Buscando partidos…</div></div>
+  <section class="panel" id="log">
+    <div style="display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:space-between;align-items:baseline"><h2>Registro de apuestas</h2><button class="btn" id="logCopy">Copiar como tabla</button></div>
+    <div class="kpis" id="logKpis"></div>
+    <div class="scroll" id="logTable"></div>
+    <div class="muted small" id="logNote">Las apuestas anotadas se guardan en este navegador y en este ordenador. Se resuelven solas cuando el partido termina. Compara los aciertos reales con la probabilidad que daba el panel: si con el tiempo coinciden, la estimación es fiable; el beneficio dirá si las cuotas que te ofrecen tienen valor.</div>
+  </section>
+</div>
+<script>
+(function () {
+'use strict';
+const BASE = /*BASELINE*/{}/*END*/;
+const API = 'https://live.euroleague.net/api/', GAMES = 'https://api-live.euroleague.net/v2/competitions/';
+const FAST = 5000, SLOW = 20000;
+// Modelo del margen restante, ajustado con 2.660 partidos de Euroliga y EuroCup (2021-26) al final de cada cuarto:
+// por cada minuto que queda, +0,10 para el local, +0,021 por punto de diferencia de nivel y −0,010 por punto de ventaja actual.
+const K = { home: 0.10, q: 0.021, m: -0.010, sd: 2.1 };
+const phi = z => { const t = 1 / (1 + 0.3275911 * Math.abs(z) / Math.SQRT2), e = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-z * z / 2); return z >= 0 ? 0.5 * (1 + e) : 0.5 * (1 - e); };
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const nf = (v, d) => v == null || !isFinite(v) ? '–' : Number(v).toLocaleString('es-ES', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
+const signed = (v, d) => v == null || !isFinite(v) ? '–' : (v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v), d);
+const cls = v => v > 0.05 ? 'pos' : v < -0.05 ? 'neg' : '';
+const pc = (m, a) => a ? 100 * m / a : null;
+const S = { comp: 'E', year: null, games: [], code: null, data: null, timer: null };
+
+function seasonYear() { const d = new Date(); return d.getMonth() >= 6 ? d.getFullYear() : d.getFullYear() - 1; }
+async function getJSON(url) { const r = await fetch(url, { cache: 'no-store' }); if (!r.ok) throw new Error(r.status); const t = await r.text(); return t.trim() ? JSON.parse(t) : null; }
+const live = (ep, code) => getJSON(`${API}${ep}?gamecode=${code}&seasoncode=${S.comp}${S.year}`);
+const localDay = iso => { const d = new Date(iso); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+
+async function loadGames() {
+  S.year = seasonYear();
+  const d = await getJSON(`${GAMES}${S.comp}/seasons/${S.comp}${S.year}/games?limit=1000`);
+  const all = (d && d.data || []).filter(g => g.utcDate && !g.local.club.isVirtual && !g.road.club.isVirtual);
+  const today = localDay(new Date().toISOString());
+  const days = [...new Set(all.map(g => localDay(g.utcDate)))].sort();
+  // el día de hoy; si hoy no hay partidos, el próximo día con partidos (o el último jugado)
+  const day = days.includes(today) ? today : (days.find(x => x > today) || days[days.length - 1]);
+  S.day = day;
+  S.games = all.filter(g => localDay(g.utcDate) === day).sort((a, b) => a.utcDate.localeCompare(b.utcDate));
+  await refreshHeaders();
+  if (!S.games.some(g => g.gameCode === S.code)) {
+    const liveG = S.games.find(g => g.h && g.h.Live);
+    S.code = (liveG || S.games[0] || {}).gameCode || null;
+  }
+}
+async function refreshHeaders() {
+  await Promise.all(S.games.map(async g => { try { g.h = await live('Header', g.gameCode); } catch (e) { /* se mantiene el anterior */ } }));
+}
+function stateOf(g) {
+  const h = g.h;
+  if (h && h.Live) return { live: true, txt: periodTxt(h) };
+  if (g.played || (h && +h.ScoreA + +h.ScoreB > 0 && !h.Live)) return { txt: 'Final' };
+  return { txt: new Date(g.utcDate).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) };
+}
+function periodTxt(h) { const q = +h.Quarter || 0; if (!q) return played(h) ? 'Descanso' : 'A punto de empezar'; return (q > 4 ? 'Prórroga ' + (q - 4) : q + '.º cuarto') + ' · ' + (h.RemainingPartialTime || '').trim(); }
+const played = h => [1, 2, 3, 4].filter(i => +h['ScoreQuarter' + i + 'A'] + +h['ScoreQuarter' + i + 'B'] > 0).length;
+function elapsed(h) {
+  const q = +h.Quarter || 0; if (!q) return played(h) * 10;
+  const [m, s] = String(h.RemainingPartialTime || '0:0').trim().split(':').map(Number), rem = (m || 0) + (s || 0) / 60;
+  return q <= 4 ? (q - 1) * 10 + (10 - rem) : 40 + (q - 5) * 5 + (5 - rem);
+}
+function renderGames() {
+  $('#games').innerHTML = S.games.map(g => { const st = stateOf(g), h = g.h, sa = h && (st.live || st.txt === 'Final') ? h.ScoreA : (g.played ? g.local.score : ''), sb = h && (st.live || st.txt === 'Final') ? h.ScoreB : (g.played ? g.road.score : '');
+    return `<button class="game" data-code="${g.gameCode}" aria-pressed="${g.gameCode === S.code}"><div class="st">${st.live ? '<span class="dot"></span>' : ''}${esc(st.txt)}</div><div class="row"><span>${esc(g.local.club.abbreviatedName || g.local.club.name)}</span><b>${esc(sa)}</b></div><div class="row"><span>${esc(g.road.club.abbreviatedName || g.road.club.name)}</span><b>${esc(sb)}</b></div></button>`; }).join('')
+    || '<div class="muted">No hay partidos programados.</div>';
+}
+
+function teamAgg(t) { // t = totales del boxscore
+  const fga = t.FieldGoalsAttempted2 + t.FieldGoalsAttempted3, fgm = t.FieldGoalsMade2 + t.FieldGoalsMade3;
+  const poss = fga + 0.44 * t.FreeThrowsAttempted - t.OffensiveRebounds + t.Turnovers;
+  return { p2: pc(t.FieldGoalsMade2, t.FieldGoalsAttempted2), p3: pc(t.FieldGoalsMade3, t.FieldGoalsAttempted3), ft: pc(t.FreeThrowsMade, t.FreeThrowsAttempted),
+    efg: fga ? 100 * (fgm + 0.5 * t.FieldGoalsMade3) / fga : null, r3: fga ? 100 * t.FieldGoalsAttempted3 / fga : null, poss, ppp: poss > 0 ? t.Points / poss : null };
+}
+async function loadGame(slow) {
+  if (!S.code) { S.data = null; return; }
+  const code = S.code, prev = S.data && S.data.code === code ? S.data : {};
+  const [h, pbp, box] = await Promise.all([live('Header', code), live('PlaybyPlay', code).catch(() => prev.pbp || null), slow || !prev.box ? live('Boxscore', code).catch(() => prev.box || null) : Promise.resolve(prev.box)]);
+  if (code !== S.code) return;
+  S.data = { code, h, box, pbp };
+  const g = S.games.find(x => x.gameCode === code); if (g && h) g.h = h;
+}
+const PERIODS = ['FirstQuarter', 'SecondQuarter', 'ThirdQuarter', 'ForthQuarter', 'ExtraTime'];
+const allPlays = pbp => pbp ? PERIODS.flatMap(k => pbp[k] || []) : [];
+// Totales de equipo reconstruidos jugada a jugada: es la fuente que antes se actualiza.
+function pbpTotals(pbp, h) {
+  const mk = () => ({ Points: 0, FieldGoalsMade2: 0, FieldGoalsAttempted2: 0, FieldGoalsMade3: 0, FieldGoalsAttempted3: 0, FreeThrowsMade: 0, FreeThrowsAttempted: 0, OffensiveRebounds: 0, DefensiveRebounds: 0, Assistances: 0, Steals: 0, Turnovers: 0, BlocksFavour: 0 });
+  const A = mk(), B = mk(), ca = (h.CodeTeamA || '').trim();
+  allPlays(pbp).forEach(p => { const t = (p.CODETEAM || '').trim(); if (!t) return; const o = t === ca ? A : B;
+    switch ((p.PLAYTYPE || '').trim()) {
+      case '2FGM': o.FieldGoalsMade2++; o.FieldGoalsAttempted2++; o.Points += 2; break; case '2FGA': o.FieldGoalsAttempted2++; break;
+      case '3FGM': o.FieldGoalsMade3++; o.FieldGoalsAttempted3++; o.Points += 3; break; case '3FGA': o.FieldGoalsAttempted3++; break;
+      case 'FTM': o.FreeThrowsMade++; o.FreeThrowsAttempted++; o.Points += 1; break; case 'FTA': o.FreeThrowsAttempted++; break;
+      case 'O': o.OffensiveRebounds++; break; case 'D': o.DefensiveRebounds++; break; case 'AS': o.Assistances++; break;
+      case 'ST': o.Steals++; break; case 'TO': o.Turnovers++; break; case 'FV': o.BlocksFavour++; break; } });
+  return [A, B];
+}
+function model(h, A, B, el) {
+  const bA = BASE[(h.CodeTeamA || '').trim()], bB = BASE[(h.CodeTeamB || '').trim()];
+  const Q = bA && bB ? (bA.pf - bA.pa) - (bB.pf - bB.pa) : 0, M = A.Points - B.Points, r = Math.max(0, (el > 40 ? 40 + Math.ceil((el - 40) / 5) * 5 : 40) - el);
+  const mean = M + r * (K.home + K.q * Q + K.m * M), sd = Math.max(0.01, K.sd * Math.sqrt(r));
+  const xp = (t, b) => b ? 2 * t.FieldGoalsAttempted2 * b.p2 / 100 + 3 * t.FieldGoalsAttempted3 * b.p3 / 100 + t.FreeThrowsAttempted * b.ft / 100 : null;
+  return { Q, M, r, mean, sd, pA: r > 0 ? phi(mean / sd) : (M > 0 ? 1 : 0), xA: xp(A, bA), xB: xp(B, bB), known: !!(bA && bB) };
+}
+function updateCalc() {
+  const D = S.data, box = $('#calc'); if (!D || !D.mod || !D.live) { box.hidden = true; return; }
+  box.hidden = false; const sel = $('#cTeam'), h = D.h, key = h.CodeTeamA + '|' + h.CodeTeamB;
+  if (sel.dataset.key !== key) { sel.dataset.key = key; sel.innerHTML = `<option value="A">${esc(h.TeamA)}</option><option value="B">${esc(h.TeamB)}</option>`; sel.value = D.mod.M > 0 ? 'B' : 'A'; }
+  const side = sel.value === 'A' ? 1 : -1, line = parseFloat($('#cLine').value), odd = parseFloat($('#cOdd').value), m = D.mod;
+  const p = isFinite(line) ? phi((side * m.mean + line) / m.sd) : null, ok = p != null && isFinite(odd) && odd > 1;
+  $('#cProb').textContent = p != null ? nf(100 * p, 0) + ' %' : '–'; $('#cFair').textContent = p ? nf(1 / p, 2) : '–';
+  const ev = ok ? p * odd - 1 : null, e = $('#cEv'); e.textContent = ev != null ? signed(100 * ev, 0) + ' %' : '–'; e.className = 'v ' + (ev != null ? cls(ev) : '');
+  $('#cNote').textContent = 'Escribe el hándicap y la cuota que veas en tu casa de apuestas. Hay valor cuando la cuota ofrecida supera la cuota justa. La estimación parte del marcador, el tiempo que queda, el factor campo y el nivel reciente de cada equipo; el margen de error es de ±' + nf(m.sd, 0) + ' puntos, así que ningún hándicap es seguro.';
+}
+
+function shootingTable(h, A, B, a, b) {
+  const bA = BASE[(h.CodeTeamA || '').trim()], bB = BASE[(h.CodeTeamB || '').trim()];
+  const row = (lab, k, d, unit, raw) => { const f = (v, base) => { const dif = v != null && base != null ? v - base : null; return `<td class="b strong">${raw ? raw(v === a[k] ? A : B) : ''}${nf(v, d)}${unit}</td><td>${base != null ? nf(base, d) + unit : '–'}</td><td class="${cls(dif)}">${signed(dif, d)}</td>`; };
+    return `<tr><td class="l">${lab}</td>${f(a[k], bA && bA[k])}${f(b[k], bB && bB[k])}</tr>`; };
+  const frac = (m, at) => t => `<span class="muted" style="font-weight:400">${t[m]}/${t[at]} · </span>`;
+  return `<div class="scroll"><table><thead><tr><th class="l"></th><th class="grp" colspan="3">${esc(h.TeamA)}</th><th class="grp" colspan="3">${esc(h.TeamB)}</th></tr>
+    <tr><th class="l"></th><th>Hoy</th><th>Habitual</th><th>Dif.</th><th>Hoy</th><th>Habitual</th><th>Dif.</th></tr></thead><tbody>
+    ${row('Tiros de 2', 'p2', 1, ' %', frac('FieldGoalsMade2', 'FieldGoalsAttempted2'))}${row('Triples', 'p3', 1, ' %', frac('FieldGoalsMade3', 'FieldGoalsAttempted3'))}${row('Tiros libres', 'ft', 1, ' %', frac('FreeThrowsMade', 'FreeThrowsAttempted'))}
+    ${row('Acierto efectivo (eFG)', 'efg', 1, ' %')}${row('Tiros que son triples', 'r3', 1, ' %')}${row('Puntos por posesión', 'ppp', 2, '')}</tbody></table></div>
+    <div class="muted small">Habitual = media de sus últimos ${bA ? bA.n : '–'} y ${bB ? bB.n : '–'} partidos de Euroliga y EuroCup en la base de datos. El acierto efectivo cuenta cada triple como 1,5 canastas. Una diferencia grande, sobre todo en triples, tiende a corregirse durante el partido.</div>`;
+}
+function statsTable(h, A, B) {
+  const rows = [['Rebotes ofensivos', 'OffensiveRebounds'], ['Rebotes defensivos', 'DefensiveRebounds'], ['Asistencias', 'Assistances'], ['Pérdidas', 'Turnovers'], ['Robos', 'Steals'], ['Tapones', 'BlocksFavour'], ['Faltas', 'FoulsCommited'], ['Valoración', 'Valuation']];
+  return `<div class="scroll"><table><thead><tr><th class="l"></th><th>${esc(h.CodeTeamA)}</th><th>${esc(h.CodeTeamB)}</th></tr></thead><tbody>${rows.map(([l, k]) => `<tr><td class="l">${l}</td><td class="strong">${A[k]}</td><td class="strong">${B[k]}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function playersTable(s) {
+  const ps = s.PlayersStats.filter(p => p.Minutes && p.Minutes !== 'DNP').sort((x, y) => y.Points - x.Points || y.Valuation - x.Valuation);
+  return `<div class="scroll"><table><thead><tr><th class="l">Jugador</th><th>Min</th><th>Pts</th><th>T2</th><th>T3</th><th>TL</th><th>Reb</th><th>As</th><th>Faltas</th><th>+/−</th></tr></thead><tbody>${ps.map(p => `<tr><td class="l">${p.IsPlaying ? '<span class="on" title="En pista"></span>' : ''}${esc(p.Player)}</td><td>${esc(p.Minutes)}</td><td class="strong">${p.Points}</td><td>${p.FieldGoalsMade2}/${p.FieldGoalsAttempted2}</td><td>${p.FieldGoalsMade3}/${p.FieldGoalsAttempted3}</td><td>${p.FreeThrowsMade}/${p.FreeThrowsAttempted}</td><td>${p.TotalRebounds}</td><td>${p.Assistances}</td><td class="${p.FoulsCommited >= 4 ? 'neg' : ''}">${p.FoulsCommited}</td><td>${signed(p.Plusminus)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function niceStep(raw) { const p = Math.pow(10, Math.floor(Math.log10(raw || 1))), f = raw / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p; }
+function leadChart(el, h, rows) {
+  const pts = [{ x: 0, y: 0, a: 0, b: 0 }];
+  rows.forEach(r => { if (r.POINTS_A == null) return; const [m, s] = String(r.MARKERTIME || '0:0').split(':').map(Number); const q = Math.ceil(r.MINUTE / 10) || 1, base = r.MINUTE <= 40 ? (q - 1) * 10 + 10 : 40 + Math.ceil((r.MINUTE - 40) / 5) * 5; pts.push({ x: Math.max(0, base - ((m || 0) + (s || 0) / 60)), y: r.POINTS_A - r.POINTS_B, a: r.POINTS_A, b: r.POINTS_B }); });
+  if (pts.length < 3) { el.innerHTML = '<div class="empty">Todavía no hay canastas.</div>'; return; }
+  const W = Math.max(300, el.clientWidth || 600), H = 220, m = { l: 40, r: 14, t: 12, b: 24 }, xmax = Math.max(40, Math.ceil(pts[pts.length - 1].x / 5) * 5);
+  let lo = Math.min(0, ...pts.map(p => p.y)), hi = Math.max(0, ...pts.map(p => p.y)); const step = niceStep((hi - lo || 1) / 4); lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step; if (hi === lo) hi = lo + step;
+  const x = v => m.l + (W - m.l - m.r) * v / xmax, y = v => m.t + (H - m.t - m.b) * (1 - (v - lo) / (hi - lo));
+  let g = ''; for (let v = lo; v <= hi + 1e-9; v += step) g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(${Math.abs(v) < 1e-9 ? '--fg-3' : '--line'})"/><text x="${m.l - 8}" y="${y(v) + 4}" text-anchor="end">${signed(v)}</text>`;
+  for (let q = 10; q <= xmax; q += 10) g += `<line x1="${x(q)}" x2="${x(q)}" y1="${m.t}" y2="${H - m.b}" stroke="var(--line)" stroke-dasharray="3 3"/><text x="${x(q - 5)}" y="${H - 6}" text-anchor="middle">${q <= 40 ? q / 10 + '.º cuarto' : 'Prórroga'}</text>`;
+  let d = `M${x(0)} ${y(0)}`; pts.slice(1).forEach((p, i) => { d += ` L${x(p.x).toFixed(1)} ${y(pts[i].y).toFixed(1)} L${x(p.x).toFixed(1)} ${y(p.y).toFixed(1)}`; });
+  const last = pts[pts.length - 1];
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Diferencia en el marcador a lo largo del partido">${g}<path d="${d} L${x(last.x)} ${y(0)} Z" fill="var(--series-soft)"/><path d="${d}" fill="none" stroke="var(--series)" stroke-width="2" stroke-linejoin="round"/><circle cx="${x(last.x)}" cy="${y(last.y)}" r="4" fill="var(--series)" stroke="var(--surface)" stroke-width="2"/><line id="xh" y1="${m.t}" y2="${H - m.b}" stroke="var(--fg-3)" visibility="hidden"/><rect x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent"/></svg><div class="tip" hidden></div>`;
+  const svg = el.querySelector('svg'), tip = el.querySelector('.tip'), xh = el.querySelector('#xh');
+  const move = ev => { const r = svg.getBoundingClientRect(), px = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left) * W / r.width, min = (px - m.l) / (W - m.l - m.r) * xmax; let p = pts[0]; for (const q of pts) { if (q.x <= min) p = q; else break; }
+    xh.setAttribute('x1', x(Math.max(0, min))); xh.setAttribute('x2', x(Math.max(0, min))); xh.setAttribute('visibility', 'visible'); tip.hidden = false; tip.innerHTML = `Minuto ${nf(Math.max(0, min), 0)} · ${p.a}-${p.b} (<strong>${signed(p.y)}</strong>)`; tip.style.left = Math.max(80, Math.min(r.width - 80, x(Math.max(0, min)) * r.width / W)) + 'px'; tip.style.top = (y(p.y) * r.height / H) + 'px'; };
+  svg.addEventListener('mousemove', move); svg.addEventListener('touchmove', move, { passive: true }); svg.addEventListener('mouseleave', () => { tip.hidden = true; xh.setAttribute('visibility', 'hidden'); });
+}
+
+function render() {
+  renderGames();
+  const D = S.data, v = $('#view');
+  if (!S.code) { $('#top').innerHTML = ''; $('#calc').hidden = true; v.innerHTML = '<div class="panel"><div class="empty">No hay partidos de esta competición en el calendario.</div></div>'; return; }
+  const g = S.games.find(x => x.gameCode === S.code), h = D && D.h;
+  if (!h || !D.box || !D.box.Stats || D.box.Stats.length < 2) {
+    $('#top').innerHTML = ''; $('#calc').hidden = true;
+    v.innerHTML = `<div class="panel"><div class="board"><div class="t r">${esc(g.local.club.name)}</div><div class="clock">${esc(new Date(g.utcDate).toLocaleString('es-ES', { weekday: 'long', hour: '2-digit', minute: '2-digit' }))}</div><div class="t">${esc(g.road.club.name)}</div></div><div class="empty">El partido todavía no ha empezado. Los datos aparecerán aquí en cuanto arranque.</div></div>`; return; }
+  const fromPbp = D.pbp && allPlays(D.pbp).length > 5, tots = fromPbp ? pbpTotals(D.pbp, h) : null;
+  const A = fromPbp ? Object.assign({}, D.box.Stats[0].totr, tots[0]) : D.box.Stats[0].totr, B = fromPbp ? Object.assign({}, D.box.Stats[1].totr, tots[1]) : D.box.Stats[1].totr;
+  const a = teamAgg(A), b = teamAgg(B), el = h.Live ? elapsed(h) : Math.max(40, elapsed(h) || 40), isLive = !!h.Live;
+  const mod = model(h, A, B, el); D.mod = mod; D.live = isLive && mod.r > 0;
+  const lead = mod.mean >= 0 ? h.TeamA : h.TeamB, trail = mod.mean >= 0 ? h.TeamB : h.TeamA, fair = Math.round(Math.abs(mod.mean) * 2) / 2;
+  const luckA = mod.xA != null ? A.Points - mod.xA : null, luckB = mod.xB != null ? B.Points - mod.xB : null, swing = luckA != null && luckB != null ? luckA - luckB : null;
+  const reading = !isLive ? '' : `<div class="panel"><h2>Lectura del partido</h2><div class="kpis">
+      <div class="kpi"><div class="v">${signed(mod.M)}</div><div class="k">Diferencia actual · ${esc(h.CodeTeamA)}</div></div>
+      <div class="kpi"><div class="v">${signed(mod.mean, 1)}</div><div class="k">Diferencia esperada al final · ${esc(h.CodeTeamA)}</div></div>
+      <div class="kpi"><div class="v">+${nf(fair, 1)}</div><div class="k">Hándicap justo · ${esc(trail)}</div></div>
+      <div class="kpi"><div class="v">${nf(100 * mod.pA, 0)} % - ${nf(100 * (1 - mod.pA), 0)} %</div><div class="k">Probabilidad de victoria</div></div></div>
+      ${mod.xA != null && mod.xB != null ? `<div class="scroll"><table><thead><tr><th class="l"></th><th>Puntos</th><th>Con su acierto habitual</th><th>Puntos de más o de menos</th></tr></thead><tbody>
+        <tr><td class="l strong">${esc(h.TeamA)}</td><td class="strong">${A.Points}</td><td>${nf(mod.xA, 0)}</td><td class="${cls(luckA)}">${signed(luckA, 0)}</td></tr>
+        <tr><td class="l strong">${esc(h.TeamB)}</td><td class="strong">${B.Points}</td><td>${nf(mod.xB, 0)}</td><td class="${cls(luckB)}">${signed(luckB, 0)}</td></tr></tbody></table></div>
+      <div class="note">${Math.abs(swing) >= 6 ? `${nf(Math.abs(swing), 0)} puntos de la diferencia vienen de un acierto fuera de lo habitual a favor de ${esc(swing > 0 ? h.TeamA : h.TeamB)}. ` : 'El marcador está en línea con el acierto habitual de los dos equipos. '}En el histórico, un acierto anormal no se mantiene (quien tira triples 15 puntos por encima de su media en la primera parte vuelve a su media en la segunda), pero la ventaja ya conseguida se conserva en su mayor parte: de media solo se recorta uno de cada cinco puntos.</div>` : '<div class="note">No hay suficientes partidos de alguno de los dos equipos para calcular su acierto habitual; la estimación usa solo marcador, tiempo y factor campo.</div>'}</div>`;
+  const qs = [1, 2, 3, 4].map(i => [D.box.ByQuarter[0]['Quarter' + i], D.box.ByQuarter[1]['Quarter' + i]]);
+  const poss = (a.poss + b.poss) / 2, pace = el > 0 ? poss * 40 / el : null, projA = el >= 5 ? A.Points * 40 / el : null, projB = el >= 5 ? B.Points * 40 / el : null;
+  const scoring = allPlays(D.pbp).filter(p => p.POINTS_A != null);
+  const diffs = scoring.map(r => r.POINTS_A - r.POINTS_B), maxA = Math.max(0, ...diffs), maxB = Math.max(0, ...diffs.map(x => -x));
+  const bA = BASE[(h.CodeTeamA || '').trim()], bB = BASE[(h.CodeTeamB || '').trim()], usual = bA && bB ? bA.pf + bB.pf : null;
+  const plays = allPlays(D.pbp).filter(p => p.PLAYER).slice(-10).reverse();
+  $('#top').innerHTML = `<div class="panel">
+      <div class="board"><div class="t r">${esc(h.TeamA)}</div><div><div class="sc">${A.Points} - ${B.Points}</div><div class="clock ${isLive ? 'live' : ''}">${isLive ? '<span class="dot"></span> ' + esc(periodTxt(h)) : 'Final'}</div></div><div class="t">${esc(h.TeamB)}</div></div>
+      <div class="scroll"><table><thead><tr><th class="l"></th><th>1C</th><th>2C</th><th>3C</th><th>4C</th><th>Total</th></tr></thead><tbody>
+        <tr><td class="l strong">${esc(h.TeamA)}</td>${qs.map(q => `<td>${q[0]}</td>`).join('')}<td class="strong">${A.Points}</td></tr>
+        <tr><td class="l strong">${esc(h.TeamB)}</td>${qs.map(q => `<td>${q[1]}</td>`).join('')}<td class="strong">${B.Points}</td></tr></tbody></table></div></div>
+    <div class="panel"><div class="kpis">
+      <div class="kpi"><div class="v">${projA != null ? nf(projA, 0) + ' - ' + nf(projB, 0) : '–'}</div><div class="k">${isLive ? 'Final al ritmo actual' : 'Resultado final'}</div></div>
+      <div class="kpi"><div class="v">${projA != null ? nf(projA + projB, 0) : '–'}</div><div class="k">Total de puntos ${isLive ? 'proyectado' : ''}${usual ? ' · habitual ' + nf(usual, 0) : ''}</div></div>
+      <div class="kpi"><div class="v">${nf(pace, 1)}</div><div class="k">Posesiones por 40 min${bA && bB ? ' · habitual ' + nf((bA.poss + bB.poss) / 2, 1) : ''}</div></div>
+      <div class="kpi"><div class="v">${maxA >= maxB ? '+' + maxA : '+' + maxB}</div><div class="k">Máxima ventaja · ${esc(maxA >= maxB ? h.CodeTeamA : h.CodeTeamB)}</div></div>
+    </div>${isLive ? '<div class="muted small">La proyección reparte el ritmo de anotación actual sobre los 40 minutos; no tiene en cuenta faltas tácticas del final ni rotaciones.</div>' : ''}</div>${reading}`;
+  updateCalc();
+  v.innerHTML = `<div class="panel"><h2>Tiro: hoy frente a lo habitual</h2>${shootingTable(h, A, B, a, b)}</div>
+    <div class="panel"><h2>Diferencia en el marcador</h2><div class="muted small"><span class="sw" style="background:var(--series)"></span>Por encima de cero gana ${esc(h.TeamA)}; por debajo, ${esc(h.TeamB)}</div><div class="chart" id="lead"></div></div>
+    <div class="grid2"><div class="panel"><h2>Resto de estadísticas</h2>${statsTable(h, A, B)}</div>
+      <div class="panel"><h2>Últimas jugadas</h2><div class="plays small">${plays.map(p => `<div><span class="muted">${esc(p.MARKERTIME)}</span><span class="muted">${esc((p.CODETEAM || '').trim())}</span><span>${esc(p.PLAYER)} · ${esc(p.PLAYINFO)}${p.POINTS_A != null ? ` <strong>(${p.POINTS_A}-${p.POINTS_B})</strong>` : ''}</span></div>`).join('') || '<div class="muted">Sin jugadas todavía.</div>'}</div></div></div>
+    <div class="grid2"><div class="panel"><h2>${esc(h.TeamA)}</h2>${playersTable(D.box.Stats[0])}</div><div class="panel"><h2>${esc(h.TeamB)}</h2>${playersTable(D.box.Stats[1])}</div></div>
+    <div class="muted small">El punto verde marca a los jugadores en pista. Faltas en rojo: 4 o más.</div>`;
+  leadChart($('#lead'), h, scoring);
+}
+
+let busy = false;
+async function tick(mode) { // 'full' = calendario; 'slow' = todos los marcadores y jugadores; 'fast' = partido elegido
+  if (busy && mode === 'fast') return; busy = true;
+  try {
+    if (mode === 'full' || !S.games.length) await loadGames(); else if (mode === 'slow') await refreshHeaders();
+    await loadGame(mode !== 'fast');
+    $('#status').textContent = 'Datos oficiales de Euroleague · marcador y tiro cada 5 segundos, jugadores cada 20 · última lectura ' + new Date().toLocaleTimeString('es-ES');
+  } catch (e) {
+    $('#status').textContent = 'No se ha podido leer la fuente (' + new Date().toLocaleTimeString('es-ES') + '). Se reintenta solo; comprueba la conexión a internet.';
+  }
+  busy = false; render();
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-comp],[data-code]'); if (!t) return;
+  if (t.dataset.comp) { S.comp = t.dataset.comp; S.code = null; S.games = []; S.data = null; document.querySelectorAll('#compSeg button').forEach(b => b.setAttribute('aria-pressed', b === t)); $('#view').innerHTML = '<div class="empty">Buscando partidos…</div>'; tick('full'); }
+  else { S.code = +t.dataset.code; S.data = null; tick('slow'); }
+});
+let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(render, 200); });
+document.addEventListener('input', e => { if (e.target.closest('#calc')) updateCalc(); });
+
+/* ---------- Registro de apuestas ---------- */
+let BETS = []; let memOnly = false;
+try { BETS = JSON.parse(localStorage.getItem('sdb_bets') || '[]'); } catch (e) { memOnly = true; }
+function saveBets() { try { localStorage.setItem('sdb_bets', JSON.stringify(BETS)); } catch (e) { memOnly = true; } }
+function addBet() {
+  const D = S.data; if (!D || !D.mod || !D.live) return;
+  const h = D.h, side = $('#cTeam').value, line = parseFloat($('#cLine').value), odd = parseFloat($('#cOdd').value), stake = parseFloat($('#cStake').value) || 0, msg = $('#cSaved');
+  if (!isFinite(line) || !(odd > 1)) { msg.textContent = 'Escribe un hándicap y una cuota mayor que 1.'; return; }
+  const p = phi(((side === 'A' ? 1 : -1) * D.mod.mean + line) / D.mod.sd), A = D.mod.M;
+  BETS.unshift({ id: Date.now(), ts: new Date().toISOString(), comp: S.comp, year: S.year, code: S.code, a: h.TeamA, b: h.TeamB, side, line, odd, stake, when: periodTxt(h), score: $('#top .sc') ? $('#top .sc').textContent : '', p, status: 'pendiente', fin: '' });
+  saveBets(); renderLog(); msg.textContent = 'Anotada: ' + (side === 'A' ? h.TeamA : h.TeamB) + ' ' + signed(line, 1) + ' a ' + nf(odd, 2) + '.';
+}
+async function settleBets() {
+  const pend = BETS.filter(x => x.status === 'pendiente'); if (!pend.length) return;
+  const seen = {};
+  for (const x of pend) { const k = x.comp + x.year + '_' + x.code;
+    try { if (!(k in seen)) seen[k] = await getJSON(`${API}Header?gamecode=${x.code}&seasoncode=${x.comp}${x.year}`); } catch (e) { continue; }
+    const h = seen[k]; if (!h || h.Live || !(+h.ScoreA + +h.ScoreB > 0)) continue;
+    const m = (x.side === 'A' ? 1 : -1) * (+h.ScoreA - +h.ScoreB) + x.line;
+    x.status = m > 0 ? 'ganada' : m < 0 ? 'perdida' : 'nula'; x.fin = h.ScoreA + '-' + h.ScoreB; }
+  saveBets(); renderLog();
+}
+const betProfit = x => x.status === 'ganada' ? x.stake * (x.odd - 1) : x.status === 'perdida' ? -x.stake : 0;
+function renderLog() {
+  const done = BETS.filter(x => x.status === 'ganada' || x.status === 'perdida'), won = done.filter(x => x.status === 'ganada').length;
+  const profit = done.reduce((s, x) => s + betProfit(x), 0), staked = done.reduce((s, x) => s + x.stake, 0), exp = done.length ? done.reduce((s, x) => s + x.p, 0) / done.length : null;
+  $('#logKpis').innerHTML = BETS.length ? `<div class="kpi"><div class="v">${done.length}<span style="font-size:16px"> de ${BETS.length}</span></div><div class="k">Resueltas</div></div>
+    <div class="kpi"><div class="v">${done.length ? nf(100 * won / done.length, 0) + ' %' : '–'}</div><div class="k">Aciertos reales</div></div>
+    <div class="kpi"><div class="v">${exp != null ? nf(100 * exp, 0) + ' %' : '–'}</div><div class="k">Aciertos que esperaba el panel</div></div>
+    <div class="kpi"><div class="v ${cls(profit)}">${done.length ? signed(profit, 2) + ' €' : '–'}</div><div class="k">Beneficio</div></div>
+    <div class="kpi"><div class="v ${cls(profit)}">${staked ? signed(100 * profit / staked, 1) + ' %' : '–'}</div><div class="k">Rentabilidad</div></div>` : '';
+  $('#logTable').innerHTML = BETS.length ? `<table><thead><tr><th class="l">Fecha</th><th class="l">Partido</th><th class="l">Apuesta</th><th>Cuota</th><th>Importe</th><th class="l">Momento</th><th>Prob. panel</th><th class="l">Resultado</th><th>Beneficio</th><th></th></tr></thead><tbody>${BETS.map(x => `<tr><td class="l">${esc(new Date(x.ts).toLocaleDateString('es-ES'))}</td><td class="l">${esc(x.a)} - ${esc(x.b)}</td><td class="l strong">${esc(x.side === 'A' ? x.a : x.b)} ${signed(x.line, 1)}</td><td>${nf(x.odd, 2)}</td><td>${nf(x.stake, 2)} €</td><td class="l">${esc(x.score)} · ${esc(x.when)}</td><td>${nf(100 * x.p, 0)} %</td><td class="l ${x.status === 'ganada' ? 'pos' : x.status === 'perdida' ? 'neg' : ''}">${x.status}${x.fin ? ' (' + esc(x.fin) + ')' : ''}</td><td class="${cls(betProfit(x))}">${x.status === 'pendiente' ? '–' : signed(betProfit(x), 2) + ' €'}</td><td><button class="btn x" data-del="${x.id}" title="Borrar esta apuesta">Borrar</button></td></tr>`).join('')}</tbody></table>` : '<div class="empty">Todavía no has anotado ninguna apuesta. Usa la calculadora de arriba durante un partido en directo y pulsa «Anotar esta apuesta».</div>';
+  if (memOnly) $('#logNote').textContent = 'Este navegador no permite guardar datos en archivos locales: el registro se perderá al cerrar la pestaña. Usa «Copiar como tabla» para conservarlo.';
+}
+function copyLog() {
+  const head = ['Fecha', 'Partido', 'Equipo', 'Hándicap', 'Cuota', 'Importe', 'Marcador', 'Momento', 'Prob. panel', 'Estado', 'Final', 'Beneficio'];
+  const txt = [head].concat(BETS.map(x => [x.ts.slice(0, 16).replace('T', ' '), x.a + ' - ' + x.b, x.side === 'A' ? x.a : x.b, x.line, x.odd, x.stake, x.score, x.when, Math.round(100 * x.p) + '%', x.status, x.fin, betProfit(x).toFixed(2)])).map(r => r.join('\t')).join('\n');
+  const b = $('#logCopy'), ok = () => { b.textContent = 'Copiado'; setTimeout(() => b.textContent = 'Copiar como tabla', 1500); };
+  (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(ok).catch(() => { const t = document.createElement('textarea'); t.value = txt; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); ok(); } catch (e) {} t.remove(); });
+}
+document.addEventListener('click', e => {
+  const d = e.target.closest('[data-del]');
+  if (e.target.id === 'cSave') addBet(); else if (e.target.id === 'logCopy') copyLog();
+  else if (d) { BETS = BETS.filter(x => String(x.id) !== d.dataset.del); saveBets(); renderLog(); }
+});
+renderLog(); settleBets(); setInterval(settleBets, 60000);
+let n = 0; tick('full');
+setInterval(() => { if (document.hidden) return; n++; tick(n % (SLOW / FAST) === 0 ? 'slow' : 'fast'); }, FAST);
+setInterval(() => tick('full'), 15 * 60000);
+})();
+</script>
+</body>
+</html>
