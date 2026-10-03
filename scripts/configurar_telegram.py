@@ -18,7 +18,10 @@ REPO = "Sergio20/sportsdb"
 
 def main():
     print("Antes de seguir: abre tu bot en Telegram y escríbele cualquier cosa (por ejemplo «hola»).\n")
-    token = getpass.getpass("Pega aquí el token de BotFather y pulsa Enter (no se verá al pegarlo): ").strip()
+    if "--visible" in sys.argv:     # ventana propia (doble clic): se ve lo que se pega, que confunde menos
+        token = input("Pega aquí el token de BotFather (clic derecho para pegar) y pulsa Enter: ").strip()
+    else:
+        token = getpass.getpass("Pega aquí el token de BotFather y pulsa Enter (no se verá al pegarlo): ").strip()
     if ":" not in token:
         print("Eso no parece un token de Telegram (tiene esta forma: 123456789:AAH...). Vuelve a intentarlo.")
         return 1
