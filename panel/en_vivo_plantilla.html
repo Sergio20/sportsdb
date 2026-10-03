@@ -203,8 +203,11 @@ function stateOf(g) {
   const h = g.h;
   if (h && h.Live) return { live: true, txt: periodTxt(h) };
   if (g.played || (h && +h.ScoreA + +h.ScoreB > 0 && !h.Live)) return { txt: 'Final' };
+  const p = postponed(g); if (p) return { txt: p === 'aplazado' ? 'Aplazado' : '¿Aplazado?' };
   return { txt: new Date(g.utcDate).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) };
 }
+// Sin empezar 40 minutos después de su hora (LATE en vigilante.py): «dudoso». «aplazado» solo si la ficha oficial lo dice.
+function postponed(g) { if (g.x && g.x.postponed) return g.x.postponed; return !g.played && !(g.h && g.h.Live) && Date.now() - new Date(g.utcDate) > 40 * 60000 ? 'dudoso' : null; }
 function periodTxt(h) { const q = +h.Quarter || 0; if (!q) return played(h) ? 'Descanso' : 'A punto de empezar'; return (q > 4 ? 'Prórroga ' + (q - 4) : q + '.º cuarto') + ' · ' + (h.RemainingPartialTime || '').trim(); }
 const played = h => [1, 2, 3, 4].filter(i => +h['ScoreQuarter' + i + 'A'] + +h['ScoreQuarter' + i + 'B'] > 0).length;
 function elapsed(h) {
@@ -473,7 +476,7 @@ function renderAlerts() {
   const next = S.games.concat(S.other).filter(g => g.comp !== 'A' && !g.played && !(g.h && +g.h.ScoreA + +g.h.ScoreB > 0)).map(g => g.utcDate).sort()[0];
   box.hidden = false;
   if (!gs.length) {
-    const acbLive = S.acb.filter(g => g.h.Live).length, up = S.games.concat(S.other, S.acb).filter(g => !g.played && !g.h?.Live && !(g.h && +g.h.ScoreA + +g.h.ScoreB > 0)).sort((a, b) => a.utcDate.localeCompare(b.utcDate))[0];
+    const acbLive = S.acb.filter(g => g.h.Live).length, up = S.games.concat(S.other, S.acb).filter(g => !g.played && !g.h?.Live && !postponed(g) && !(g.h && +g.h.ScoreA + +g.h.ScoreB > 0)).sort((a, b) => a.utcDate.localeCompare(b.utcDate))[0];
     box.innerHTML = `<section class="panel"><h2>Desfases ahora</h2><div class="muted">${acbLive ? `Hay ${acbLive === 1 ? 'un partido' : acbLive + ' partidos'} de Liga Endesa en juego: sus avisos salen en el bloque «Liga Endesa», justo debajo. De Euroliga y EuroCup no hay ninguno en directo ahora.`
       : `Ahora no hay ningún partido en directo${up ? `. El próximo es ${esc(up.local.club.name)} – ${esc(up.road.club.name)} (${COMP[up.comp]}), ${esc(new Date(up.utcDate).toLocaleString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }))}` : ''}. Los avisos aparecerán aquí solos en cuanto haya partidos en juego.`}</div></section>`; return; }
   box.innerHTML = `<section class="panel"><h2>Desfases ahora</h2>${al.map(alertHtml).join('')
@@ -555,7 +558,7 @@ function render() {
   const g = S.games.find(x => x.gameCode === S.code), h = D && D.h;
   if (!h || !D.box || !D.box.Stats || D.box.Stats.length < 2) {
     $('#top').innerHTML = ''; $('#calc').hidden = true;
-    v.innerHTML = `<div class="panel"><div class="board"><div class="t r">${esc(g.local.club.name)}</div><div class="clock">${esc(new Date(g.utcDate).toLocaleString('es-ES', { weekday: 'long', hour: '2-digit', minute: '2-digit' }))}</div><div class="t">${esc(g.road.club.name)}</div></div><div class="empty">El partido todavía no ha empezado. Los datos aparecerán aquí en cuanto arranque.</div></div>
+    v.innerHTML = `<div class="panel"><div class="board"><div class="t r">${esc(g.local.club.name)}</div><div class="clock">${esc(new Date(g.utcDate).toLocaleString('es-ES', { weekday: 'long', hour: '2-digit', minute: '2-digit' }))}</div><div class="t">${esc(g.road.club.name)}</div></div><div class="empty">${postponedTxt(g)}</div></div>
       ${contextPanel([g.local.club.code, g.road.club.code], [g.local.club.name, g.road.club.name], null, 0)}`; return; }
   const fromPbp = D.pbp && allPlays(D.pbp).length > 5, tots = fromPbp ? pbpTotals(D.pbp, h) : null;
   const A = fromPbp ? Object.assign({}, D.box.Stats[0].totr, tots[0]) : D.box.Stats[0].totr, B = fromPbp ? Object.assign({}, D.box.Stats[1].totr, tots[1]) : D.box.Stats[1].totr;
@@ -723,6 +726,12 @@ let ACB = null;
 // la vista de detalle, la calculadora y el registro de apuestas.
 const acbTot = t => ({ Points: t.pts, FieldGoalsMade2: t.m2, FieldGoalsAttempted2: t.a2, FieldGoalsMade3: t.m3, FieldGoalsAttempted3: t.a3, FreeThrowsMade: t.mf, FreeThrowsAttempted: t.af,
   OffensiveRebounds: t.oreb || 0, DefensiveRebounds: t.dreb || 0, Assistances: t.ast || 0, Steals: t.stl || 0, Turnovers: t.tov || 0, BlocksFavour: t.blk || 0, FoulsCommited: t.pf || 0, Valuation: t.val || 0 });
+function postponedTxt(g) {
+  const p = postponed(g), ns = g.x && g.x.new_start;
+  if (p === 'aplazado') return 'Partido aplazado.' + (ns ? ' Nueva fecha según la ficha oficial: ' + new Date(ns).toLocaleString('es-ES', { weekday: 'long', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) + '.' : ' Todavía sin nueva fecha.');
+  if (p) return 'Debía haber empezado hace más de 40 minutos y la fuente oficial no lo da por empezado: puede estar aplazado o con mucho retraso. Compruébalo antes de apostar.';
+  return 'El partido todavía no ha empezado. Los datos aparecerán aquí en cuanto arranque.';
+}
 function acbGames() {
   const fresh = ACB && Date.now() - new Date(ACB.updated) < 12 * 3600000;
   return (fresh ? ACB.games : []).filter(x => x.code != null).map(x => {

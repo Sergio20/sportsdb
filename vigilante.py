@@ -46,6 +46,7 @@ WEB = "https://sergio20.github.io/sportsdb/en-vivo.html"
 # corta el acceso varios minutos, que es mucho peor) ni de ~0,3 a acb.com. Una sola lectura por partido y vuelta.
 MIN_EVERY, PER_EURO, PER_ACB, GAP = 10, 2.5, 3.5, 0.3
 EXTRA_MAX = 30                # si la fuente corta (429), se suman segundos al intervalo y luego se van quitando
+LATE, GIVE_UP = 40, 150     # minutos sin empezar tras su hora: aviso de «¿aplazado?» y, más tarde, se deja de vigilar
 PUBLISH_EVERY = 30            # la Liga Endesa se publica para la web cada medio minuto como mucho (en segundo plano)
 pace = {"extra": 0}
 ses = requests.Session()
@@ -268,6 +269,20 @@ def state_acb(g):
         return None
     status, hs, as_ = str(head.get("status") or "").upper(), int(head.get("currentHomeScore") or 0), int(head.get("currentAwayScore") or 0)
     q = int(head.get("currentQuarter") or 0)
+    # ¿Aplazado? Lo dice el estado de la ficha o una fecha que ya no es la del calendario de la mañana (aplazamientos
+    # de días; el margen de 6 horas evita confundirse si la ficha diera la hora local en vez de la UTC).
+    moved = None
+    for k in ("startDateTime", "matchDate", "startDate", "date"):
+        try:
+            d = dt.datetime.fromisoformat(str(head.get(k)).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        d = d if d.tzinfo else d.replace(tzinfo=dt.timezone.utc)
+        if abs(d - g["start"]) > dt.timedelta(hours=6):
+            moved = d
+        break
+    if hs + as_ == 0 and (moved or any(w in status for w in ("POSTPON", "SUSPEND", "CANCEL", "APLAZ"))):
+        return dict(live=False, final=False, hs=0, as_=0, postponed="aplazado", new_start=moved)
     if status == "NOT_STARTED":
         return dict(live=False, final=False, hs=hs, as_=as_)
     quarters = [[x["home"], x["away"]] for x in sorted(head.get("quarterScores") or [], key=lambda x: x["quarter"])]
@@ -300,6 +315,48 @@ def state_acb(g):
     return dict(live=True, final=False, el=el, A=tot[True], B=tot[False], hs=hs, as_=as_, q=q, left=q * 10 - el, quarters=quarters, done=done)
 
 
+DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+
+
+def unstarted_step(g, st, log, save):
+    """Partido que no arranca a su hora. Avisa por Telegram una sola vez: «aplazado» si la ficha oficial lo dice y
+    «¿aplazado?» si LATE minutos después sigue sin empezar (la fuente no siempre lo marca). Si luego arranca, avisa
+    también. Devuelve True si en esta vuelta no hay nada más que hacer con el partido."""
+    base = f"{g['comp']}|{g['year']}|{g['code']}"
+    title, late = f"{g['home']} – {g['away']} ({COMP[g['comp']]})", (now() - g["start"]).total_seconds() / 60
+
+    def tell(kind, text):
+        if f"{base}|{kind}" in g["told"]:
+            return
+        send(text)
+        g["told"].add(f"{base}|{kind}")
+        log.append(dict(aplazado=f"{base}|{kind}", ts=now().isoformat(timespec="seconds")))
+        save()
+
+    if st["live"] or st["final"] or st["hs"] + st["as_"] > 0 or any(sum(q) for q in st.get("quarters") or []):
+        if f"{base}|sin empezar" in g["told"]:
+            tell("empezado", f"▶ Ya ha empezado {title}, con retraso: lo vigilo con normalidad.")
+        return False
+    if st.get("postponed"):
+        new = st.get("new_start")
+        tell("aplazado", f"🚫 PARTIDO APLAZADO\n{title}\nEstaba previsto hoy a las {local(g['start']):%H:%M}."
+             + (f"\nNueva fecha según la ficha oficial: {DIAS[local(new).weekday()]} {local(new):%d/%m a las %H:%M}." if new
+                else "\nLa ficha oficial todavía no da nueva fecha.")
+             + "\nDejo de vigilarlo hoy.")
+        g["done"] = True
+        return True
+    if late < LATE:
+        return False
+    st["postponed"] = "dudoso"
+    tell("sin empezar", f"⏳ ¿PARTIDO APLAZADO?\n{title}\nDebía empezar a las {local(g['start']):%H:%M} y {late:.0f} minutos después la "
+         "fuente oficial no lo da por empezado. Puede estar aplazado o con mucho retraso: compruébalo antes de apostar.\n"
+         "Lo sigo mirando cada pocos minutos y te aviso si arranca.")
+    g["slow_until"] = time.time() + 180          # sin prisa: una lectura cada 3 minutos
+    if late >= GIVE_UP:
+        g["done"] = True
+    return True
+
+
 def publish(snapshot):
     """Estado en directo de la Liga Endesa para la web (rama `vivo`, fichero vivo.json). El navegador no puede leer
     acb.com, así que lo lee de aquí. Solo dentro de GitHub (necesita su credencial); en local no hace nada."""
@@ -330,7 +387,8 @@ def vivo_data(games, bases):
         row = dict(code=g["code"], year=g["year"], hc=g["hc"], ac=g["ac"], home=g["home"], away=g["away"], start=g["start"].isoformat(),
                    live=st["live"], final=st["final"], hs=st["hs"], as_=st["as_"], q=st.get("q"), el=round(st["el"], 2) if st.get("el") is not None else None,
                    left=round(st["left"], 2) if st.get("left") is not None else None, quarters=st.get("quarters") or [],
-                   A=st.get("A"), B=st.get("B"), alerts=[])
+                   A=st.get("A"), B=st.get("B"), alerts=[], postponed=st.get("postponed"),
+                   new_start=st["new_start"].isoformat() if st.get("new_start") else None)
         if st.get("A") and bA and bB:
             pct = lambda m, a: round(100 * m / a, 1) if a else None  # noqa: E731
             row["shooting"] = [dict(p2=pct(t["m2"], t["a2"]), p3=pct(t["m3"], t["a3"]), ft=pct(t["mf"], t["af"]), m3=t["m3"], a3=t["a3"],
@@ -354,6 +412,7 @@ def watch(con, log_path, hours):
     games = todays_games(year) + acb_games(con, year)
     for g in games:   # lo ya avisado en una tanda anterior del mismo día no se repite
         g["sent"] = {e["key"]: e for e in log if "alert" in e and (e["comp"], e["year"], e["code"]) == (g["comp"], g["year"], g["code"])}
+        g["told"] = {e["aplazado"] for e in log if "aplazado" in e}     # avisos de aplazamiento ya enviados
     save = lambda: log_path.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")  # noqa: E731
     rules = {}
     try:
@@ -383,8 +442,13 @@ def watch(con, log_path, hours):
         n_acb = sum(g["comp"] == "A" for g in soon)
         every = max(MIN_EVERY, PER_EURO * (len(soon) - n_acb), PER_ACB * n_acb) + pace["extra"]
         for g in soon:
+            if g.get("slow_until", 0) > time.time():
+                continue
             st = (state_acb if g["comp"] == "A" else state_euro)(g)
             if not st:
+                continue
+            if unstarted_step(g, st, log, save):
+                g["st"] = st
                 continue
             if st["live"] and (st["hs"], st["as_"]) != (g.get("st") or {}).get("score"):   # rastro para medir la frescura de la fuente
                 print(f"  {now():%H:%M:%S} {g['home'][:14]} {st['hs']}-{st['as_']} {g['away'][:14]} · min {st.get('el') or 0:.1f}", flush=True)

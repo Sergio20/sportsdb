@@ -80,6 +80,11 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   Cada aviso enviado queda en `avisos.json`
   (rama `avisos`, un solo commit) y `analisis.sent_log` lo resuelve para «¿Funciona?».
   Ensayo sin partidos: `python vigilante.py --repetir E2026 26 16`.
+- Partidos aplazados (`unstarted_step` en `vigilante.py`): si la ficha de acb.com dice aplazado (estado o fecha
+  cambiada) manda «PARTIDO APLAZADO» por Telegram y deja de vigilarlo; si cualquier partido sigue sin empezar 40 min
+  después de su hora (`LATE`) manda «¿PARTIDO APLAZADO?», lo revisa cada 3 min y avisa si arranca; a las 2 h 30
+  (`GIVE_UP`) lo deja. La web pone «Aplazado» / «¿Aplazado?» (`postponed()` en la plantilla en vivo). Sin comprobar aún
+  con un aplazamiento real cómo marca la ficha de acb.com el estado; la regla de los 40 minutos no depende de ello.
 - Quinto aviso, «Cuarto anormal» (solo lo calcula el vigilante; la web lo enseña tal cual desde
   `vivo.json`): al acabar cada cuarto, si un equipo metió ≤10 o ≥30, el cuarto tuvo ≤30 o ≥54
   puntos, un equipo lo perdió por 10+, o la primera parte tuvo ≤66 o ≥100, propone una apuesta para
