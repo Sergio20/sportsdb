@@ -2,7 +2,7 @@
 """Vigila los partidos en directo de Euroliga y EuroCup y envía los avisos por Telegram.
 
 Lo lanza cada tarde .github/workflows/vigilante.yml. Mientras haya partidos en juego lee las jugadas
-oficiales cada 45 segundos, aplica las reglas de avisos.py y manda un mensaje por cada aviso nuevo,
+oficiales cada 20 segundos, aplica las reglas de avisos.py y manda un mensaje por cada aviso nuevo,
 con las líneas de seguridad (80, 90 y 95 %). Al acabar cada partido manda cómo quedó cada aviso.
 Todo queda anotado en un fichero (rama `avisos` de GitHub) para medir después cuánto aciertan.
 
@@ -36,7 +36,10 @@ GAMES = "https://api-live.euroleague.net/v2/competitions/{c}/seasons/{c}{y}/game
 EURO = ("E", "U")
 COMP = {"E": "Euroliga", "U": "EuroCup", "A": "Liga Endesa"}
 WEB = "https://sergio20.github.io/sportsdb/en-vivo.html"
-EVERY, GAP = 45, 1.2          # segundos entre vueltas y entre peticiones (la fuente corta si se abusa)
+EVERY, GAP = 20, 0.4          # segundos entre vueltas y entre peticiones (una sola lectura por partido y vuelta)
+EVERY_MAX = 45                # si la fuente corta el acceso (429), se va frenando hasta aquí y luego se recupera
+PUBLISH_EVERY = 60            # la Liga Endesa se publica para la web como mucho una vez por minuto
+pace = {"every": EVERY}
 ses = requests.Session()
 ses.headers["User-Agent"] = UA
 now = lambda: dt.datetime.now(dt.timezone.utc)  # noqa: E731
@@ -50,7 +53,8 @@ def get(url, **params):
     except requests.RequestException:
         return None
     if r.status_code == 429:
-        print("  la fuente corta el acceso: pausa de 60 s", flush=True)
+        pace["every"] = min(EVERY_MAX, pace["every"] + 10)
+        print(f"  la fuente corta el acceso: pausa de 60 s y revisión cada {pace['every']} s", flush=True)
         time.sleep(60)
         return None
     return r.json() if r.status_code == 200 and r.text.strip() else None
@@ -134,19 +138,24 @@ def acb_games(con, year):
 
 
 def state_euro(g):
-    """Estado de un partido de Euroliga/EuroCup: None si no se puede leer; si no, dict(live, final, el, A, B, hs, as_)."""
-    h = get(LIVE + "Header", gamecode=g["code"], seasoncode=f"{g['comp']}{g['year']}")
-    if not h:
+    """Estado de un partido de Euroliga/EuroCup con UNA sola lectura (las jugadas ya traen si está en juego y el cuarto).
+    None si no se puede leer; si no, dict(live, final, el, A, B, hs, as_)."""
+    d = get(LIVE + "PlaybyPlay", gamecode=g["code"], seasoncode=f"{g['comp']}{g['year']}")
+    if not d:
         return None
-    hs, as_ = int(h.get("ScoreA") or 0), int(h.get("ScoreB") or 0)
-    if not h.get("Live"):
-        return dict(live=False, final=hs + as_ > 0 and now() > g["start"] + dt.timedelta(minutes=75), hs=hs, as_=as_)
-    el = elapsed(h)
-    plays = read_plays(g["comp"], g["year"], g["code"]) if el is not None else None
-    if not plays:
-        return dict(live=True, final=False, el=None, hs=hs, as_=as_)
+    raw = [p for k in PERIODS for p in (d.get(k) or [])]
+    plays = [dict(t=minute(p), team=(p.get("CODETEAM") or "").strip(), type=(p.get("PLAYTYPE") or "").strip(), clock=bool(str(p.get("MARKERTIME") or "").strip()))
+             for p in raw]
     A, B = avisos.totals(plays, g["hc"])
-    return dict(live=True, final=False, el=el, A=A, B=B, hs=hs, as_=as_)
+    hs, as_ = A["pts"], B["pts"]
+    if not d.get("Live"):
+        ended = any(p["type"] == "EG" for p in plays) or (hs + as_ > 0 and now() > g["start"] + dt.timedelta(minutes=100))
+        return dict(live=False, final=ended, hs=hs, as_=as_)
+    q, timed = int(d.get("ActualQuarter") or 0), [p["t"] for p in plays if p["clock"]]
+    if not 1 <= q <= 4 or not timed:       # prórroga o recién empezado: sin avisos
+        return dict(live=True, final=False, el=None, hs=hs, as_=as_)
+    el = min(q * 10, max((q - 1) * 10, max(timed)))    # minuto de la última jugada con reloj
+    return dict(live=True, final=False, el=el, A=A, B=B, hs=hs, as_=as_, q=q, left=q * 10 - el)
 
 
 def state_acb(g):
@@ -182,7 +191,48 @@ def state_acb(g):
     if el is None or len(tot) != 2:
         print(f"  Liga Endesa {g['home']}: en juego pero sin datos completos (estado {status}, cuarto {q}, tiempo {head.get('timeLeft')!r})", flush=True)
         return dict(live=True, final=False, el=None, hs=hs, as_=as_)
-    return dict(live=True, final=False, el=el, A=tot[True], B=tot[False], hs=hs, as_=as_)
+    return dict(live=True, final=False, el=el, A=tot[True], B=tot[False], hs=hs, as_=as_, q=q, left=q * 10 - el)
+
+
+def publish(games, bases):
+    """Estado en directo de la Liga Endesa para la web (rama `vivo`, fichero vivo.json). El navegador no puede leer
+    acb.com, así que lo lee de aquí. Solo dentro de GitHub (necesita su credencial); en local no hace nada."""
+    token, repo = os.environ.get("GITHUB_TOKEN"), os.environ.get("GITHUB_REPOSITORY")
+    data = json.dumps(vivo_data(games, bases), ensure_ascii=False)
+    if not token or not repo:
+        return
+    import subprocess
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        Path(tmp, "vivo.json").write_text(data, encoding="utf-8")
+        run = lambda *a: subprocess.run(["git", *a], cwd=tmp, capture_output=True, text=True)  # noqa: E731
+        run("init", "-q", "-b", "vivo")
+        run("config", "user.name", "github-actions[bot]")
+        run("config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com")
+        run("add", "vivo.json")
+        run("commit", "-q", "-m", "Liga Endesa en directo")
+        r = run("push", "--force", f"https://x-access-token:{token}@github.com/{repo}.git", "vivo")
+        if r.returncode != 0:
+            print("  no se ha podido publicar el estado de la Liga Endesa para la web", flush=True)
+
+
+def vivo_data(games, bases):
+    out = []
+    for g in games:
+        st = g.get("st")
+        if g["comp"] != "A" or not st or not (st["live"] or st["final"] or g["start"] <= now() + dt.timedelta(hours=3)):
+            continue
+        bA, bB = bases["A"].get(g["hc"]), bases["A"].get(g["ac"])
+        row = dict(home=g["home"], away=g["away"], start=g["start"].isoformat(), live=st["live"], final=st["final"], hs=st["hs"], as_=st["as_"],
+                   q=st.get("q"), left=round(st["left"], 2) if st.get("left") is not None else None, alerts=[])
+        if st.get("A") and bA and bB:
+            pct = lambda m, a: round(100 * m / a, 1) if a else None  # noqa: E731
+            row["shooting"] = [dict(p2=pct(t["m2"], t["a2"]), p3=pct(t["m3"], t["a3"]), ft=pct(t["mf"], t["af"]), m3=t["m3"], a3=t["a3"],
+                                    u2=b["p2"], u3=b["p3"], uft=b["ft"]) for t, b in ((st["A"], bA), (st["B"], bB))]
+        for al in g.get("live_alerts") or []:
+            row["alerts"].append(dict(type=al["type"], level=al["level"], title=avisos.NAMES[al["type"]], text=avisos.describe(al, g["home"], g["away"])))
+        out.append(row)
+    return dict(updated=now().isoformat(timespec="seconds"), games=out)
 
 
 def watch(con, log_path, hours):
@@ -197,6 +247,7 @@ def watch(con, log_path, hours):
     print(f"{len(games)} partidos alrededor de esta hora; vigilando hasta las {deadline:%H:%M} UTC como muy tarde", flush=True)
     for g in sorted(games, key=lambda g: g["start"]):
         print(f"  {g['start']:%H:%M} UTC · {COMP[g['comp']]} · {g['home']} - {g['away']}" + (" (ya jugado)" if g["done"] else ""), flush=True)
+    loops, published = 0, 0.0
     while now() < deadline:
         pending = [g for g in games if not g["done"] and g["start"] < deadline]
         if not pending:     # nada más que vigilar en esta tanda: la siguiente se ocupa del resto
@@ -206,10 +257,14 @@ def watch(con, log_path, hours):
             time.sleep(min(300, max(30, (min(g["start"] for g in pending) - now()).total_seconds() - 120)))
             continue
         t0 = time.time()
+        loops += 1
+        if loops % 30 == 0 and pace["every"] > EVERY:     # tras un rato sin cortes, se vuelve a acelerar
+            pace["every"] -= 5
         for g in soon:
             st = (state_acb if g["comp"] == "A" else state_euro)(g)
             if not st:
                 continue
+            g["st"], g["live_alerts"] = st, []
             if st["final"]:
                 g["done"] = True
                 mine = [e for e in g["sent"].values()]
@@ -224,7 +279,8 @@ def watch(con, log_path, hours):
             if not st["live"] or el is None or not bA or not bB:
                 continue
             A, B = st["A"], st["B"]
-            for al in avisos.evaluate(el, A, B, bA, bB):
+            g["live_alerts"] = avisos.evaluate(el, A, B, bA, bB)
+            for al in g["live_alerts"]:
                 k, old = avisos.key(al), g["sent"].get(avisos.key(al))
                 if old and not (old["alert"]["level"] == "moderado" and al["level"] == "fuerte" and not old.get("upgraded")):
                     continue
@@ -238,7 +294,12 @@ def watch(con, log_path, hours):
                 g["sent"][k] = entry
                 log.append(entry)
                 log_path.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")
-        time.sleep(max(5, EVERY - (time.time() - t0)))
+        if time.time() - published >= PUBLISH_EVERY and any(g["comp"] == "A" for g in soon):
+            publish(games, bases)
+            published = time.time()
+        time.sleep(max(3, pace["every"] - (time.time() - t0)))
+    if any(g["comp"] == "A" and g.get("st") for g in games):
+        publish(games, bases)      # deja publicado el estado final
     print(f"Fin de la vigilancia: {sum(len(g['sent']) for g in games)} avisos en total hoy", flush=True)
 
 

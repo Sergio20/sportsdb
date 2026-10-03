@@ -93,6 +93,7 @@ select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   </header>
   <div class="games" id="games"></div>
   <div id="alerts"></div>
+  <div id="acb"></div>
   <div id="top"></div>
   <section class="panel" id="calc" hidden>
     <h2>¿Tiene valor lo que te ofrecen?</h2>
@@ -666,6 +667,31 @@ document.addEventListener('click', e => {
   if (e.target.id === 'cSave') addBet(); else if (e.target.id === 'logCopy') copyLog(); else if (e.target.id === 'notifyBtn') toggleNotify();
   else if (d) { BETS = BETS.filter(x => String(x.id) !== d.dataset.del); saveBets(); renderLog(); }
 });
+/* ---------- Liga Endesa ---------- */
+// El navegador no puede leer acb.com, así que el vigilante de Telegram (vigilante.py, en GitHub) publica el estado
+// de sus partidos en la rama `vivo` y aquí se lee de ahí. GitHub limita estas lecturas a 60 por hora: una cada 90 s.
+const REPO = location.hostname.endsWith('github.io') ? location.hostname.split('.')[0] + '/' + location.pathname.split('/')[1] : 'Sergio20/sportsdb';
+let ACB = null;
+async function loadAcb() {
+  try { const r = await fetch(`https://api.github.com/repos/${REPO}/contents/vivo.json?ref=vivo`, { headers: { Accept: 'application/vnd.github.raw+json' }, cache: 'no-store' });
+    if (r.ok) ACB = await r.json(); } catch (e) { /* se mantiene lo último leído */ }
+  renderAcb();
+}
+function renderAcb() {
+  const box = $('#acb'), fresh = ACB && Date.now() - new Date(ACB.updated) < 12 * 3600000, gs = fresh ? ACB.games : [];
+  if (!gs.length) { box.innerHTML = ''; return; }
+  const clock = g => { const s = Math.max(0, Math.round((g.left || 0) * 60)); return `${g.q}.º cuarto · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+  const shot = (name, t) => t ? `<tr><td class="l strong">${esc(name)}</td><td>${nf(t.p2, 0)} % <span class="muted">(${nf(t.u2, 0)})</span></td><td>${t.m3}/${t.a3} · ${nf(t.p3, 0)} % <span class="muted">(${nf(t.u3, 0)})</span></td><td>${nf(t.ft, 0)} % <span class="muted">(${nf(t.uft, 0)})</span></td></tr>` : '';
+  const fresh2 = gs.flatMap(g => g.live ? g.alerts.map(a => g.home + a.type + a.level) : []).filter(k => !announced.has(k));
+  fresh2.forEach(k => announced.add(k)); if (fresh2.length && NOTIFY) beep();
+  box.innerHTML = `<section class="panel"><h2>Liga Endesa</h2>${gs.map(g => `<div class="alert ${g.alerts.some(a => a.level === 'fuerte') ? 'fuerte' : ''}" style="${g.alerts.length ? '' : 'border-left-color:var(--line)'}">
+      <div class="st">${g.live ? '<span class="dot"></span>' : ''}<span>${g.live ? esc(clock(g)) : g.final ? 'Final' : esc(new Date(g.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))}</span>
+        <span><strong>${esc(g.home)} ${g.live || g.final ? g.hs + '-' + g.as_ : '–'} ${esc(g.away)}</strong></span></div>
+      ${g.shooting ? `<div class="scroll"><table><thead><tr><th class="l"></th><th>Tiros de 2 (habitual)</th><th>Triples (habitual)</th><th>Tiros libres (habitual)</th></tr></thead><tbody>${shot(g.home, g.shooting[0])}${shot(g.away, g.shooting[1])}</tbody></table></div>` : ''}
+      ${g.live ? g.alerts.map(a => `<div class="note"><span class="tag">${esc(a.title)} ${esc(a.level)}</span><div style="white-space:pre-line;margin-top:6px">${esc(a.text)}</div></div>`).join('') : ''}</div>`).join('')}
+    <div class="muted small">Estos partidos los lee el vigilante de Telegram y los publica aquí una vez por minuto; esta página los recoge cada minuto y medio, así que pueden ir hasta 2 minutos por detrás. El aviso por Telegram llega antes. Última publicación: ${esc(new Date(ACB.updated).toLocaleTimeString('es-ES'))}.</div></section>`;
+}
+loadAcb(); setInterval(loadAcb, 90000);
 renderLog(); notifyButton(); settleBets(); setInterval(settleBets, 60000);
 let n = 0; tick('full');
 // Con la pestaña en segundo plano se sigue revisando (más despacio) para que los avisos con sonido salten igual.

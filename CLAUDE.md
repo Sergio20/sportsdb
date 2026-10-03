@@ -65,8 +65,12 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   (secretos `TELEGRAM_TOKEN` y `TELEGRAM_CHAT_ID` del repositorio); lo lanza
   `.github/workflows/vigilante.yml` en cuatro tandas encadenadas (09:10–02:30 UTC). También vigila
   la Liga Endesa leyendo la ficha pública de live.acb.com (`state_acb`: estado, cuarto, tiempo y
-  tiros de equipo); la web en vivo NO muestra Liga Endesa (el navegador no puede leer acb.com), así
-  que sus avisos solo llegan por Telegram. Cada aviso enviado queda en `avisos.json`
+  tiros de equipo). El navegador no puede leer acb.com, así que el vigilante publica el estado de
+  esos partidos cada minuto en `vivo.json` (rama `vivo`, un solo commit) y la web en vivo lo lee
+  por la API de GitHub cada 90 s (límite: 60 lecturas/hora por conexión). Revisión de cada partido
+  cada 20 s (`EVERY`), con una sola lectura por partido; si la fuente corta (429) frena sola hasta
+  45 s. Sin fuente en directo: LaLiga y las ligas nacionales de Flashscore (solo resultados).
+  Cada aviso enviado queda en `avisos.json`
   (rama `avisos`, un solo commit) y `analisis.sent_log` lo resuelve para «¿Funciona?».
   Ensayo sin partidos: `python vigilante.py --repetir E2026 26 16`.
 - `scripts/repaso.py --desde AAAA-MM-DD`: repasa partidos ya jugados minuto a minuto con las
