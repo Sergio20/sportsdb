@@ -88,7 +88,7 @@ select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 <div class="wrap">
   <header>
     <div><h1>SportsDB en vivo</h1><div class="muted small" id="status">Cargando…</div></div>
-    <button class="btn" id="notifyBtn" aria-pressed="false">Activar avisos con sonido</button>
+    <button class="btn" id="notifyBtn" aria-pressed="true">Avisos con sonido: activados</button>
     <div class="seg" id="compSeg" role="group" aria-label="Competición"><button data-comp="E" aria-pressed="true">Euroliga</button><button data-comp="U" aria-pressed="false">EuroCup</button><button data-comp="A" aria-pressed="false">Liga Endesa</button></div>
   </header>
   <div class="games" id="games"></div>
@@ -424,15 +424,24 @@ function historyTxt(x, el) {
     + r.lines.map(([l, p], i) => `${i ? 'con' : 'Con'} <strong>${signed(l, 1)}</strong> habría acertado el <strong>${nf(p, 0)} %</strong>`).join('; ') + '.</div>';
 }
 /* ---------- Avisos con sonido y notificación ---------- */
-let NOTIFY = false, actx = null; const announced = new Set();
-try { NOTIFY = localStorage.getItem('sdb_notify') === '1'; } catch (e) { /* sin almacenamiento: se queda desactivado */ }
+// Activados SIEMPRE por defecto; solo se apagan si el usuario pulsa el botón (y eso se recuerda en este navegador).
+let NOTIFY = true, actx = null; const announced = new Set();
+try { NOTIFY = localStorage.getItem('sdb_notify') !== '0'; } catch (e) { /* sin almacenamiento: se queda activado */ }
+// Los navegadores no dejan sonar nada ni pedir permiso de notificaciones hasta que se toca la página:
+// con el primer toque o clic en cualquier sitio se desbloquea el sonido y se pide el permiso.
+function unlockSound() {
+  if (!NOTIFY) return;
+  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (e) { /* navegador sin sonido */ }
+  if ('Notification' in window && Notification.permission === 'default') { try { Notification.requestPermission(); } catch (e) { /* sin permiso: queda el sonido */ } }
+}
+document.addEventListener('pointerdown', unlockSound, { once: true });
 function beep() {
   try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume();
     [0, 0.28].forEach(t => { const o = actx.createOscillator(), g = actx.createGain(), t0 = actx.currentTime + t; o.frequency.value = 880; o.connect(g); g.connect(actx.destination);
       g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.3, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22); o.start(t0); o.stop(t0 + 0.24); });
   } catch (e) { /* navegador sin sonido */ }
 }
-function notifyButton() { const b = $('#notifyBtn'); b.textContent = NOTIFY ? 'Avisos con sonido: activados' : 'Activar avisos con sonido'; b.setAttribute('aria-pressed', NOTIFY); }
+function notifyButton() { const b = $('#notifyBtn'); b.textContent = NOTIFY ? 'Avisos con sonido: activados' : 'Avisos con sonido: desactivados'; b.setAttribute('aria-pressed', NOTIFY); }
 async function toggleNotify() {
   NOTIFY = !NOTIFY; try { localStorage.setItem('sdb_notify', NOTIFY ? '1' : '0'); } catch (e) { /* solo para esta sesión */ }
   if (NOTIFY) { beep(); if ('Notification' in window && Notification.permission === 'default') { try { await Notification.requestPermission(); } catch (e) { /* sin permiso: queda el sonido */ } } }

@@ -246,7 +246,7 @@ def upcoming(con, hist, pre, today=None):
 
 
 def timing(con, games):
-    """Entrada y salida con el marcador jugada a jugada (tabla basket_timeline, Euroliga y EuroCup).
+    """Entrada y salida con el marcador jugada a jugada (tabla basket_timeline: Euroliga, EuroCup y Liga Endesa).
 
     Para cada partido, la PRIMERA vez que un equipo alcanza una ventaja de L puntos (10, 15, 20) antes del
     minuto 30 ante un rival de su nivel o mejor: qué pasa después con esa ventaja.
@@ -301,7 +301,7 @@ def timing(con, games):
 
 
 def triples(con, games):
-    """Triples insostenibles al descanso (Euroliga y EuroCup): ¿vuelve el acierto a lo normal? ¿y el marcador?"""
+    """Triples insostenibles al descanso (Euroliga, EuroCup y Liga Endesa): ¿vuelve el acierto a lo normal? ¿y el marcador?"""
     half = defaultdict(dict)
     try:
         for mid, is_home, h, pts, m3, a3 in con.execute("SELECT match_id, is_home, half, points, fg3m, fg3a FROM basket_half_stats"):
@@ -315,8 +315,6 @@ def triples(con, games):
     up = lambda x: math.ceil(x * 2) / 2  # noqa: E731
     rows = []
     for g in games:
-        if g["league"] == "Liga Endesa":
-            continue
         d, codes = half.get(g["id"]), {1: g["hc"], 0: g["ac"]}
         if d and len(d) == 4 and g["Q"] is not None and all(len(base[c]) >= MIN_GAMES for c in codes.values()):
             Mh = g["q"][1][0] + g["q"][2][0] - g["q"][1][1] - g["q"][2][1]

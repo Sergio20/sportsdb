@@ -73,7 +73,7 @@ function render() {
 
   const TR = D.triples;
   if (TR) html += `<section class="panel"><h2>Triples insostenibles</h2>
-    <div class="muted small">${nf(TR.n)} casos de Euroliga y EuroCup: un equipo llega al descanso ganando de 8 o más con un acierto de triple muy por encima del suyo (al menos 8 intentos).</div>
+    <div class="muted small">${nf(TR.n)} casos de Euroliga, EuroCup y Liga Endesa: un equipo llega al descanso ganando de 8 o más con un acierto de triple muy por encima del suyo (al menos 8 intentos).</div>
     <div class="kpis"><div class="kpi"><div class="v">${TR.p1} % → ${TR.p2} %</div><div class="k">Acierto de triple: 1.ª parte → 2.ª parte (su habitual: ${TR.p0} %)</div></div>
       <div class="kpi"><div class="v">${signed(TR.lead, 1)} → ${signed(TR.d2, 1)}</div><div class="k">Ventaja al descanso → diferencia en la 2.ª parte</div></div>
       <div class="kpi"><div class="v">${nf(TR.s80, 0)} · ${nf(TR.s90, 0)} · ${nf(TR.s95, 0)} %</div><div class="k">Acierto del rival con las líneas de seguridad 80 · 90 · 95</div></div></div>
@@ -81,7 +81,7 @@ function render() {
   </section>`;
 
   if (T && T.levels && T.levels.length) html += `<section class="panel"><h2>Entrar y salir: qué pasa después de una gran ventaja</h2>
-    <div class="muted small">Con el marcador jugada a jugada de ${nf(T.n)} partidos de Euroliga y EuroCup. Se toma la <strong>primera vez</strong> que un equipo alcanza esa ventaja antes del minuto 30, ante un rival de su nivel o mejor.</div>
+    <div class="muted small">Con el marcador jugada a jugada de ${nf(T.n)} partidos de Euroliga, EuroCup y Liga Endesa. Se toma la <strong>primera vez</strong> que un equipo alcanza esa ventaja antes del minuto 30, ante un rival de su nivel o mejor.</div>
     <div class="scroll"><table><thead><tr><th class="l">Ventaja alcanzada</th><th>Casos</th><th>Minuto típico</th><th>Ventaja al final</th><th>El que perdía cubre ese hándicap</th><th>Gana el partido</th><th>La desventaja se redujo a la mitad</th><th>Minutos hasta reducirse a la mitad</th><th>Antes creció 5+ puntos más</th></tr></thead><tbody>${T.levels.map(x =>
       `<tr><td class="l strong">${x.L} puntos</td><td>${nf(x.n)}</td><td>${nf(x.t0, 0)}</td><td>${signed(x.final, 1)}</td><td class="strong">${nf(x.cover, 0)} %</td><td>${nf(x.win, 0)} %</td><td class="strong">${nf(x.halved, 0)} %</td><td>${nf(x.wait, 0)}</td><td>${nf(x.worse, 0)} %</td></tr>`).join('')}</tbody></table></div>
     <div class="note"><strong>Para entrar:</strong> «antes creció 5+ puntos más» es el riesgo de entrar demasiado pronto: en ese porcentaje de casos la ventaja todavía aumentó al menos 5 puntos, así que habrías conseguido un hándicap mejor esperando.${T.peak ? ` La ventaja máxima de los partidos con 15 o más de diferencia suele llegar entre los minutos ${nf(T.peak.q1, 0)} y ${nf(T.peak.q3, 0)} (lo más habitual, el ${nf(T.peak.med, 0)}).` : ''} <strong>Para salir:</strong> «se redujo a la mitad» es la frecuencia con la que hubo una ocasión clara de cerrar con beneficio, y los minutos indican cuánto tardó en llegar.</div>

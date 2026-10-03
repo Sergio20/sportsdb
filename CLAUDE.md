@@ -19,7 +19,9 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   `eurocup.py` (API oficial), `acb.py` (acb.com), `flashscore.py` (ligas nacionales y copas de los
   clubes de Euroliga; solo páginas públicas — NO usar el feed interno de Flashscore).
 - `update_db.py`: actualización incremental de la temporada en curso (`--full` reconstruye todo).
-- `build_halves.py`: tiro por mitades (tabla `basket_half_stats`), lo llama `update_db.py`.
+- `build_halves.py`: tiro por mitades (tabla `basket_half_stats`), lo llama `update_db.py`. Las tres
+  ligas: Euroliga/EuroCup de la API de tiros y Liga Endesa de la ficha por cuartos de live.acb.com.
+  `build_timeline.py` saca la evolución del marcador de la Liga Endesa de la página «resumen».
 - `export_panel.py` → `data.json` del panel. `export_live.py` → página en vivo con los valores
   habituales de cada equipo incrustados. `export_excel.py` → Excel (no se usa en la web).
 - `panel/index.html`: el panel (pestañas Resultados, Rachas, Equipos, Tiro, Cara a cara, Cuotas,
