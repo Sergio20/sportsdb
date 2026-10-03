@@ -73,6 +73,8 @@ th.grp { text-align: center; border-left: 1px solid var(--line) } td.b { border-
 .alert.fuerte { border-left-color: var(--live) } .alert.fuerte .tag { background: var(--live) }
 .note.warn { background: color-mix(in srgb, var(--series-2) 14%, var(--surface)) }
 .ctx { display: flex; flex-direction: column; gap: 10px; min-width: 0 } .ctx h3 { font: 600 18px var(--display); margin: 0 }
+.safe { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 10px } .strong { font-weight: 600 }
+.safe .kpi { background: var(--accent-soft) }
 .alert .st { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; color: var(--fg-2) }
 #view, #top { display: flex; flex-direction: column; gap: 18px }
 .calc { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 16px; align-items: end }
@@ -285,7 +287,7 @@ function desfase(h, pbp) {
   if (Math.abs(pre) < FAV || gap < GAP || z < Z || s * mod.M >= Math.abs(pre) * el / 40) return null;
   const tf = teamAgg(s > 0 ? A : B), td = teamAgg(s > 0 ? B : A), bf = s > 0 ? bA : bB, bd = s > 0 ? bB : bA;
   const fc = s > 0 ? h.CodeTeamA : h.CodeTeamB, dc = s > 0 ? h.CodeTeamB : h.CodeTeamA;
-  return { type: 'desfase', favNew: !!bf.new, favOut: absent(fc, pbp, el), dogOut: absent(dc, pbp, el), favFouls: foulTrouble(fc, pbp, el), level: z >= Z_STRONG && gap >= GAP_STRONG ? 'fuerte' : 'moderado', fav: s > 0 ? h.TeamA : h.TeamB, dog: s > 0 ? h.TeamB : h.TeamA, pre: Math.abs(pre), M: s * mod.M,
+  return { type: 'desfase', fr: -s * mod.mean, sd: mod.sd, favNew: !!bf.new, favOut: absent(fc, pbp, el), dogOut: absent(dc, pbp, el), favFouls: foulTrouble(fc, pbp, el), level: z >= Z_STRONG && gap >= GAP_STRONG ? 'fuerte' : 'moderado', fav: s > 0 ? h.TeamA : h.TeamB, dog: s > 0 ? h.TeamB : h.TeamA, pre: Math.abs(pre), M: s * mod.M,
     gap, z, favLuck, dogLuck, fair: Math.round(-s * mod.mean * 2) / 2, sa: A.Points, sb: B.Points, favEfg: tf.efg, favBase: bf.efg, dogEfg: td.efg, dogBase: bd.efg };
 }
 // Modelo y avisos de un partido en directo (para la lista de avisos y para seguir las apuestas abiertas).
@@ -320,7 +322,7 @@ function ritmo(h, pbp) {
   const pace = L.Points * 40 / el, extra = pace - bL.pf, trailExp = -s * 40 * (K.home + K.q * mod.Q); // diferencia prevista antes de empezar para el que pierde
   if (extra < PACE_EXTRA || trailExp < -LEVEL_GAP) return null;
   const leads = allPlays(pbp).filter(p => p.POINTS_A != null && p.POINTS_B != null).map(p => s * (p.POINTS_A - p.POINTS_B));
-  return { type: 'ritmo', level: extra >= 35 || Math.abs(mod.M) >= 18 ? 'fuerte' : 'moderado', z: extra / 10,
+  return { type: 'ritmo', fr: s * mod.mean, sd: mod.sd, level: extra >= 35 || Math.abs(mod.M) >= 18 ? 'fuerte' : 'moderado', z: extra / 10,
     lead: s > 0 ? h.TeamA : h.TeamB, trail: s > 0 ? h.TeamB : h.TeamA, M: Math.abs(mod.M), pace, usual: bL.pf, trailExp,
     maxLead: Math.max(0, ...leads), fair: Math.round(s * mod.mean * 2) / 2, sa: A.Points, sb: B.Points, extra,
     leadFouls: foulTrouble(s > 0 ? h.CodeTeamA : h.CodeTeamB, pbp, el), trailFouls: foulTrouble(s > 0 ? h.CodeTeamB : h.CodeTeamA, pbp, el) };
@@ -335,14 +337,23 @@ function paceHistoryTxt(x, el) {
     + lines.map(([l, p], i) => `${i ? 'con' : 'Con'} <strong>${signed(l, 1)}</strong> habría acertado el <strong>${nf(p, 0)} %</strong> (cuota justa ${p > 0 ? nf(100 / p, 2) : '–'})`).join('; ')
     + '. El ritmo anormal recorta algo más que una ventaja normal, pero poco: la mayor parte de la ventaja se mantiene.</div>';
 }
+// Hándicaps de seguridad: el justo acierta 1 de cada 2; estos se alargan lo necesario para acertar el 80, 90 y 95 %.
+// Comprobado con el histórico (analisis.py): aciertan 76-83 %, 87-93 % y 93-96 %.
+const SAFE = [[80, 0.8416], [90, 1.2816], [95, 1.6449]], upHalf = v => Math.ceil(v * 2) / 2, downHalf = v => Math.floor(v * 2) / 2;
+function safeHtml(title, lines) {
+  return `<div class="safe"><div class="small strong">${title}</div><div class="kpis">${lines.map(([p, txt]) => `<div class="kpi"><div class="v">${txt}</div><div class="k">Acierta el ${p} % · cuota mínima ${nf(100 / p, 2)}</div></div>`).join('')}</div>
+    <div class="muted small">Cuanto más largo el hándicap, más aciertas pero menos paga. «Cuota mínima» es la que necesitas para no perder dinero a la larga: por debajo, ni acertando ese porcentaje compensa. Ninguno acierta siempre.</div></div>`;
+}
+const safeHcap = (team, fr, sd) => safeHtml('Hándicaps de seguridad · ' + esc(team), SAFE.map(([p, z]) => [p, signed(upHalf(fr + z * sd), 1)]));
 function alertHtml([g, x]) {
   const h = g.h, head = `<div class="st"><span class="tag">${KIND[x.type]} ${x.level}</span><span>${COMP[g.comp]} · ${esc(h.TeamA)} <strong>${x.sa}-${x.sb}</strong> ${esc(h.TeamB)} · ${esc(periodTxt(h))}</span></div>`;
   const go = `<div><button class="btn" data-go="${g.comp}|${g.gameCode}">Ver partido y calcular el hándicap</button></div>`;
   if (x.type === 'ritmo') return `<div class="alert ${x.level}">${head}
       <div><strong>${esc(x.lead)}</strong> gana de ${nf(x.M)} anotando a un ritmo de <strong>${nf(x.pace, 0)} puntos</strong> por partido (su media es ${nf(x.usual, 0)}), ante un rival ${x.trailExp >= 3 ? 'que era favorito' : 'de su nivel'}. ${x.maxLead > x.M ? `La ventaja máxima fue de ${nf(x.maxLead)}: ya ha empezado a bajar, así que el mejor momento para entrar puede haber pasado.` : 'Está en su ventaja máxima del partido.'}</div>
-      <div class="kpis"><div class="kpi"><div class="v">${signed(x.fair, 1)}</div><div class="k">Hándicap justo · ${esc(x.trail)}</div></div>
+      <div class="kpis"><div class="kpi"><div class="v">${signed(x.fair, 1)}</div><div class="k">Hándicap justo · ${esc(x.trail)} · acierta 1 de cada 2</div></div>
         <div class="kpi"><div class="v">+${nf(x.M + 0.5, 1)}</div><div class="k">Hándicap igual a la ventaja actual</div></div>
         <div class="kpi"><div class="v">${signed(x.extra, 0)}</div><div class="k">Ritmo por encima de su media</div></div></div>
+      ${safeHcap(x.trail, x.fr, x.sd)}
       ${paceHistoryTxt(x, elapsed(h))}
       ${x.leadFouls.length ? `<div class="note">A favor de la remontada: ${esc(x.lead)} tiene en problemas de faltas a ${foulTxt(x.leadFouls)}.</div>` : ''}
       ${x.trailFouls.length ? `<div class="note warn">Ojo: ${esc(x.trail)} tiene en problemas de faltas a ${foulTxt(x.trailFouls)}.</div>` : ''}${go}</div>`;
@@ -350,14 +361,16 @@ function alertHtml([g, x]) {
       <div>Van camino de <strong>${nf(x.pace, 0)} puntos</strong> entre los dos, pero lo esperable al final es <strong>${nf(x.tMean, 0)}</strong> (su habitual es ${nf(x.usualT, 0)}). En el histórico, del ${x.high ? 'exceso' : 'defecto'} de ritmo solo se mantiene un ${nf(100 * KT.c, 0)} % en lo que queda de partido. Si la casa ha ${x.high ? 'subido' : 'bajado'} mucho la línea de total, el «${x.high ? 'menos' : 'más'} de» es donde puede haber valor.</div>
       <div class="kpis"><div class="kpi"><div class="v">${nf(x.tMean, 0)}</div><div class="k">Total justo al final (±${nf(x.tSd, 0)})</div></div>
         <div class="kpi"><div class="v">${nf(x.pace, 0)}</div><div class="k">Total al ritmo actual</div></div>
-        <div class="kpi"><div class="v">${nf(x.high ? x.tMean + x.tSd : x.tMean - x.tSd, 0)}</div><div class="k">«${x.high ? 'Menos' : 'Más'} de» esta línea: 84 % de acierto (cuota justa 1,19)</div></div></div>
+        <div class="kpi"><div class="v">${nf(x.usualT, 0)}</div><div class="k">Total habitual de los dos equipos</div></div></div>
+      ${safeHtml('Líneas de seguridad · ' + (x.high ? 'menos de' : 'más de'), SAFE.map(([p, z]) => [p, (x.high ? 'Menos de ' : 'Más de ') + nf(x.high ? upHalf(x.tMean + z * x.tSd) : downHalf(x.tMean - z * x.tSd), 1)]))}
       <div class="muted small">No cuenta prórrogas. Usa la calculadora del partido (mercado «Total de puntos») con la línea y la cuota que te ofrezcan.</div>${go}</div>`;
   return `<div class="alert ${x.level}">${head}
       <div><strong>${esc(x.fav)}</strong>, favorito por ${nf(x.pre, 0)} según sus últimos partidos, ${x.M < 0 ? 'pierde por ' + nf(-x.M) : x.M > 0 ? 'gana solo por ' + nf(x.M) : 'va empatado'}. Con esos mismos tiros y su acierto habitual, ${esc(x.fav)} llevaría ${nf(Math.abs(x.favLuck), 0)} ${Math.round(Math.abs(x.favLuck)) === 1 ? 'punto' : 'puntos'} ${x.favLuck < 0 ? 'más' : 'menos'} y ${esc(x.dog)} ${nf(Math.abs(x.dogLuck), 0)} ${x.dogLuck > 0 ? 'menos' : 'más'}: ${nf(x.gap, 0)} puntos del marcador vienen de un acierto fuera de lo normal.</div>
-      <div class="kpis"><div class="kpi"><div class="v">${signed(x.fair, 1)}</div><div class="k">Hándicap justo · ${esc(x.fav)}</div></div>
+      <div class="kpis"><div class="kpi"><div class="v">${signed(x.fair, 1)}</div><div class="k">Hándicap justo · ${esc(x.fav)} · acierta 1 de cada 2</div></div>
         <div class="kpi"><div class="v">${nf(x.favEfg, 0)} %</div><div class="k">Acierto efectivo ${esc(x.fav)} · habitual ${nf(x.favBase, 0)} %</div></div>
         <div class="kpi"><div class="v">${nf(x.dogEfg, 0)} %</div><div class="k">Acierto efectivo ${esc(x.dog)} · habitual ${nf(x.dogBase, 0)} %</div></div>
         <div class="kpi"><div class="v">1 de cada ${nf(1 / (1 - phi(x.z)), 0)}</div><div class="k">Así de raro es este acierto</div></div></div>
+      ${safeHcap(x.fav, x.fr, x.sd)}
       ${historyTxt(x, elapsed(h))}
       ${x.favNew ? `<div class="note warn">Ojo: ${esc(x.fav)} es recién llegado a la Euroliga; su condición de favorito se basa en pocos partidos en esta competición.</div>` : ''}
       ${x.favOut.length ? `<div class="note warn">Ojo: a ${esc(x.fav)} le faltan jugadores clave: ${absTxt(x.favOut)}. Su acierto habitual puede no servir hoy.</div>` : ''}

@@ -31,7 +31,8 @@ LAST_N, MIN_GAMES = 30, 5
 EUROCUP_GAP = 9.0                                   # ver export_live.py
 K = dict(home=0.10, q=0.021, m=-0.010, sd=2.1)      # modelo del margen en vivo (panel/en_vivo_plantilla.html)
 KT = dict(a=1.02, c=0.08, sd=2.48)                  # modelo del total en vivo: del exceso de ritmo solo se mantiene c
-PACE_EXTRA, LEVEL_GAP, FAV = 20, 3, 5               # umbrales de los avisos del panel en vivo
+PACE_EXTRA, LEVEL_GAP, FAV, TOTAL_GAP = 20, 3, 5, 18   # umbrales de los avisos del panel en vivo
+Z80, Z90, Z95 = 0.8416, 1.2816, 1.6449                          # hándicaps de seguridad: justo + Z veces el margen de error
 DAYS_AHEAD = 6
 
 
@@ -149,14 +150,27 @@ def check(games, halves, pre):
 
     # 3) Los dos avisos, reproducidos al final de cada cuarto
     alerts = []
+    up = lambda x: math.ceil(x * 2) / 2      # noqa: E731  medio punto hacia arriba: hándicap algo más largo, nunca más corto
     for p, name in ((1, "Final del 1.er cuarto"), (2, "Descanso"), (3, "Final del 3.er cuarto")):
-        rit, desf = [], []
+        rit, desf, tot = [], [], []
         for g in games:
             if g["Q"] is None:
                 continue
             ch = sum(g["q"][i][0] for i in range(1, p + 1))
             ca = sum(g["q"][i][1] for i in range(1, p + 1))
-            M, r = ch - ca, 40 - 10 * p
+            M, r, el = ch - ca, 40 - 10 * p, 10 * p
+            # Total desfasado: se apuesta a que el ritmo vuelve (menos de si va alto, más de si va bajo)
+            cur = ch + ca
+            tmean = cur + r * (KT["a"] * g["usual"] / 40 + KT["c"] * (cur / el - g["usual"] / 40))
+            tsd, pace = KT["sd"] * math.sqrt(r), cur * 40 / el
+            if abs(pace - tmean) >= TOTAL_GAP and p < 3:
+                if pace > tmean:
+                    hit = lambda line: int(g["reg"] < line)   # noqa: E731
+                    tot.append((None, None, hit(round(tmean * 2) / 2), hit(up(tmean + Z80 * tsd)), hit(up(tmean + Z90 * tsd)), tmean - g["reg"], hit(up(tmean + Z95 * tsd))))
+                else:
+                    hit = lambda line: int(g["reg"] > line)   # noqa: E731
+                    dn = lambda x: math.floor(x * 2) / 2      # noqa: E731
+                    tot.append((None, None, hit(round(tmean * 2) / 2), hit(dn(tmean - Z80 * tsd)), hit(dn(tmean - Z90 * tsd)), g["reg"] - tmean, hit(dn(tmean - Z95 * tsd))))
             if M == 0:
                 continue
             pre_m = 40 * (K["home"] + K["q"] * g["Q"])
@@ -164,8 +178,9 @@ def check(games, halves, pre):
             sd = K["sd"] * math.sqrt(r)
             s = -1 if M > 0 else 1                      # lado del que va perdiendo
             final, line = s * (g["hs"] - g["as_"]), abs(M) + 0.5
-            fair = round(-s * mean * 2) / 2             # hándicap justo del que pierde
-            row = (100 * phi((s * mean + line) / sd), int(final + line > 0), int(final + fair > 0), final + abs(M))
+            fair = -s * mean                            # hándicap justo del que pierde
+            row = (100 * phi((s * mean + line) / sd), int(final + line > 0), int(final + round(fair * 2) / 2 > 0),
+                   int(final + up(fair + Z80 * sd) > 0), int(final + up(fair + Z90 * sd) > 0), final + abs(M), int(final + up(fair + Z95 * sd) > 0))
             lead_pf = g["pf_h"] if M > 0 else g["pf_a"]
             if abs(M) >= 10 and (ch if M > 0 else ca) * 4 / p - lead_pf >= PACE_EXTRA and s * pre_m >= -LEVEL_GAP:
                 rit.append(row)
@@ -174,13 +189,14 @@ def check(games, halves, pre):
                 ef, ed = remontadas.efg(hf), remontadas.efg(hd)
                 if ef is not None and ed is not None and ed - ef >= 15:
                     desf.append(row)
-        for kind, rows in (("Ritmo insostenible", rit), ("Desfase (favorito con acierto muy inferior)", desf)):
+        for kind, rows in (("Ritmo insostenible", rit), ("Desfase (favorito con acierto muy inferior)", desf), ("Total desfasado", tot)):
             if len(rows) >= 10:
                 n = len(rows)
-                real = 100 * sum(x[1] for x in rows) / n
-                alerts.append(dict(kind=kind, when=name, n=n, pred=round(sum(x[0] for x in rows) / n, 1), real=round(real, 1),
-                                   fair=round(100 * sum(x[2] for x in rows) / n, 1), rec=round(sum(x[3] for x in rows) / n, 1),
-                                   odds=round(100 / real, 2) if real else None))
+                pc = lambda i: round(100 * sum(x[i] for x in rows) / n, 1)   # noqa: E731
+                is_tot = rows[0][0] is None
+                alerts.append(dict(kind=kind, when=name, n=n, pred=None if is_tot else round(sum(x[0] for x in rows) / n, 1),
+                                   real=None if is_tot else pc(1), fair=pc(2), s80=pc(3), s90=pc(4), s95=pc(6), rec=round(sum(x[5] for x in rows) / n, 1),
+                                   odds=None if is_tot or not pc(1) else round(100 / pc(1), 2)))
     out["alerts"] = alerts
     return out
 
