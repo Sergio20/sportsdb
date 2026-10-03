@@ -8,7 +8,7 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
 - **Rama `main`**: código. Cada push vuelve a publicar la web.
 - **Rama `data`**: un único commit con `deportes_db.zip` (la base SQLite `deportes.db` comprimida).
   El workflow la reescribe cada día con `--force`; no tiene historial a propósito.
-- **`.github/workflows/actualizar.yml`**: cada día a las 06:10 UTC descarga la base de la rama
+- **`.github/workflows/actualizar.yml`**: cada día a las 04:10 UTC (06:10 en Madrid en verano) descarga la base de la rama
   `data`, ejecuta `update_db.py`, comprueba (`scripts/check_db.py`), construye la web
   (`build_site.py` → `_site/`), la publica en Pages y guarda la base en `data`.
   Un push a `main` solo reconstruye y publica (no descarga datos ni toca `data`).
