@@ -63,7 +63,10 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
 - `avisos.py`: las reglas de los cuatro avisos en Python (desfase, ritmo, triples, total), espejo de
   la plantilla en vivo. `vigilante.py` las aplica en directo y manda cada aviso por Telegram
   (secretos `TELEGRAM_TOKEN` y `TELEGRAM_CHAT_ID` del repositorio); lo lanza
-  `.github/workflows/vigilante.yml` dos veces cada tarde. Cada aviso enviado queda en `avisos.json`
+  `.github/workflows/vigilante.yml` en cuatro tandas encadenadas (09:10–02:30 UTC). También vigila
+  la Liga Endesa leyendo la ficha pública de live.acb.com (`state_acb`: estado, cuarto, tiempo y
+  tiros de equipo); la web en vivo NO muestra Liga Endesa (el navegador no puede leer acb.com), así
+  que sus avisos solo llegan por Telegram. Cada aviso enviado queda en `avisos.json`
   (rama `avisos`, un solo commit) y `analisis.sent_log` lo resuelve para «¿Funciona?».
   Ensayo sin partidos: `python vigilante.py --repetir E2026 26 16`.
 - `scripts/repaso.py --desde AAAA-MM-DD`: repasa partidos ya jugados minuto a minuto con las

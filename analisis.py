@@ -360,7 +360,7 @@ def sent_log(con, path):
         r = con.execute("""SELECT m.home_score, m.away_score, m.status, m.date,
                                   (SELECT SUM(p.home + p.away) FROM periods p WHERE p.match_id = m.match_id AND p.period <= 4)
                            FROM matches m WHERE m.league = ? AND m.season_start = ? AND m.source_id = ?""",
-                        ("Euroliga" if e["comp"] == "E" else "EuroCup", e["year"], str(e["code"]))).fetchone()
+                        ({"E": "Euroliga", "U": "EuroCup", "A": "Liga Endesa"}[e["comp"]], e["year"], str(e["code"]))).fetchone()
         al = e["alert"]
         row = dict(ts=e["ts"], comp=e["comp"], home=e["home"], away=e["away"], el=e["el"], score=e["score"], type=al["type"], level=al["level"],
                    bet=("menos de" if al.get("under") else "más de") if al["type"] == "total" else (e["home"] if al["side"] > 0 else e["away"]),

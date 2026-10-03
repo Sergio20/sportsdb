@@ -33,7 +33,7 @@ SELECT CASE s.is_home WHEN 1 THEN m.home_code ELSE m.away_code END AS code, m.da
        s.points, s.fg2m, s.fg2a, s.fg3m, s.fg3a, s.ftm, s.fta, s.oreb, s.turnovers,
        CASE s.is_home WHEN 1 THEN m.away_score ELSE m.home_score END AS against, m.league
 FROM basket_team_stats s JOIN matches m ON m.match_id = s.match_id
-WHERE m.league IN ('Euroliga', 'EuroCup') AND m.status = 'played' AND s.fg2a IS NOT NULL AND m.date < ?
+WHERE m.league IN ({leagues}) AND m.status = 'played' AND s.fg2a IS NOT NULL AND m.date < ?
 ORDER BY m.date DESC
 """
 
@@ -81,11 +81,12 @@ def euroleague_seasons(con) -> dict:
     return out
 
 
-def baseline(con, before="9999-12-31") -> dict:
+def baseline(con, before="9999-12-31", leagues=("Euroliga", "EuroCup")) -> dict:
     """Valores habituales de cada equipo. `before` deja fuera los partidos de esa fecha en adelante
-    (para repasar partidos ya jugados sin hacer trampa con lo que pasó después)."""
+    (para repasar partidos ya jugados sin hacer trampa con lo que pasó después). `leagues` permite
+    calcularlos para la Liga Endesa (el vigilante de Telegram), con sus propios códigos de club."""
     by = {}
-    for r in con.execute(SQL, (before,)):
+    for r in con.execute(SQL.format(leagues=",".join("?" * len(leagues))), (*leagues, before)):
         rows = by.setdefault(r[0], [])
         if len(rows) < LAST_N:
             rows.append(r)

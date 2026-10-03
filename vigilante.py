@@ -28,11 +28,13 @@ import requests
 import avisos
 import export_live
 from build_timeline import PERIODS, minute
-from sportsdb.common import DEFAULT_DB, UA, current_season_start
+from sportsdb import acb
+from sportsdb.common import DEFAULT_DB, UA, current_season_start, http_get
 
 LIVE = "https://live.euroleague.net/api/"
 GAMES = "https://api-live.euroleague.net/v2/competitions/{c}/seasons/{c}{y}/games?limit=1000"
-COMP = {"E": "Euroliga", "U": "EuroCup"}
+EURO = ("E", "U")
+COMP = {"E": "Euroliga", "U": "EuroCup", "A": "Liga Endesa"}
 WEB = "https://sergio20.github.io/sportsdb/en-vivo.html"
 EVERY, GAP = 45, 1.2          # segundos entre vueltas y entre peticiones (la fuente corta si se abusa)
 ses = requests.Session()
@@ -106,7 +108,7 @@ def result_message(g, entries, hs, as_):
 
 def todays_games(year):
     out = []
-    for comp in COMP:
+    for comp in EURO:
         d = get(GAMES.format(c=comp, y=year))
         for g in (d or {}).get("data", []):
             if not g.get("utcDate") or g["local"]["club"].get("isVirtual") or g["road"]["club"].get("isVirtual"):
@@ -118,17 +120,86 @@ def todays_games(year):
     return out
 
 
-def watch(base, log_path, hours):
+def acb_games(con, year):
+    """Partidos de Liga Endesa de hoy, del calendario guardado en la base (códigos de club de acb.com)."""
+    out = []
+    lo, hi = (now() - dt.timedelta(days=1)).date().isoformat(), (now() + dt.timedelta(days=1)).date().isoformat()
+    for code, date, tm, ht, at, hc, ac, status in con.execute(
+            "SELECT source_id, date, time, home_team, away_team, home_code, away_code, status FROM matches "
+            "WHERE league = 'Liga Endesa' AND date BETWEEN ? AND ? AND time IS NOT NULL", (lo, hi)):
+        start = dt.datetime.fromisoformat(f"{date}T{tm}:00+00:00")
+        if abs((start - now()).total_seconds()) < 8 * 3600:
+            out.append(dict(comp="A", year=year, code=int(code), start=start, home=ht, away=at, hc=hc, ac=ac, done=status == "played", sent={}))
+    return out
+
+
+def state_euro(g):
+    """Estado de un partido de Euroliga/EuroCup: None si no se puede leer; si no, dict(live, final, el, A, B, hs, as_)."""
+    h = get(LIVE + "Header", gamecode=g["code"], seasoncode=f"{g['comp']}{g['year']}")
+    if not h:
+        return None
+    hs, as_ = int(h.get("ScoreA") or 0), int(h.get("ScoreB") or 0)
+    if not h.get("Live"):
+        return dict(live=False, final=hs + as_ > 0 and now() > g["start"] + dt.timedelta(minutes=75), hs=hs, as_=as_)
+    el = elapsed(h)
+    plays = read_plays(g["comp"], g["year"], g["code"]) if el is not None else None
+    if not plays:
+        return dict(live=True, final=False, el=None, hs=hs, as_=as_)
+    A, B = avisos.totals(plays, g["hc"])
+    return dict(live=True, final=False, el=el, A=A, B=B, hs=hs, as_=as_)
+
+
+def state_acb(g):
+    """Lo mismo para la Liga Endesa, leyendo la ficha pública del partido en live.acb.com."""
+    time.sleep(GAP)
+    try:
+        payload = acb.rsc_payload(http_get(acb.MATCH_URL.format(id=g["code"]), tries=2).text)
+    except Exception:
+        return None
+    head = (acb.find_props(payload, "initialMatchHeader") or {}).get("initialMatchHeader")
+    if not head:
+        return None
+    status, hs, as_ = str(head.get("status") or "").upper(), int(head.get("currentHomeScore") or 0), int(head.get("currentAwayScore") or 0)
+    if status == "FINALIZED":
+        return dict(live=False, final=True, hs=hs, as_=as_)
+    q = int(head.get("currentQuarter") or 0)
+    if status == "NOT_STARTED" or not 1 <= q <= 4:
+        return dict(live=False, final=False, hs=hs, as_=as_)
+    try:
+        m, s = str(head.get("timeLeft") or "0:0").split(":")[:2]
+        el = (q - 1) * 10 + 10 - (int(m) + int(s) / 60)
+    except ValueError:
+        el = None
+    stats = (acb.find_props(payload, "initialStatistics") or {}).get("initialStatistics") or {}
+    home_id, tot = head["teams"]["home"]["id"], {}
+    for i, tb in enumerate(stats.get("teamBoxscores") or []):
+        t = next((p["stats"]["total"] for p in tb["statsByPeriods"] if p["quarter"] == 0), None)
+        if t:
+            n = lambda k: int(t.get(k) or 0)  # noqa: E731
+            is_home = tb["team"]["id"] == home_id if tb.get("team") else i == 0
+            tot[is_home] = dict(pts=n("points"), m2=n("twoPointersMade"), a2=n("twoPointersAttempted"), m3=n("threePointersMade"),
+                                a3=n("threePointersAttempted"), mf=n("freeThrowsMade"), af=n("freeThrowsAttempted"))
+    if el is None or len(tot) != 2:
+        print(f"  Liga Endesa {g['home']}: en juego pero sin datos completos (estado {status}, cuarto {q}, tiempo {head.get('timeLeft')!r})", flush=True)
+        return dict(live=True, final=False, el=None, hs=hs, as_=as_)
+    return dict(live=True, final=False, el=el, A=tot[True], B=tot[False], hs=hs, as_=as_)
+
+
+def watch(con, log_path, hours):
     year = current_season_start()
     deadline = now() + dt.timedelta(hours=hours)
     log = json.loads(log_path.read_text(encoding="utf-8")) if log_path.exists() else []
-    games = todays_games(year)
+    bases = {"E": export_live.baseline(con), "A": export_live.baseline(con, leagues=("Liga Endesa",))}
+    bases["U"] = bases["E"]
+    games = todays_games(year) + acb_games(con, year)
     for g in games:   # lo ya avisado en una tanda anterior del mismo día no se repite
         g["sent"] = {e["key"]: e for e in log if (e["comp"], e["year"], e["code"]) == (g["comp"], g["year"], g["code"])}
-    print(f"{len(games)} partidos en las próximas horas; vigilando hasta las {deadline:%H:%M} UTC como muy tarde", flush=True)
+    print(f"{len(games)} partidos alrededor de esta hora; vigilando hasta las {deadline:%H:%M} UTC como muy tarde", flush=True)
+    for g in sorted(games, key=lambda g: g["start"]):
+        print(f"  {g['start']:%H:%M} UTC · {COMP[g['comp']]} · {g['home']} - {g['away']}" + (" (ya jugado)" if g["done"] else ""), flush=True)
     while now() < deadline:
-        pending = [g for g in games if not g["done"]]
-        if not pending:
+        pending = [g for g in games if not g["done"] and g["start"] < deadline]
+        if not pending:     # nada más que vigilar en esta tanda: la siguiente se ocupa del resto
             break
         soon = [g for g in pending if g["start"] <= now() + dt.timedelta(minutes=3)]
         if not soon:
@@ -136,27 +207,23 @@ def watch(base, log_path, hours):
             continue
         t0 = time.time()
         for g in soon:
-            h = get(LIVE + "Header", gamecode=g["code"], seasoncode=f"{g['comp']}{year}")
-            if not h:
+            st = (state_acb if g["comp"] == "A" else state_euro)(g)
+            if not st:
                 continue
-            hs, as_ = int(h.get("ScoreA") or 0), int(h.get("ScoreB") or 0)
-            if not h.get("Live"):
-                if hs + as_ > 0 and now() > g["start"] + dt.timedelta(minutes=75):   # terminado
-                    g["done"] = True
-                    mine = [e for e in g["sent"].values()]
-                    if mine and not any(e.get("closed") for e in mine):
-                        send(result_message(g, mine, hs, as_))
-                        for e in mine:
-                            e["closed"] = True
-                        log_path.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")
+            if st["final"]:
+                g["done"] = True
+                mine = [e for e in g["sent"].values()]
+                if mine and not any(e.get("closed") for e in mine):
+                    send(result_message(g, mine, st["hs"], st["as_"]))
+                    for e in mine:
+                        e["closed"] = True
+                    log_path.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")
                 continue
-            el, bA, bB = elapsed(h), base.get(g["hc"]), base.get(g["ac"])
-            if el is None or not bA or not bB:
+            base = bases[g["comp"]]
+            el, bA, bB = st.get("el"), base.get(g["hc"]), base.get(g["ac"])
+            if not st["live"] or el is None or not bA or not bB:
                 continue
-            plays = read_plays(g["comp"], year, g["code"])
-            if not plays:
-                continue
-            A, B = avisos.totals(plays, g["hc"])
+            A, B = st["A"], st["B"]
             for al in avisos.evaluate(el, A, B, bA, bB):
                 k, old = avisos.key(al), g["sent"].get(avisos.key(al))
                 if old and not (old["alert"]["level"] == "moderado" and al["level"] == "fuerte" and not old.get("upgraded")):
@@ -166,7 +233,7 @@ def watch(base, log_path, hours):
                 if old:                 # pasa de moderado a fuerte: se avisa otra vez, pero cuenta el primero
                     old["upgraded"] = True
                     continue
-                entry = dict(ts=now().isoformat(timespec="seconds"), comp=g["comp"], year=year, code=g["code"], home=g["home"], away=g["away"],
+                entry = dict(ts=now().isoformat(timespec="seconds"), comp=g["comp"], year=g["year"], code=g["code"], home=g["home"], away=g["away"],
                              key=k, el=round(el, 1), score=score, alert=al)
                 g["sent"][k] = entry
                 log.append(entry)
@@ -208,11 +275,9 @@ def main():
         ok = send("✅ SportsDB: los avisos por Telegram funcionan. Aquí llegarán los desfases, ritmos insostenibles, triples y totales de los partidos en directo.")
         return 0 if ok else 1
     con = sqlite3.connect(a.db)
-    base = export_live.baseline(con)
-    con.close()
     if a.repetir:
-        return replay(base, a.repetir[0], int(a.repetir[1]), int(a.repetir[2]))
-    watch(base, Path(a.log), a.horas)
+        return replay(export_live.baseline(con), a.repetir[0], int(a.repetir[1]), int(a.repetir[2]))
+    watch(con, Path(a.log), a.horas)
     return 0
 
 
