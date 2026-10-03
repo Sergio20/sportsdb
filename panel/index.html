@@ -156,12 +156,22 @@ let DB = null;
 const S = { league: store.get('league') || 'LaLiga', season: null, tab: 'resultados', team: null, scope: 'all', shown: 30, shotSort: null, sim: {}, h2h: { a: null, b: null, n: 5, sa: 'all', sb: 'all', all: true }, oddsAll: true, oddsSrc: 'avg' };
 
 /* ---------- Datos ---------- */
+// La base guarda el baloncesto en hora universal (UTC) y LaLiga en hora del Reino Unido: aquí se pasa todo a la hora
+// de quien mira la página (fecha incluida, por si el cambio cruza la medianoche).
+const tzOffset = (ms, tz) => { const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).formatToParts(new Date(ms)).map(x => [x.type, x.value])); return Date.UTC(+p.year, p.month - 1, +p.day, +p.hour, +p.minute) - ms; };
+function toLocalTime(o, foot) {
+  if (!o.date || !/^\d\d:\d\d/.test(o.time || '')) return o;
+  const [y, m, d] = o.date.split('-').map(Number), [hh, mm] = o.time.split(':').map(Number), p = n => String(n).padStart(2, '0');
+  let ms = Date.UTC(y, m - 1, d, hh, mm); if (foot) ms -= tzOffset(ms, 'Europe/London');
+  const t = new Date(ms); o.date = `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())}`; o.time = `${p(t.getHours())}:${p(t.getMinutes())}`;
+  return o;
+}
 function prepare(raw) {
   const out = { updated: raw.updated, leagues: {} };
   for (const [name, L] of Object.entries(raw.leagues)) {
-    const ms = L.matches.map(r => { const o = {}; L.cols.forEach((c, i) => o[c] = r[i]); return o; });
+    const ms = L.matches.map(r => { const o = {}; L.cols.forEach((c, i) => o[c] = r[i]); return toLocalTime(o, L.sport === 'futbol'); });
     const seasons = [...new Set(ms.map(m => m.season))].sort();
-    const extra = (L.extra || []).map(r => { const o = { played: 1, x: 1 }; L.extra_cols.forEach((c, i) => o[c] = r[i]); return o; });
+    const extra = (L.extra || []).map(r => { const o = { played: 1, x: 1 }; L.extra_cols.forEach((c, i) => o[c] = r[i]); return toLocalTime(o, false); });
     out.leagues[name] = { name, sport: L.sport, teams: L.teams, matches: ms, extra, seasons, foot: L.sport === 'futbol' };
   }
   return out;
