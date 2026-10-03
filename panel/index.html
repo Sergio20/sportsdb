@@ -557,7 +557,7 @@ let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTime
 function start(raw) {
   DB = prepare(raw);
   const d = new Date(DB.updated);
-  $('#updated').textContent = 'LaLiga · Euroliga · Liga Endesa — datos actualizados el ' + (isNaN(d) ? DB.updated : d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) + ' a las ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }));
+  $('#updated').textContent = Object.keys(DB.leagues).join(' · ') + ' — datos actualizados el ' +(isNaN(d) ? DB.updated : d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) + ' a las ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }));
   setTab(); render();
 }
 fetch('data.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(start).catch(() => {

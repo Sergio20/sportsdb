@@ -138,6 +138,7 @@ def export(db=DEFAULT_DB, out=None):
         "leagues": {
             "LaLiga": _football(con),
             "Euroliga": _basket(con, "Euroliga"),
+            "EuroCup": _basket(con, "EuroCup"),
             "Liga Endesa": _basket(con, "Liga Endesa"),
         },
     }
