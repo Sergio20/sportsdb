@@ -19,6 +19,7 @@ on:
 
 permissions:
   contents: write
+  actions: write      # para que una tanda pueda lanzar la siguiente
 
 concurrency:
   group: vigilante
@@ -60,8 +61,12 @@ jobs:
         run: python vigilante.py --repetir E2026 26 16
 
       - name: Vigilar los partidos de hoy
+        id: vigilar
         if: github.event_name == 'schedule' || github.event.inputs.modo == 'vigilar'
-        run: python vigilante.py --log avisos.json --horas 4.4
+        run: |
+          code=0
+          python vigilante.py --log avisos.json --horas 4.4 || code=$?
+          if [ "$code" = "3" ]; then echo "seguir=1" >> "$GITHUB_OUTPUT"; elif [ "$code" != "0" ]; then exit "$code"; fi
 
       - name: Guardar los avisos enviados (rama avisos, un solo commit)
         if: always() && (github.event_name == 'schedule' || github.event.inputs.modo == 'vigilar')
@@ -76,3 +81,11 @@ jobs:
           git add avisos.json
           git commit -q -m "Avisos hasta $(date -u +%Y-%m-%d)"
           git push --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" avisos
+
+      # No se depende del programador de GitHub (a veces se retrasa o se salta una tanda):
+      # si al acabar quedan partidos, esta tanda lanza la siguiente.
+      - name: Encadenar la siguiente tanda
+        if: steps.vigilar.outputs.seguir == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run vigilante.yml --repo "${{ github.repository }}" -f modo=vigilar

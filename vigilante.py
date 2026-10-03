@@ -359,6 +359,9 @@ def watch(con, log_path, hours):
             bg.join(30)
         publish(vivo_data(games, bases))      # deja publicado el estado final
     print(f"Fin de la vigilancia: {sum(len(g['sent']) for g in games)} avisos en total hoy", flush=True)
+    # ¿Quedan partidos sin terminar o por empezar en las próximas horas? Entonces hace falta otra tanda ya.
+    # (Un partido aplazado que nunca termina no debe encadenar tandas sin fin: solo cuentan los de las últimas 5 horas.)
+    return any(not g["done"] and now() - dt.timedelta(hours=5) <= g["start"] <= now() + dt.timedelta(hours=4) for g in games)
 
 
 def replay(base, season, code, el):
@@ -396,8 +399,7 @@ def main():
     con = sqlite3.connect(a.db)
     if a.repetir:
         return replay(export_live.baseline(con), a.repetir[0], int(a.repetir[1]), int(a.repetir[2]))
-    watch(con, Path(a.log), a.horas)
-    return 0
+    return 3 if watch(con, Path(a.log), a.horas) else 0     # 3 = quedan partidos: el workflow lanza otra tanda
 
 
 if __name__ == "__main__":
