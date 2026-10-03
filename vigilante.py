@@ -45,7 +45,7 @@ WEB = "https://sergio20.github.io/sportsdb/en-vivo.html"
 # corta el acceso varios minutos, que es mucho peor) ni de ~0,3 a acb.com. Una sola lectura por partido y vuelta.
 MIN_EVERY, PER_EURO, PER_ACB, GAP = 10, 2.5, 3.5, 0.3
 EXTRA_MAX = 30                # si la fuente corta (429), se suman segundos al intervalo y luego se van quitando
-PUBLISH_EVERY = 60            # la Liga Endesa se publica para la web como mucho una vez por minuto (en segundo plano)
+PUBLISH_EVERY = 30            # la Liga Endesa se publica para la web cada medio minuto como mucho (en segundo plano)
 pace = {"extra": 0}
 ses = requests.Session()
 ses.headers["User-Agent"] = UA
@@ -216,11 +216,10 @@ def state_acb(g):
     if not head:
         return None
     status, hs, as_ = str(head.get("status") or "").upper(), int(head.get("currentHomeScore") or 0), int(head.get("currentAwayScore") or 0)
-    if status == "FINALIZED":
-        return dict(live=False, final=True, hs=hs, as_=as_)
     q = int(head.get("currentQuarter") or 0)
-    if status == "NOT_STARTED" or not 1 <= q <= 4:
+    if status == "NOT_STARTED":
         return dict(live=False, final=False, hs=hs, as_=as_)
+    quarters = [[x["home"], x["away"]] for x in sorted(head.get("quarterScores") or [], key=lambda x: x["quarter"])]
     try:
         m, s = str(head.get("timeLeft") or "0:0").split(":")[:2]
         el = (q - 1) * 10 + 10 - (int(m) + int(s) / 60)
@@ -234,11 +233,19 @@ def state_acb(g):
             n = lambda k: int(t.get(k) or 0)  # noqa: E731
             is_home = tb["team"]["id"] == home_id if tb.get("team") else i == 0
             tot[is_home] = dict(pts=n("points"), m2=n("twoPointersMade"), a2=n("twoPointersAttempted"), m3=n("threePointersMade"),
-                                a3=n("threePointersAttempted"), mf=n("freeThrowsMade"), af=n("freeThrowsAttempted"))
-    if el is None or len(tot) != 2:
+                                a3=n("threePointersAttempted"), mf=n("freeThrowsMade"), af=n("freeThrowsAttempted"),
+                                # el resto solo lo usa la web (vista de detalle del partido)
+                                oreb=n("offRebounds"), dreb=n("defRebounds"), ast=n("assists"), stl=n("steals"), tov=n("turnovers"),
+                                blk=n("blocks"), pf=n("personalFouls"), val=n("rating"))
+    both = dict(A=tot[True], B=tot[False]) if len(tot) == 2 else {}
+    if status == "FINALIZED":     # terminado: se dejan las estadísticas finales para la web
+        return dict(live=False, final=True, hs=hs, as_=as_, quarters=quarters, **both)
+    if not 1 <= q <= 4:           # prórroga o entre estados: sin avisos
+        return dict(live=False, final=False, hs=hs, as_=as_, quarters=quarters)
+    if el is None or not both:
         print(f"  Liga Endesa {g['home']}: en juego pero sin datos completos (estado {status}, cuarto {q}, tiempo {head.get('timeLeft')!r})", flush=True)
         return dict(live=True, final=False, el=None, hs=hs, as_=as_)
-    return dict(live=True, final=False, el=el, A=tot[True], B=tot[False], hs=hs, as_=as_, q=q, left=q * 10 - el)
+    return dict(live=True, final=False, el=el, A=tot[True], B=tot[False], hs=hs, as_=as_, q=q, left=q * 10 - el, quarters=quarters)
 
 
 def publish(snapshot):
@@ -268,8 +275,10 @@ def vivo_data(games, bases):
             continue
         st = g.get("st") or dict(live=False, final=g["done"], hs=0, as_=0)     # aún sin leer: se anuncia con su hora
         bA, bB = bases["A"].get(g["hc"]), bases["A"].get(g["ac"])
-        row = dict(home=g["home"], away=g["away"], start=g["start"].isoformat(), live=st["live"], final=st["final"], hs=st["hs"], as_=st["as_"],
-                   q=st.get("q"), left=round(st["left"], 2) if st.get("left") is not None else None, alerts=[])
+        row = dict(code=g["code"], year=g["year"], hc=g["hc"], ac=g["ac"], home=g["home"], away=g["away"], start=g["start"].isoformat(),
+                   live=st["live"], final=st["final"], hs=st["hs"], as_=st["as_"], q=st.get("q"), el=round(st["el"], 2) if st.get("el") is not None else None,
+                   left=round(st["left"], 2) if st.get("left") is not None else None, quarters=st.get("quarters") or [],
+                   A=st.get("A"), B=st.get("B"), alerts=[])
         if st.get("A") and bA and bB:
             pct = lambda m, a: round(100 * m / a, 1) if a else None  # noqa: E731
             row["shooting"] = [dict(p2=pct(t["m2"], t["a2"]), p3=pct(t["m3"], t["a3"]), ft=pct(t["mf"], t["af"]), m3=t["m3"], a3=t["a3"],

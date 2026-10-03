@@ -89,7 +89,7 @@ select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   <header>
     <div><h1>SportsDB en vivo</h1><div class="muted small" id="status">Cargando…</div></div>
     <button class="btn" id="notifyBtn" aria-pressed="false">Activar avisos con sonido</button>
-    <div class="seg" id="compSeg" role="group" aria-label="Competición"><button data-comp="E" aria-pressed="true">Euroliga</button><button data-comp="U" aria-pressed="false">EuroCup</button></div>
+    <div class="seg" id="compSeg" role="group" aria-label="Competición"><button data-comp="E" aria-pressed="true">Euroliga</button><button data-comp="U" aria-pressed="false">EuroCup</button><button data-comp="A" aria-pressed="false">Liga Endesa</button></div>
   </header>
   <div class="games" id="games"></div>
   <div id="alerts"></div>
@@ -142,7 +142,7 @@ const nf = (v, d) => v == null || !isFinite(v) ? '–' : Number(v).toLocaleStrin
 const signed = (v, d) => v == null || !isFinite(v) ? '–' : (v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v), d);
 const cls = v => v > 0.05 ? 'pos' : v < -0.05 ? 'neg' : '';
 const pc = (m, a) => a ? 100 * m / a : null;
-const S = { comp: 'E', year: null, games: [], other: [], code: null, data: null, timer: null }; // other = partidos de la otra competición (solo para los avisos)
+const S = { comp: 'E', year: null, games: [], other: [], acb: [], code: null, data: null, timer: null }; // other = partidos de la otra competición (solo para los avisos)
 const COMP = { E: 'Euroliga', U: 'EuroCup' };
 // Aviso de desfase: favorito claro (FAV puntos o más antes de empezar) al que el acierto anormal de los dos equipos le cuesta GAP puntos o más.
 const FAV = 5, GAP = 6, Z = 1.5, Z_STRONG = 2.2, GAP_STRONG = 9, MIN_EL = 8;
@@ -169,8 +169,10 @@ async function dayGames(comp) {
 async function loadGames() {
   S.year = seasonYear();
   const old = new Map(S.games.concat(S.other).map(g => [g.comp + g.gameCode, g]));
-  [S.games, S.other] = await Promise.all([dayGames(S.comp), dayGames(S.comp === 'E' ? 'U' : 'E').catch(() => [])]);
-  S.games.concat(S.other).forEach(g => { const o = old.get(g.comp + g.gameCode); if (o) Object.assign(g, { h: o.h, al: o.al, als: o.als, mod: o.mod, scanned: o.scanned }); });
+  if (S.comp === 'A') { // Liga Endesa: sus partidos vienen del vigilante (S.acb); Euroliga y EuroCup siguen revisándose para los avisos
+    const [e, u] = await Promise.all([dayGames('E').catch(() => []), dayGames('U').catch(() => [])]); S.games = S.acb; S.other = e.concat(u);
+  } else [S.games, S.other] = await Promise.all([dayGames(S.comp), dayGames(S.comp === 'E' ? 'U' : 'E').catch(() => [])]);
+  S.games.concat(S.other).forEach(g => { const o = g.comp !== 'A' && old.get(g.comp + g.gameCode); if (o) Object.assign(g, { h: o.h, al: o.al, als: o.als, mod: o.mod, scanned: o.scanned }); });
   await refreshHeaders();
   if (!S.games.some(g => g.gameCode === S.code)) {
     const liveG = S.games.find(g => g.h && g.h.Live);
@@ -178,7 +180,7 @@ async function loadGames() {
   }
 }
 async function refreshHeaders() {
-  await Promise.all(S.games.concat(S.other).map(async g => { if (DEMO && g.h) return; try { g.h = await live('Header', g.gameCode, g.comp); } catch (e) { /* se mantiene el anterior */ } }));
+  await Promise.all(S.games.concat(S.other).map(async g => { if (g.comp === 'A' || (DEMO && g.h)) return; try { g.h = await live('Header', g.gameCode, g.comp); } catch (e) { /* se mantiene el anterior */ } }));
 }
 // Revisa todos los partidos en directo de las dos competiciones en busca de desfases.
 // La fuente corta el acceso si se le piden muchas cosas seguidas: cada vuelta lee como mucho SCAN_MAX partidos,
@@ -186,6 +188,7 @@ async function refreshHeaders() {
 const SCAN_MAX = 3, SCAN_EVERY = 45000;
 async function scan() {
   const now = Date.now(), due = S.games.concat(S.other).filter(g => {
+    if (g.comp === 'A') return false;   // la Liga Endesa no se lee desde el navegador
     if (!g.h || !(g.h.Live || (DEMO && +g.h.ScoreA + +g.h.ScoreB > 0))) { g.al = g.mod = null; g.als = []; return false; }
     return !(g.comp === S.comp && g.gameCode === S.code) && now - (g.scanned || 0) >= SCAN_EVERY;
   }).sort((a, b) => (a.scanned || 0) - (b.scanned || 0)).slice(0, SCAN_MAX);
@@ -221,6 +224,12 @@ function teamAgg(t) { // t = totales del boxscore
 }
 async function loadGame(slow) {
   if (!S.code) { S.data = null; return; }
+  if (S.comp === 'A') { // Liga Endesa: se monta con lo que publica el vigilante, con la misma forma que los datos de Euroleague
+    const g = S.games.find(x => x.gameCode === S.code); if (!g) { S.data = null; return; }
+    const q = i => ({ Quarter1: 0, Quarter2: 0, Quarter3: 0, Quarter4: 0, ...Object.fromEntries((g.x.quarters || []).map((v, k) => ['Quarter' + (k + 1), v[i]])) });
+    S.data = { code: S.code, h: g.h, pbp: null, box: g.A ? { Stats: [{ totr: g.A, PlayersStats: [] }, { totr: g.B, PlayersStats: [] }], ByQuarter: [q(0), q(1)] } : null };
+    return;
+  }
   const code = S.code, prev = S.data && S.data.code === code ? S.data : {};
   const [h0, pbp0, box] = await Promise.all([live('Header', code), live('PlaybyPlay', code).catch(() => prev.pbp || null), slow || !prev.box ? live('Boxscore', code).catch(() => prev.box || null) : Promise.resolve(prev.box)]);
   if (code !== S.code) return;
@@ -270,7 +279,7 @@ function contextPanel(codes, names, pbp, el) {
     if (out.size) notes.push(`<div class="note warn"><strong>No ha jugado todavía</strong>: ${absTxt(b.pl.filter(p => out.has(p[0])))}. Puede ser baja o decisión técnica.</div>`);
     if (trouble.length) notes.push(`<div class="note warn"><strong>Problemas de faltas</strong>: ${foulTxt(trouble)}. Jugará menos minutos o con más cuidado.</div>`);
     return `<div class="ctx"><h3>${esc(name)}</h3><div class="kpis"><div class="kpi"><div class="v">${signed(b.pf - b.pa, 1)}</div><div class="k">Nivel · diferencia por partido</div></div>
-      <div class="kpi"><div class="v">${b.elx}</div><div class="k">Temporadas previas en Euroliga</div></div></div>${notes.join('')}
+      ${S.comp === 'A' ? '' : `<div class="kpi"><div class="v">${b.elx}</div><div class="k">Temporadas previas en Euroliga</div></div>`}</div>${notes.join('')}
       <div class="scroll"><table><thead><tr><th class="l">Jugadores clave</th><th>Pts</th><th>Min</th><th>Faltas hoy</th><th></th></tr></thead><tbody>${(b.pl || []).map(p => `<tr><td class="l">${esc(p[1])}</td><td>${nf(p[2], 1)}</td><td>${nf(p[3], 0)}</td><td class="${fc && (fc.get(p[0]) || 0) >= lim ? 'neg' : ''}">${fc ? fc.get(p[0]) || 0 : '–'}</td><td class="l">${!pbp || el < 10 ? '' : out.has(p[0]) ? '<span class="neg">No ha jugado</span>' : '<span class="pos">Juega</span>'}</td></tr>`).join('')}</tbody></table></div></div>`; };
   return `<div class="panel"><h2>Contexto del partido</h2><div class="grid2">${team(codes[0], names[0])}${team(codes[1], names[1])}</div>
     <div class="muted small">Nivel = diferencia media de puntos en sus últimos partidos de Euroliga y EuroCup (los de EuroCup, rebajados 9 puntos). Jugadores clave = los que más minutos juegan en sus últimos 10 partidos de esta temporada. Faltas en rojo: 2 en el primer cuarto, 3 antes del descanso o 4 después. La fuente oficial no publica las bajas antes del partido: aquí se detectan cuando, pasados 10 minutos, un jugador clave no ha aparecido en ninguna jugada. Revisa las lesiones de última hora en la web de cada club.</div></div>`;
@@ -438,10 +447,11 @@ function announce(list) {
     try { new Notification(KIND[x.type] + ' ' + x.level, { body: `${g.h.TeamA} ${x.sa}-${x.sb} ${g.h.TeamB} · ${periodTxt(g.h)}`, tag: g.comp + g.gameCode + x.type }); } catch (e) { /* algunos móviles no lo permiten */ } });
 }
 function renderAlerts() {
-  const gs = S.games.concat(S.other).filter(g => g.h && g.h.Live), al = gs.flatMap(g => (g.als || []).map(x => [g, x])).sort((x, y) => y[1].z - x[1].z), box = $('#alerts');
+  // (los avisos de Liga Endesa llegan ya redactados del vigilante y se pintan en su propio bloque)
+  const gs = S.games.concat(S.other).filter(g => g.comp !== 'A' && g.h && g.h.Live), al = gs.flatMap(g => (g.als || []).map(x => [g, x])).sort((x, y) => y[1].z - x[1].z), box = $('#alerts');
   document.title = (al.length ? '(' + al.length + ') ' : '') + 'SportsDB en vivo';
   announce(al);
-  const next = S.games.concat(S.other).filter(g => !g.played && !(g.h && +g.h.ScoreA + +g.h.ScoreB > 0)).map(g => g.utcDate).sort()[0];
+  const next = S.games.concat(S.other).filter(g => g.comp !== 'A' && !g.played && !(g.h && +g.h.ScoreA + +g.h.ScoreB > 0)).map(g => g.utcDate).sort()[0];
   box.hidden = false;
   if (!gs.length) { box.innerHTML = `<section class="panel"><h2>Desfases ahora</h2><div class="muted">Ahora no hay ningún partido en directo de Euroliga ni EuroCup${next ? '; el próximo empieza el ' + esc(new Date(next).toLocaleString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })) : ''}. Los avisos aparecerán aquí solos en cuanto haya partidos en juego.</div></section>`; return; }
   box.innerHTML = `<section class="panel"><h2>Desfases ahora</h2>${al.map(alertHtml).join('')
@@ -491,7 +501,7 @@ function shootingTable(h, A, B, a, b) {
 }
 function statsTable(h, A, B) {
   const rows = [['Rebotes ofensivos', 'OffensiveRebounds'], ['Rebotes defensivos', 'DefensiveRebounds'], ['Asistencias', 'Assistances'], ['Pérdidas', 'Turnovers'], ['Robos', 'Steals'], ['Tapones', 'BlocksFavour'], ['Faltas', 'FoulsCommited'], ['Valoración', 'Valuation']];
-  return `<div class="scroll"><table><thead><tr><th class="l"></th><th>${esc(h.CodeTeamA)}</th><th>${esc(h.CodeTeamB)}</th></tr></thead><tbody>${rows.map(([l, k]) => `<tr><td class="l">${l}</td><td class="strong">${A[k]}</td><td class="strong">${B[k]}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="scroll"><table><thead><tr><th class="l"></th><th>${esc(h.TagA || h.CodeTeamA)}</th><th>${esc(h.TagB || h.CodeTeamB)}</th></tr></thead><tbody>${rows.map(([l, k]) => `<tr><td class="l">${l}</td><td class="strong">${A[k]}</td><td class="strong">${B[k]}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function playersTable(s) {
   const ps = s.PlayersStats.filter(p => p.Minutes && p.Minutes !== 'DNP').sort((x, y) => y.Points - x.Points || y.Valuation - x.Valuation);
@@ -532,8 +542,8 @@ function render() {
   const lead = mod.mean >= 0 ? h.TeamA : h.TeamB, trail = mod.mean >= 0 ? h.TeamB : h.TeamA, fair = Math.round(Math.abs(mod.mean) * 2) / 2;
   const luckA = mod.xA != null ? A.Points - mod.xA : null, luckB = mod.xB != null ? B.Points - mod.xB : null, swing = luckA != null && luckB != null ? luckA - luckB : null;
   const reading = !isLive ? '' : `<div class="panel"><h2>Lectura del partido</h2><div class="kpis">
-      <div class="kpi"><div class="v">${signed(mod.M)}</div><div class="k">Diferencia actual · ${esc(h.CodeTeamA)}</div></div>
-      <div class="kpi"><div class="v">${signed(mod.mean, 1)}</div><div class="k">Diferencia esperada al final · ${esc(h.CodeTeamA)}</div></div>
+      <div class="kpi"><div class="v">${signed(mod.M)}</div><div class="k">Diferencia actual · ${esc(h.TagA || h.CodeTeamA)}</div></div>
+      <div class="kpi"><div class="v">${signed(mod.mean, 1)}</div><div class="k">Diferencia esperada al final · ${esc(h.TagA || h.CodeTeamA)}</div></div>
       <div class="kpi"><div class="v">${SAFE.slice(0, 2).map(([, z]) => signed(upHalf(Math.abs(mod.mean) + z * mod.sd), 1)).join(' · ')}</div><div class="k">Hándicap de ${esc(trail)} que acierta el 80 % · 90 %</div></div>
       <div class="kpi"><div class="v">${nf(100 * mod.pA, 0)} % - ${nf(100 * (1 - mod.pA), 0)} %</div><div class="k">Probabilidad de victoria</div></div>
       <div class="kpi"><div class="v">${nf(mod.tMean, 0)}</div><div class="k">Total esperado al final · al ritmo actual ${el > 0 ? nf(mod.cur * 40 / el, 0) : '–'}</div></div></div>
@@ -556,7 +566,7 @@ function render() {
       <div class="kpi"><div class="v">${projA != null ? nf(projA, 0) + ' - ' + nf(projB, 0) : '–'}</div><div class="k">${isLive ? 'Final al ritmo actual' : 'Resultado final'}</div></div>
       <div class="kpi"><div class="v">${projA != null ? nf(projA + projB, 0) : '–'}</div><div class="k">Total de puntos ${isLive ? 'proyectado' : ''}${usual ? ' · habitual ' + nf(usual, 0) : ''}</div></div>
       <div class="kpi"><div class="v">${nf(pace, 1)}</div><div class="k">Posesiones por 40 min${bA && bB ? ' · habitual ' + nf((bA.poss + bB.poss) / 2, 1) : ''}</div></div>
-      <div class="kpi"><div class="v">${maxA >= maxB ? '+' + maxA : '+' + maxB}</div><div class="k">Máxima ventaja · ${esc(maxA >= maxB ? h.CodeTeamA : h.CodeTeamB)}</div></div>
+      <div class="kpi"><div class="v">${maxA >= maxB ? '+' + maxA : '+' + maxB}</div><div class="k">Máxima ventaja · ${esc(maxA >= maxB ? h.TagA || h.CodeTeamA : h.TagB || h.CodeTeamB)}</div></div>
     </div>${isLive ? '<div class="muted small">La proyección reparte el ritmo de anotación actual sobre los 40 minutos; no tiene en cuenta faltas tácticas del final ni rotaciones.</div>' : ''}</div>${reading}`;
   updateCalc();
   v.innerHTML = `${contextPanel([h.CodeTeamA, h.CodeTeamB], [h.TeamA, h.TeamB], D.pbp, el)}
@@ -575,10 +585,11 @@ async function tick(mode) { // 'full' = calendario; 'slow' = todos los marcadore
   if (Date.now() < S.pause && S.games.length) return; // la fuente ha cortado: se espera antes de volver a pedir
   busy = true;
   try {
-    if (mode === 'full' || !S.games.length) await loadGames(); else if (mode === 'slow') await refreshHeaders();
+    if (mode === 'full' || (!S.games.length && S.comp !== 'A')) await loadGames(); else if (mode === 'slow') await refreshHeaders();
     if (mode !== 'fast') await scan();
     await loadGame(mode !== 'fast');
-    $('#status').textContent = (DEMO ? 'REPETICIÓN: última jornada jugada, parada en el minuto ' + DEMO + ' · ' : '') + 'Datos oficiales de Euroleague · partido abierto cada 5 segundos, marcadores cada 20, avisos de cada partido cada 45-60 · última lectura ' + new Date().toLocaleTimeString('es-ES');
+    $('#status').textContent = S.comp === 'A' ? 'Liga Endesa: la lee el vigilante de Telegram y la publica aquí cada medio minuto; esta página la recoge cada minuto y medio (puede ir hasta 2 minutos por detrás). Sin jugadas ni jugadores. ' + (ACB ? 'Última publicación ' + new Date(ACB.updated).toLocaleTimeString('es-ES') : 'Todavía sin datos')
+      : (DEMO ? 'REPETICIÓN: última jornada jugada, parada en el minuto ' + DEMO + ' · ' : '') + 'Datos oficiales de Euroleague · partido abierto cada 5 segundos, marcadores cada 20, avisos de cada partido cada 45-60 · última lectura ' + new Date().toLocaleTimeString('es-ES');
   } catch (e) {
     S.pause = Date.now() + 30000;
     $('#status').textContent = 'No se ha podido leer la fuente (' + new Date().toLocaleTimeString('es-ES') + '). Puede que haya cortado por exceso de lecturas: se reintenta sola en 30 segundos. No hace falta recargar la página.';
@@ -616,7 +627,8 @@ async function settleBets() {
   const pend = BETS.filter(x => x.status === 'pendiente'); if (!pend.length) return;
   const seen = {};
   for (const x of pend) { const k = x.comp + x.year + '_' + x.code;
-    try { if (!(k in seen)) seen[k] = await getJSON(`${API}Header?gamecode=${x.code}&seasoncode=${x.comp}${x.year}`); } catch (e) { continue; }
+    if (x.comp === 'A') { const g = S.acb.find(g => g.gameCode === x.code); seen[k] = g && g.played ? g.h : null; }   // Liga Endesa: el final lo da el vigilante
+    else try { if (!(k in seen)) seen[k] = await getJSON(`${API}Header?gamecode=${x.code}&seasoncode=${x.comp}${x.year}`); } catch (e) { continue; }
     const h = seen[k]; if (!h || h.Live || !(+h.ScoreA + +h.ScoreB > 0)) continue;
     const tot = +h.ScoreA + +h.ScoreB, m = x.mk === 'O' ? tot - x.line : x.mk === 'U' ? x.line - tot : (x.side === 'A' ? 1 : -1) * (+h.ScoreA - +h.ScoreB) + x.line;
     x.status = m > 0 ? 'ganada' : m < 0 ? 'perdida' : 'nula'; x.fin = h.ScoreA + '-' + h.ScoreB; }
@@ -626,7 +638,7 @@ const betProfit = x => x.status === 'ganada' ? x.stake * (x.odd - 1) : x.status 
 // Situación ahora de una apuesta abierta cuyo partido está en directo: margen sobre el hándicap, probabilidad y valor justo de cerrarla.
 function betNow(x) {
   if (x.status !== 'pendiente') return null;
-  const g = S.games.concat(S.other).find(g => g.comp === x.comp && g.gameCode === x.code);
+  const g = S.games.concat(S.other, S.acb).find(g => g.comp === x.comp && g.gameCode === x.code);
   if (!g || !g.mod || !g.h || !g.h.Live) return null;
   const m = g.mod, p = betProb(m, x.mk || 'H', x.side, x.line); if (p == null) return null;
   return { tot: x.mk === 'O' || x.mk === 'U' ? m.tMean : null, cov: (x.side === 'A' ? 1 : -1) * m.M + x.line, p, value: x.stake * x.odd * p };
@@ -672,10 +684,28 @@ document.addEventListener('click', e => {
 // de sus partidos en la rama `vivo` y aquí se lee de ahí. GitHub limita estas lecturas a 60 por hora: una cada 90 s.
 const REPO = location.hostname.endsWith('github.io') ? location.hostname.split('.')[0] + '/' + location.pathname.split('/')[1] : 'Sergio20/sportsdb';
 let ACB = null;
+// Cada partido de Liga Endesa, con la misma forma que los de Euroleague para que sirvan la tira de partidos,
+// la vista de detalle, la calculadora y el registro de apuestas.
+const acbTot = t => ({ Points: t.pts, FieldGoalsMade2: t.m2, FieldGoalsAttempted2: t.a2, FieldGoalsMade3: t.m3, FieldGoalsAttempted3: t.a3, FreeThrowsMade: t.mf, FreeThrowsAttempted: t.af,
+  OffensiveRebounds: t.oreb || 0, DefensiveRebounds: t.dreb || 0, Assistances: t.ast || 0, Steals: t.stl || 0, Turnovers: t.tov || 0, BlocksFavour: t.blk || 0, FoulsCommited: t.pf || 0, Valuation: t.val || 0 });
+function acbGames() {
+  const fresh = ACB && Date.now() - new Date(ACB.updated) < 12 * 3600000;
+  return (fresh ? ACB.games : []).filter(x => x.code != null).map(x => {
+    const s = Math.max(0, Math.round((x.left || 0) * 60)), club = (name, code) => ({ club: { name, abbreviatedName: name, code: String(code) } });
+    const tag = n => n.split(' ').pop(), h = { Live: !!x.live, TeamA: x.home, TeamB: x.away, TagA: tag(x.home), TagB: tag(x.away), CodeTeamA: String(x.hc), CodeTeamB: String(x.ac), ScoreA: x.hs, ScoreB: x.as_, Quarter: x.live ? x.q || 0 : 0, RemainingPartialTime: `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` };
+    (x.quarters || []).forEach((q, i) => { h['ScoreQuarter' + (i + 1) + 'A'] = q[0]; h['ScoreQuarter' + (i + 1) + 'B'] = q[1]; });
+    const g = { comp: 'A', gameCode: x.code, utcDate: x.start, played: !!x.final, local: Object.assign(club(x.home, x.hc), { score: x.hs }), road: Object.assign(club(x.away, x.ac), { score: x.as_ }), h, x, als: [], al: null };
+    if (x.A && x.B) { g.A = acbTot(x.A); g.B = acbTot(x.B); }
+    if (x.live && g.A && x.el != null) { g.mod = model(h, g.A, g.B, x.el); g.als = x.alerts.map(a => ({ type: a.type, level: a.level })); g.al = g.als[0] || null; }
+    return g; });
+}
 async function loadAcb() {
   try { const r = await fetch(`https://api.github.com/repos/${REPO}/contents/vivo.json?ref=vivo`, { headers: { Accept: 'application/vnd.github.raw+json' }, cache: 'no-store' });
     if (r.ok) ACB = await r.json(); } catch (e) { /* se mantiene lo último leído */ }
+  S.acb = acbGames();
+  if (S.comp === 'A') { S.games = S.acb; if (!S.games.some(g => g.gameCode === S.code)) S.code = ((S.games.find(g => g.h.Live) || S.games[0] || {}).gameCode) || null; await loadGame(); render(); }
   renderAcb();
+  settleBets();
 }
 function renderAcb() {
   const box = $('#acb'), fresh = ACB && Date.now() - new Date(ACB.updated) < 12 * 3600000, gs = fresh ? ACB.games : [];

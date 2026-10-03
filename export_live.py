@@ -41,16 +41,16 @@ PLAYERS_SQL = """
 SELECT CASE p.is_home WHEN 1 THEN m.home_code ELSE m.away_code END AS code, m.match_id,
        p.player_id, p.player, p.seconds, p.points, m.season_start
 FROM basket_player_stats p JOIN matches m ON m.match_id = p.match_id
-WHERE m.league IN ('Euroliga', 'EuroCup') AND m.status = 'played'
+WHERE m.league IN ({leagues}) AND m.status = 'played'
 ORDER BY m.date DESC
 """
 
 
-def key_players(con) -> dict:
+def key_players(con, leagues=("Euroliga", "EuroCup")) -> dict:
     """Por equipo: [id, nombre, puntos por partido, minutos por partido, partidos jugados de los últimos 10].
     Solo con partidos de su temporada más reciente (las plantillas cambian mucho en verano) y si hay al menos 2."""
     games, stats, latest = {}, {}, {}
-    for code, mid, pid, name, secs, pts, season in con.execute(PLAYERS_SQL):
+    for code, mid, pid, name, secs, pts, season in con.execute(PLAYERS_SQL.format(leagues=",".join("?" * len(leagues))), leagues):
         if latest.setdefault(code, season) != season:
             continue
         g = games.setdefault(code, [])
@@ -90,7 +90,7 @@ def baseline(con, before="9999-12-31", leagues=("Euroliga", "EuroCup")) -> dict:
         rows = by.setdefault(r[0], [])
         if len(rows) < LAST_N:
             rows.append(r)
-    players, el_seasons = key_players(con), euroleague_seasons(con)
+    players, el_seasons = key_players(con, leagues), euroleague_seasons(con)
     current = max((s for ss in el_seasons.values() for s in ss), default=0)
     out = {}
     for code, rows in by.items():
@@ -120,6 +120,7 @@ def export(db=DEFAULT_DB, out=None):
     out = Path(out) if out else db.parent / "SportsDB en vivo.html"
     con = sqlite3.connect(db)
     base = baseline(con)
+    base.update(baseline(con, leagues=("Liga Endesa",)))     # códigos de club de acb.com (numéricos): no chocan con los de Euroliga
     hist = remontadas.cases(con)
     con.close()
     html = TEMPLATE.read_text(encoding="utf-8")
