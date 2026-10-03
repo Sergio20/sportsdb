@@ -450,7 +450,7 @@ function renderAlerts() {
 // Repetición de un partido ya jugado: lo deja como estaba en el minuto DEMO.
 const playMin = p => { const [m, s] = String(p.MARKERTIME || '0:0').split(':').map(Number), mi = +p.MINUTE || 1; return (mi <= 40 ? Math.ceil(mi / 10) * 10 : 40 + Math.ceil((mi - 40) / 5) * 5) - ((m || 0) + (s || 0) / 60); };
 function demoCut(h, pbp) {
-  if (!DEMO || !pbp || h.Live) return [h, pbp];
+  if (!DEMO || !pbp) return [h, pbp];   // se recorta siempre, también en las revisiones posteriores (la cabecera ya viene recortada)
   const cut = {}; PERIODS.forEach(k => { cut[k] = (pbp[k] || []).filter(p => playMin(p) <= DEMO); });
   const [A, B] = pbpTotals(cut, h), q = Math.ceil(DEMO / 10), rem = q * 10 - DEMO;
   return [Object.assign({}, h, { Live: true, Quarter: q, RemainingPartialTime: rem + ':00', ScoreA: A.Points, ScoreB: B.Points }), cut];
