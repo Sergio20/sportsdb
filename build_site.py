@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import shutil
 from pathlib import Path
 
@@ -24,6 +25,23 @@ HEAD = ('<!doctype html><html lang="es"><head><meta charset="utf-8">'
         '<meta name="robots" content="noindex,nofollow">'
         '<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style></head><body>')
 LIVE_LINK = '<a href="#simulador">Simulador</a>'
+
+
+# Los navegadores (y GitHub Pages, 10 minutos) guardan copia de las páginas: sin esto, tras publicar una versión nueva
+# se puede seguir viendo la antigua. Cada página lleva el sello de su construcción y lo compara con version.json, que
+# se pide siempre sin caché; si hay una más nueva, se recarga sola añadiendo ?v=sello a la dirección.
+RELOAD = ('<script>(function(){var B="%s";function c(){fetch("version.json",{cache:"no-store"}).then(function(r){return r.json()})'
+          '.then(function(v){if(!v.build||v.build===B)return;var u=new URL(location.href);if(u.searchParams.get("v")===v.build)return;'
+          'u.searchParams.set("v",v.build);location.replace(u)}).catch(function(){})}c();setInterval(c,180000)})();</script>')
+
+
+def stamp(out):
+    build_id = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d%H%M%S")
+    for page in out.glob("*.html"):
+        html = page.read_text(encoding="utf-8")
+        i = html.rindex("</body>")
+        page.write_text(html[:i] + RELOAD % build_id + html[i:], encoding="utf-8")
+    (out / "version.json").write_text('{"build":"%s"}' % build_id, encoding="utf-8")
 
 
 def build(db=DEFAULT_DB, out=ROOT / "_site"):
@@ -44,6 +62,7 @@ def build(db=DEFAULT_DB, out=ROOT / "_site"):
     html = html.replace("</style>", export_informes.NAV_CSS + "\n</style>", 1)
     live.write_text(html, encoding="utf-8")
     export_informes.export(db, out)
+    stamp(out)
     (out / ".nojekyll").write_text("", encoding="utf-8")
     print(f"Web construida en {out}: " + ", ".join(sorted(p.name for p in out.iterdir())))
 

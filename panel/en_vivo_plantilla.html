@@ -743,14 +743,15 @@ async function loadAcb() {
 }
 function renderAcb() {
   const box = $('#acb'), fresh = ACB && Date.now() - new Date(ACB.updated) < 12 * 3600000; let gs = fresh ? ACB.games : [];
-  // Con la Liga Endesa elegida arriba, sus partidos ya están en la tira: aquí solo quedan los que tienen aviso.
-  if (S.comp === 'A') gs = gs.filter(g => g.live && g.alerts.length);
+  // Los partidos de Liga Endesa se ven en su propia competición (botón de arriba). Este bloque solo enseña, estés en la
+  // competición que estés, los que tienen un aviso activo.
+  gs = gs.filter(g => g.live && g.alerts.length);
   if (!gs.length) { box.innerHTML = ''; return; }
   const clock = g => { const s = Math.max(0, Math.round((g.left || 0) * 60)); return `${g.q}.º cuarto · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
   const shot = (name, t) => t ? `<tr><td class="l strong">${esc(name)}</td><td>${nf(t.p2, 0)} % <span class="muted">(${nf(t.u2, 0)})</span></td><td>${t.m3}/${t.a3} · ${nf(t.p3, 0)} % <span class="muted">(${nf(t.u3, 0)})</span></td><td>${nf(t.ft, 0)} % <span class="muted">(${nf(t.uft, 0)})</span></td></tr>` : '';
   const fresh2 = gs.flatMap(g => g.live ? g.alerts.map(a => g.home + a.type + a.level) : []).filter(k => !announced.has(k));
   fresh2.forEach(k => announced.add(k)); if (fresh2.length && NOTIFY) beep();
-  box.innerHTML = `<section class="panel"><h2>Liga Endesa</h2>${gs.map(g => `<div class="alert ${g.alerts.some(a => a.level === 'fuerte') ? 'fuerte' : ''}" style="${g.alerts.length ? '' : 'border-left-color:var(--line)'}">
+  box.innerHTML = `<section class="panel"><h2>Avisos de Liga Endesa</h2>${gs.map(g => `<div class="alert ${g.alerts.some(a => a.level === 'fuerte') ? 'fuerte' : ''}" style="${g.alerts.length ? '' : 'border-left-color:var(--line)'}">
       <div class="st">${g.live ? '<span class="dot"></span>' : ''}<span>${g.live ? esc(clock(g)) : g.final ? 'Final' : esc(new Date(g.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))}</span>
         <span><strong>${esc(g.home)} ${g.live || g.final ? g.hs + '-' + g.as_ : '–'} ${esc(g.away)}</strong></span></div>
       ${g.shooting ? `<div class="scroll"><table><thead><tr><th class="l"></th><th>Tiros de 2 (habitual)</th><th>Triples (habitual)</th><th>Tiros libres (habitual)</th></tr></thead><tbody>${shot(g.home, g.shooting[0])}${shot(g.away, g.shooting[1])}</tbody></table></div>` : ''}
