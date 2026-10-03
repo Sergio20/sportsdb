@@ -91,6 +91,7 @@ select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     <button class="btn" id="notifyBtn" aria-pressed="true">Avisos con sonido: activados</button>
     <div class="seg" id="compSeg" role="group" aria-label="Competición"><button data-comp="E" aria-pressed="true">Euroliga</button><button data-comp="U" aria-pressed="false">EuroCup</button><button data-comp="A" aria-pressed="false">Liga Endesa</button></div>
   </header>
+  <div class="muted small" id="dayLabel" style="margin-bottom:-10px"></div>
   <div class="games" id="games"></div>
   <div id="alerts"></div>
   <div id="acb"></div>
@@ -143,7 +144,7 @@ const signed = (v, d) => v == null || !isFinite(v) ? '–' : (v > 0 ? '+' : v < 
 const cls = v => v > 0.05 ? 'pos' : v < -0.05 ? 'neg' : '';
 const pc = (m, a) => a ? 100 * m / a : null;
 const S = { comp: 'E', year: null, games: [], other: [], acb: [], code: null, data: null, timer: null }; // other = partidos de la otra competición (solo para los avisos)
-const COMP = { E: 'Euroliga', U: 'EuroCup' };
+const COMP = { E: 'Euroliga', U: 'EuroCup', A: 'Liga Endesa' };
 // Aviso de desfase: favorito claro (FAV puntos o más antes de empezar) al que el acierto anormal de los dos equipos le cuesta GAP puntos o más.
 const FAV = 5, GAP = 6, Z = 1.5, Z_STRONG = 2.2, GAP_STRONG = 9, MIN_EL = 8;
 // Aviso de ritmo insostenible: gana de LEAD+ anotando a un ritmo de PACE_EXTRA+ puntos por encima de su media,
@@ -210,7 +211,15 @@ function elapsed(h) {
   const [m, s] = String(h.RemainingPartialTime || '0:0').trim().split(':').map(Number), rem = (m || 0) + (s || 0) / 60;
   return q <= 4 ? (q - 1) * 10 + (10 - rem) : 40 + (q - 5) * 5 + (5 - rem);
 }
+// Rótulo de la tira: de qué día son los partidos que se enseñan (hoy, o la próxima jornada de esa competición).
+function dayLabel() {
+  const first = S.games[0]; if (!first) return '';
+  const d = new Date(first.utcDate), today = localDay(new Date().toISOString()), day = localDay(first.utcDate), name = COMP[S.comp];
+  const txt = d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  return day === today ? `${name} · partidos de hoy, ${txt}` : day > today ? `${name} · hoy no hay partidos. Próxima jornada: ${txt}` : `${name} · última jornada jugada: ${txt}`;
+}
 function renderGames() {
+  $('#dayLabel').textContent = dayLabel();
   $('#games').innerHTML = S.games.map(g => { const st = stateOf(g), h = g.h, sa = h && (st.live || st.txt === 'Final') ? h.ScoreA : (g.played ? g.local.score : ''), sb = h && (st.live || st.txt === 'Final') ? h.ScoreB : (g.played ? g.road.score : '');
     return `<button class="game" data-code="${g.gameCode}" aria-pressed="${g.gameCode === S.code}"><div class="st">${st.live ? '<span class="dot"></span>' : ''}${esc(st.txt)}${st.live && g.al ? ` <span class="tag">${{ ritmo: 'Ritmo', total: 'Total', triples: 'Triples' }[g.al.type] || 'Desfase'}</span>` : ''}</div><div class="row"><span>${esc(g.local.club.abbreviatedName || g.local.club.name)}</span><b>${esc(sa)}</b></div><div class="row"><span>${esc(g.road.club.abbreviatedName || g.road.club.name)}</span><b>${esc(sb)}</b></div></button>`; }).join('')
     || '<div class="muted">No hay partidos programados.</div>';
@@ -462,7 +471,10 @@ function renderAlerts() {
   announce(al);
   const next = S.games.concat(S.other).filter(g => g.comp !== 'A' && !g.played && !(g.h && +g.h.ScoreA + +g.h.ScoreB > 0)).map(g => g.utcDate).sort()[0];
   box.hidden = false;
-  if (!gs.length) { box.innerHTML = `<section class="panel"><h2>Desfases ahora</h2><div class="muted">Ahora no hay ningún partido en directo de Euroliga ni EuroCup${next ? '; el próximo empieza el ' + esc(new Date(next).toLocaleString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })) : ''}. Los avisos aparecerán aquí solos en cuanto haya partidos en juego.</div></section>`; return; }
+  if (!gs.length) {
+    const acbLive = S.acb.filter(g => g.h.Live).length, up = S.games.concat(S.other, S.acb).filter(g => !g.played && !g.h?.Live && !(g.h && +g.h.ScoreA + +g.h.ScoreB > 0)).sort((a, b) => a.utcDate.localeCompare(b.utcDate))[0];
+    box.innerHTML = `<section class="panel"><h2>Desfases ahora</h2><div class="muted">${acbLive ? `Hay ${acbLive === 1 ? 'un partido' : acbLive + ' partidos'} de Liga Endesa en juego: sus avisos salen en el bloque «Liga Endesa», justo debajo. De Euroliga y EuroCup no hay ninguno en directo ahora.`
+      : `Ahora no hay ningún partido en directo${up ? `. El próximo es ${esc(up.local.club.name)} – ${esc(up.road.club.name)} (${COMP[up.comp]}), ${esc(new Date(up.utcDate).toLocaleString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }))}` : ''}. Los avisos aparecerán aquí solos en cuanto haya partidos en juego.`}</div></section>`; return; }
   box.innerHTML = `<section class="panel"><h2>Desfases ahora</h2>${al.map(alertHtml).join('')
     || `<div class="muted">Ningún desfase claro en ${gs.length === 1 ? 'el partido' : 'los ' + gs.length + ' partidos'} en directo de Euroliga y EuroCup.</div>`}
     <div class="muted small">Cuatro tipos de aviso. <strong>Desfase</strong>: un favorito claro va peor de lo previsto y al menos ${GAP} puntos del marcador se explican por un acierto anormal. <strong>Ritmo insostenible</strong>: un equipo gana de ${LEAD} o más anotando a un ritmo de ${PACE_EXTRA}+ puntos por encima de su media, ante un rival de su nivel o mejor. <strong>Triples insostenibles</strong>: el que gana de ${T3_LEAD} o más lo hace con un acierto de triple disparado, o el que pierde lleva el triple hundido (con ${T3_ATT} intentos o más). <strong>Total desfasado</strong>: el marcador va camino de un total ${TOTAL_GAP}+ puntos distinto del esperable. Cada partido en directo se revisa cada 45-60 segundos. Cada aviso da las líneas que aciertan el 80, 90 y 95 %: solo compensan si la cuota que te ofrecen supera la mínima. El aviso no ve lesiones ni rotaciones. Cuánto aciertan: <a href="funciona.html">¿Funciona?</a></div></section>`;
@@ -536,7 +548,7 @@ function leadChart(el, h, rows) {
 }
 
 function render() {
-  renderGames(); renderAlerts(); renderLog();
+  renderGames(); renderAlerts(); renderAcb(); renderLog();
   const D = S.data, v = $('#view');
   if (!S.code) { $('#top').innerHTML = ''; $('#calc').hidden = true; v.innerHTML = '<div class="panel"><div class="empty">No hay partidos de esta competición en el calendario.</div></div>'; return; }
   const g = S.games.find(x => x.gameCode === S.code), h = D && D.h;
@@ -605,12 +617,25 @@ async function tick(mode) { // 'full' = calendario; 'slow' = todos los marcadore
   }
   busy = false; render();
 }
+function setComp(c) {
+  S.comp = c; S.code = null; S.games = []; S.other = []; S.data = null;
+  document.querySelectorAll('#compSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.comp === c));
+  $('#view').innerHTML = '<div class="empty">Buscando partidos…</div>'; return tick('full');
+}
+// Al abrir la página se elige sola la competición que tiene partidos en juego o, si no hay ninguno, la del próximo partido.
+function autoPick() {
+  const now = Date.now(), all = { [S.comp]: S.games, A: S.acb }; S.other.forEach(g => (all[g.comp] = all[g.comp] || []).push(g));
+  const soon = gs => { if (gs.some(g => g.h && g.h.Live)) return -1;
+    const up = gs.filter(g => !g.played && !(g.h && +g.h.ScoreA + +g.h.ScoreB > 0)).map(g => +new Date(g.utcDate)).filter(t => t > now - 3 * 3600000); return up.length ? Math.min(...up) : Infinity; };
+  const best = Object.entries(all).filter(([, gs]) => gs.length).sort((a, b) => soon(a[1]) - soon(b[1]))[0];
+  if (best && best[0] !== S.comp && soon(best[1]) < soon(all[S.comp] || [])) setComp(best[0]);
+}
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-go],[data-comp],[data-code]'); if (!t) return;
   if (t.dataset.go) { const [c, code] = t.dataset.go.split('|');
     if (c !== S.comp) { S.comp = c; [S.games, S.other] = [S.other, S.games]; document.querySelectorAll('#compSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.comp === c)); }
     S.code = +code; S.data = null; tick('slow'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
-  else if (t.dataset.comp) { S.comp = t.dataset.comp; S.code = null; S.games = []; S.other = []; S.data = null; document.querySelectorAll('#compSeg button').forEach(b => b.setAttribute('aria-pressed', b === t)); $('#view').innerHTML = '<div class="empty">Buscando partidos…</div>'; tick('full'); }
+  else if (t.dataset.comp) setComp(t.dataset.comp);
   else { S.code = +t.dataset.code; S.data = null; tick('slow'); }
 });
 let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(render, 200); });
@@ -717,7 +742,9 @@ async function loadAcb() {
   settleBets();
 }
 function renderAcb() {
-  const box = $('#acb'), fresh = ACB && Date.now() - new Date(ACB.updated) < 12 * 3600000, gs = fresh ? ACB.games : [];
+  const box = $('#acb'), fresh = ACB && Date.now() - new Date(ACB.updated) < 12 * 3600000; let gs = fresh ? ACB.games : [];
+  // Con la Liga Endesa elegida arriba, sus partidos ya están en la tira: aquí solo quedan los que tienen aviso.
+  if (S.comp === 'A') gs = gs.filter(g => g.live && g.alerts.length);
   if (!gs.length) { box.innerHTML = ''; return; }
   const clock = g => { const s = Math.max(0, Math.round((g.left || 0) * 60)); return `${g.q}.º cuarto · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
   const shot = (name, t) => t ? `<tr><td class="l strong">${esc(name)}</td><td>${nf(t.p2, 0)} % <span class="muted">(${nf(t.u2, 0)})</span></td><td>${t.m3}/${t.a3} · ${nf(t.p3, 0)} % <span class="muted">(${nf(t.u3, 0)})</span></td><td>${nf(t.ft, 0)} % <span class="muted">(${nf(t.uft, 0)})</span></td></tr>` : '';
@@ -730,9 +757,10 @@ function renderAcb() {
       ${g.live ? g.alerts.map(a => `<div class="note"><span class="tag">${esc(a.title)} ${esc(a.level)}</span><div style="white-space:pre-line;margin-top:6px">${esc(a.text)}</div></div>`).join('') : ''}</div>`).join('')}
     <div class="muted small">Estos partidos los lee el vigilante de Telegram y los publica aquí una vez por minuto; esta página los recoge cada minuto y medio, así que pueden ir hasta 2 minutos por detrás. El aviso por Telegram llega antes. Última publicación: ${esc(new Date(ACB.updated).toLocaleTimeString('es-ES'))}.</div></section>`;
 }
-loadAcb(); setInterval(loadAcb, 90000);
+setInterval(loadAcb, 90000);
 renderLog(); notifyButton(); settleBets(); setInterval(settleBets, 60000);
-let n = 0; tick('full');
+let n = 0;
+(async () => { await loadAcb(); await tick('full'); if (!DEMO) autoPick(); })();
 // Con la pestaña en segundo plano se sigue revisando (más despacio) para que los avisos con sonido salten igual.
 setInterval(() => { n++; const slow = n % (SLOW / FAST) === 0; if (document.hidden && !slow) return; tick(slow ? 'slow' : 'fast'); }, FAST);
 setInterval(() => tick('full'), 15 * 60000);
