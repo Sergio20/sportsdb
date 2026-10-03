@@ -42,6 +42,8 @@ jobs:
           fi
           unzip -o /tmp/deportes_db.zip -d data
           python scripts/check_db.py data/deportes.db --save /tmp/antes.json
+          # avisos enviados por el vigilante de Telegram (para medir cuánto aciertan)
+          if git fetch --depth=1 origin avisos; then git show FETCH_HEAD:avisos.json > data/avisos.json; fi
 
       - name: Actualizar datos
         if: github.event_name != 'push'

@@ -300,10 +300,89 @@ def timing(con, games):
     return out
 
 
-def build(con, today=None):
+def triples(con, games):
+    """Triples insostenibles al descanso (Euroliga y EuroCup): ¿vuelve el acierto a lo normal? ¿y el marcador?"""
+    half = defaultdict(dict)
+    try:
+        for mid, is_home, h, pts, m3, a3 in con.execute("SELECT match_id, is_home, half, points, fg3m, fg3a FROM basket_half_stats"):
+            half[mid][(is_home, h)] = (pts or 0, m3 or 0, a3 or 0)
+    except sqlite3.OperationalError:
+        return None
+    full = defaultdict(dict)
+    for mid, is_home, m3, a3 in con.execute("SELECT match_id, is_home, fg3m, fg3a FROM basket_team_stats WHERE fg3a > 0"):
+        full[mid][is_home] = (m3, a3)
+    base = defaultdict(lambda: deque(maxlen=LAST_N))
+    up = lambda x: math.ceil(x * 2) / 2  # noqa: E731
+    rows = []
+    for g in games:
+        if g["league"] == "Liga Endesa":
+            continue
+        d, codes = half.get(g["id"]), {1: g["hc"], 0: g["ac"]}
+        if d and len(d) == 4 and g["Q"] is not None and all(len(base[c]) >= MIN_GAMES for c in codes.values()):
+            Mh = g["q"][1][0] + g["q"][2][0] - g["q"][1][1] - g["q"][2][1]
+            mean, sd = Mh + 20 * (K["home"] + K["q"] * g["Q"] + K["m"] * Mh), K["sd"] * math.sqrt(20)
+            for home in (1, 0):
+                _, m3, a3 = d[(home, 1)]
+                _, m3b, a3b = d[(home, 2)]
+                b = base[codes[home]]
+                p0 = sum(x[0] for x in b) / sum(x[1] for x in b)
+                s = 1 if home else -1                       # lado del equipo de los triples
+                if a3 < 8 or not a3b or s * Mh < 8:
+                    continue
+                z = (m3 - a3 * p0) / math.sqrt(a3 * p0 * (1 - p0))
+                if z < 1.5:
+                    continue
+                rival, fr = -s * (g["hs"] - g["as_"]), s * mean      # diferencia final y hándicap neutro del rival
+                rows.append(dict(p1=m3 / a3, p2=m3b / a3b, p0=p0, lead=s * Mh, d2=d[(home, 2)][0] - d[(1 - home, 2)][0],
+                                 s80=rival + up(fr + Z80 * sd) > 0, s90=rival + up(fr + Z90 * sd) > 0, s95=rival + up(fr + Z95 * sd) > 0))
+        for is_home, v in full.get(g["id"], {}).items():
+            base[codes[is_home]].append(v)
+    n = len(rows)
+    if n < 30:
+        return None
+    m = lambda k: sum(r[k] for r in rows) / n  # noqa: E731
+    return dict(n=n, p1=round(100 * m("p1")), p2=round(100 * m("p2")), p0=round(100 * m("p0")), lead=round(m("lead"), 1), d2=round(m("d2"), 1),
+                s80=round(100 * m("s80"), 1), s90=round(100 * m("s90"), 1), s95=round(100 * m("s95"), 1))
+
+
+def sent_log(con, path):
+    """Avisos que el vigilante envió de verdad por Telegram, con su resultado cuando el partido ya ha terminado."""
+    path = Path(path)
+    if not path.exists():
+        return None
+    import avisos
+    try:
+        log = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:
+        return None
+    rows = []
+    for e in log:
+        r = con.execute("""SELECT m.home_score, m.away_score, m.status, m.date,
+                                  (SELECT SUM(p.home + p.away) FROM periods p WHERE p.match_id = m.match_id AND p.period <= 4)
+                           FROM matches m WHERE m.league = ? AND m.season_start = ? AND m.source_id = ?""",
+                        ("Euroliga" if e["comp"] == "E" else "EuroCup", e["year"], str(e["code"]))).fetchone()
+        al = e["alert"]
+        row = dict(ts=e["ts"], comp=e["comp"], home=e["home"], away=e["away"], el=e["el"], score=e["score"], type=al["type"], level=al["level"],
+                   bet=("menos de" if al.get("under") else "más de") if al["type"] == "total" else (e["home"] if al["side"] > 0 else e["away"]),
+                   lines=al["lines"], res=None, final=None)
+        if r and r[2] == "played" and r[0] is not None:
+            row["res"] = {str(p): ok for p, ok in avisos.settle({**al, "lines": {int(p): v for p, v in al["lines"].items()}}, r[0], r[1], r[4]).items()}
+            row["final"] = f"{r[0]}-{r[1]}"
+        rows.append(row)
+    done = [x for x in rows if x["res"]]
+    by = {}
+    for x in done:
+        b = by.setdefault(x["type"], dict(n=0, s80=0, s90=0, s95=0))
+        b["n"] += 1
+        for p in ("80", "90", "95"):
+            b["s" + p] += int(x["res"][p])
+    return dict(rows=rows[::-1][:200], n=len(rows), done=len(done), by=by)
+
+
+def build(con, today=None, log_path=None):
     games, halves, hist = walk(con)
     pre = fit_pre(games)
-    return dict(updated=dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ"), pre=pre,
+    return dict(triples=triples(con, games), sent=sent_log(con, log_path) if log_path else None,updated=dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ"), pre=pre,
                 check=check(games, halves, pre), games=upcoming(con, hist, pre, today), timing=timing(con, games),
                 consts=dict(K=K, KT=KT, eurocup_gap=EUROCUP_GAP))
 

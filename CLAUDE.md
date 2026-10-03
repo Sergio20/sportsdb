@@ -55,10 +55,17 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   avisos en la plantilla en vivo, cambiarlos también en `analisis.py`.
 - `build_timeline.py`: marcador jugada a jugada (tabla `basket_timeline`), 60 partidos por
   actualización diaria porque la fuente limita; de ahí sale el apartado «Entrar y salir».
-- Hándicaps de seguridad (`SAFE` en la plantilla en vivo, `Z80/Z90/Z95` en `analisis.py`): el
-  «hándicap justo» acierta 1 de cada 2 por definición; los de seguridad son justo + 0,84 / 1,28 /
-  1,64 veces el margen de error y en el histórico aciertan 76-83 %, 87-93 % y 93-96 %. Sergio
-  quiere apostar a estos, no al justo. Recordarle siempre la cuota mínima (1,25 / 1,11 / 1,05).
+- Hándicaps de seguridad (`SAFE` en la plantilla en vivo y en `avisos.py`, `Z80/Z90/Z95` en
+  `analisis.py`): línea neutra + 0,84 / 1,28 / 1,64 veces el margen de error; en el histórico
+  aciertan 76-83 %, 87-93 % y 93-96 %. El «hándicap justo» (acierta 1 de cada 2) ya NO se muestra
+  en ningún sitio por decisión de Sergio: solo líneas del 80 % en adelante. Recordarle siempre la
+  cuota mínima (1,25 / 1,11 / 1,05).
+- `avisos.py`: las reglas de los cuatro avisos en Python (desfase, ritmo, triples, total), espejo de
+  la plantilla en vivo. `vigilante.py` las aplica en directo y manda cada aviso por Telegram
+  (secretos `TELEGRAM_TOKEN` y `TELEGRAM_CHAT_ID` del repositorio); lo lanza
+  `.github/workflows/vigilante.yml` dos veces cada tarde. Cada aviso enviado queda en `avisos.json`
+  (rama `avisos`, un solo commit) y `analisis.sent_log` lo resuelve para «¿Funciona?».
+  Ensayo sin partidos: `python vigilante.py --repetir E2026 26 16`.
 - `scripts/repaso.py --desde AAAA-MM-DD`: repasa partidos ya jugados minuto a minuto con las
   mismas reglas de aviso del panel y dice qué hándicap se habría ganado con cada línea.
 - `scripts/cronologia.py E2026 22 26`: un partido minuto a minuto (marcador, ritmo, máxima ventaja).

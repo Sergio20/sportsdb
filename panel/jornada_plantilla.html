@@ -57,12 +57,12 @@ function flags(g, k, name) {
   return `<div><div class="small muted" style="margin-bottom:4px">${esc(name)} · nivel ${signed(s.net, 1)}</div><div class="flags">${f.map(([c, t]) => `<span class="flag ${c}">${esc(t)}</span>`).join('')}</div></div>`;
 }
 function card(g, i) {
-  const has = g.margin != null, fav = has && g.margin >= 0 ? g.home : g.away;
+  const has = g.margin != null, dog = has && g.margin >= 0 ? g.away : g.home;
   return `<section class="panel match" data-i="${i}">
     <div class="small muted">${esc(g.league)}${g.round ? ' · jornada ' + esc(g.round) : ''} · ${esc(when(g).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))}</div>
     <div class="teams"><div class="t r">${esc(g.home)}</div><div class="vs">–</div><div class="t">${esc(g.away)}</div></div>
     ${has ? `<div class="kpis">
-      <div class="kpi"><div class="v">${signed(-half(Math.abs(g.margin)), 1)}</div><div class="k">Hándicap justo · ${esc(fav)}</div></div>
+      <div class="kpi"><div class="v">${[0.8416, 1.2816].map(z => signed(Math.ceil((Math.abs(g.margin) + z * g.sd) * 2) / 2, 1)).join(' · ')}</div><div class="k">Hándicap de ${esc(dog)} que acierta el 80 % · 90 %</div></div>
       <div class="kpi"><div class="v">${nf(g.p, 0)} % - ${nf(100 - g.p, 0)} %</div><div class="k">Victoria · cuotas justas ${odd(g.p / 100)} y ${odd(1 - g.p / 100)}</div></div>
       <div class="kpi"><div class="v">${nf(g.total, 1)}</div><div class="k">Total de puntos previsto</div></div></div>
     <div class="cmp">
