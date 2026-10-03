@@ -107,14 +107,11 @@ local = lambda t=None: (t or now()).astimezone(MADRID)  # noqa: E731
 
 
 def message(al, g, el, score):
-    q = min(4, int(el // 10) + 1)
-    if al["type"] == "cuarto":
-        return (f"🔔 Cuarto anormal\n{COMP[g['comp']]} · {g['home']} {score} {g['away']} · final del {avisos.ORD[al['done']]} cuarto\n\n"
-                + avisos.describe(al, g["home"], g["away"])
-                + f"\n\nSolo compensa si la cuota que te dan supera la mínima. Ninguna línea acierta siempre.\nDetectado a las {local():%H:%M:%S} · {WEB}")
-    return (f"🔔 {avisos.NAMES[al['type']]} ({al['level']})\n{COMP[g['comp']]} · {g['home']} {score} {g['away']} · minuto {el:.0f} ({q}.º cuarto)\n\n"
-            + avisos.describe(al, g["home"], g["away"])
-            + f"\n\nSolo compensa si la cuota que te dan supera la mínima. Ninguna línea acierta siempre.\nDetectado a las {local():%H:%M:%S} · {WEB}")
+    """Aviso completo: cabecera con el partido y el momento, y el cuerpo explícito de avisos.describe."""
+    moment = (f"Final del {avisos.ORD[al['done']]} cuarto" if al["type"] == "cuarto"
+              else f"Minuto {el:.0f} de partido ({avisos.ORD[min(4, int(el // 10) + 1)]} cuarto)")
+    return (f"🔔 {avisos.NAMES[al['type']].upper()} · {COMP[g['comp']]}\n{g['home']} {score} {g['away']}\n{moment} · detectado a las {local():%H:%M:%S}\n\n"
+            + avisos.describe(al, g["home"], g["away"]) + f"\n\nNinguna línea acierta siempre.\n{WEB}")
 
 
 def agenda(con, log, log_path, hours, games, hist):
@@ -165,9 +162,11 @@ def quarter_step(g, st, base, rules, log, save):
         e.update(closed=True, res={str(p): bool(ok) for p, ok in res.items()}, value=value)
         what = "la 2.ª parte" if al["target"] == "mitad" else f"el {avisos.ORD[int(al['target'])]} cuarto"
         team = g["home"] if al["side"] == 1 else g["away"] if al["side"] == -1 else None
-        got = (f"{team} {avisos.fmt(value)} en {what}" if al["market"] == "hcap" else f"{team}: {value} puntos en {what}" if al["market"] == "equipo"
-               else f"{value} puntos entre los dos en {what}")
-        send(f"🏁 Cuarto anormal · {g['home']} – {g['away']}\n{got}\n" + " · ".join(f"{p} % {'✅' if ok else '❌'}" for p, ok in res.items()))
+        got = ((f"{team} ganó {what} por {value}" if value > 0 else f"{team} perdió {what} por {-value}" if value < 0 else f"{team} empató {what}")
+               if al["market"] == "hcap" else f"{team} metió {value} puntos en {what}" if al["market"] == "equipo"
+               else f"hubo {value} puntos entre los dos en {what}")
+        send(f"🏁 RESULTADO · CUARTO ANORMAL\n{g['home']} – {g['away']}\n\nAPOSTABAS A\n{avisos.bet_of(al, g['home'], g['away'])['market']}"
+             + f"\n\nLO QUE PASÓ\n{got[0].upper() + got[1:]}.\n\n" + "\n".join(avisos.result_lines(al, e["res"], g["home"], g["away"])))
         save()
     el, bA, bB = st.get("el"), base.get(g["hc"]), base.get(g["ac"])
     if not st["live"] or el is None or not bA or not bB or done not in (1, 2, 3) or el - done * 10 > 2.5:
@@ -186,12 +185,20 @@ def quarter_step(g, st, base, rules, log, save):
 
 
 def result_message(g, entries, hs, as_):
-    lines = [f"🏁 Final: {g['home']} {hs}-{as_} {g['away']}"]
+    """Resultado, al acabar el partido, de cada aviso que saltó en él (los de cuarto se resuelven aparte)."""
+    out = [f"🏁 RESULTADO FINAL\n{g['home']} {hs}-{as_} {g['away']}"]
     for e in entries:
-        res = avisos.settle(e["alert"], hs, as_)
-        what = "total" if e["alert"]["type"] == "total" else (g["home"] if e["alert"]["side"] > 0 else g["away"])
-        lines.append(f"{avisos.NAMES[e['alert']['type']]} (min {e['el']:.0f}, {what}): " + " · ".join(f"{p} % {'✅' if ok else '❌'}" for p, ok in res.items()))
-    return "\n".join(lines)
+        al = e["alert"]
+        res = {str(p): ok for p, ok in avisos.settle(al, hs, as_).items()}
+        if al["type"] == "total":
+            got = f"Hubo {hs + as_} puntos entre los dos."
+        else:
+            team, m = (g["home"] if al["side"] > 0 else g["away"]), al["side"] * (hs - as_)
+            got = f"{team} ganó por {m}." if m > 0 else f"{team} perdió por {-m}." if m < 0 else f"{team} empató."
+        out += ["", f"{avisos.NAMES[al['type']].upper()} · aviso del minuto {e['el']:.0f} ({e['score']})",
+                "Apostabas a: " + avisos.bet_of(al, g["home"], g["away"])["market"], "Lo que pasó: " + got]
+        out += avisos.result_lines(al, res, g["home"], g["away"])
+    return "\n".join(out)
 
 
 def todays_games(year):
@@ -451,7 +458,7 @@ def replay(base, season, code, el):
     for al in als:
         send("ENSAYO con un partido ya jugado\n" + message(al, g, el, f"{A['pts']}-{B['pts']}"))
     if als:
-        send("ENSAYO\n" + result_message(g, [dict(alert=al, el=el) for al in als], int(h["ScoreA"]), int(h["ScoreB"])))
+        send("ENSAYO\n" + result_message(g, [dict(alert=al, el=el, score=f"{A['pts']}-{B['pts']}") for al in als], int(h["ScoreA"]), int(h["ScoreB"])))
     return 0
 
 

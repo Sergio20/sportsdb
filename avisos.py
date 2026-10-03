@@ -25,11 +25,12 @@ PLAYS = {"2FGM": ("m2", "a2", 2), "2FGA": (None, "a2", 0), "3FGM": ("m3", "a3", 
 
 
 def up_half(x):
-    return math.ceil(x * 2) / 2
+    """La línea acabada en ,5 inmediatamente por encima (o igual): nunca hay empate ni devolución."""
+    return math.ceil(x - 0.5) + 0.5
 
 
 def down_half(x):
-    return math.floor(x * 2) / 2
+    return math.floor(x + 0.5) - 0.5
 
 
 def totals(plays, code_a, upto=999):
@@ -198,59 +199,100 @@ def num(x, d=1):
 
 
 ORD = {1: "1.er", 2: "2.º", 3: "3.er", 4: "4.º"}
+ICON = {95: "🟢", 90: "🟡", 80: "🟠"}      # de más segura a más ajustada
+FACTS = {
+    "eq_frio": "ese equipo anotó más en el cuarto siguiente", "eq_caliente": "ese equipo anotó menos en el cuarto siguiente",
+    "tot_frio": "el cuarto siguiente tuvo más puntos", "tot_caliente": "el cuarto siguiente tuvo menos puntos",
+    "paliza": "ese equipo no perdió el cuarto siguiente por más de 5", "mitad_fria": "la 2.ª parte tuvo más puntos",
+    "mitad_caliente": "la 2.ª parte tuvo menos puntos",
+}
 
 
-def describe_quarter(al, home, away):
-    team = home if al["side"] == 1 else away if al["side"] == -1 else None
-    nxt = "la 2.ª parte" if al["target"] == "mitad" else f"el {ORD[al['target']]} cuarto"
-    way = "MÁS de" if al["over"] else "MENOS de"
-    head = {
-        "eq_frio": f"{team} solo ha metido {al['pts']} puntos en el {ORD[al['done']]} cuarto (su media por cuarto es {num(al.get('usual', 0))}).",
-        "eq_caliente": f"{team} ha metido {al['pts']} puntos en el {ORD[al['done']]} cuarto (su media por cuarto es {num(al.get('usual', 0))}).",
-        "tot_frio": f"Solo {al['pts']} puntos entre los dos en el {ORD[al['done']]} cuarto (lo habitual son {num(al.get('usual', 0))}).",
-        "tot_caliente": f"{al['pts']} puntos entre los dos en el {ORD[al['done']]} cuarto (lo habitual son {num(al.get('usual', 0))}).",
-        "paliza": f"{team} ha perdido el {ORD[al['done']]} cuarto por {al['pts']}.",
-        "mitad_fria": f"Primera parte con solo {al['pts']} puntos (lo habitual por mitad son {num(al.get('usual', 0))}).",
-        "mitad_caliente": f"Primera parte con {al['pts']} puntos (lo habitual por mitad son {num(al.get('usual', 0))}).",
-    }[al["sub"]]
-    fact = {
-        "eq_frio": "anotó más en el cuarto siguiente", "eq_caliente": "anotó menos en el cuarto siguiente",
-        "tot_frio": "el cuarto siguiente tuvo más puntos", "tot_caliente": "el cuarto siguiente tuvo menos puntos",
-        "paliza": "no perdió el cuarto siguiente por más de 5", "mitad_fria": "la 2.ª parte tuvo más puntos", "mitad_caliente": "la 2.ª parte tuvo menos puntos",
-    }[al["sub"]]
-    head += f" En el histórico ({al['n']} casos), el {num(al['fact'], 0)} % de las veces {fact}."
-    if al["market"] == "hcap":
-        bet = f"Apuesta: hándicap de {team} en {nxt}"
-        lines = [f"  {p} %: {team} {fmt(line)}  (cuota mínima {num(100 / int(p), 2)})" for p, line in al["lines"].items()]
-    else:
-        what = f"puntos de {team}" if al["market"] == "equipo" else "puntos entre los dos"
-        bet = f"Apuesta: {what} en {nxt}"
-        lines = [f"  {p} %: {way} {num(line)}  (cuota mínima {num(100 / int(p), 2)})" for p, line in al["lines"].items()]
-    return head + "\n" + bet + "\n" + "\n".join(lines)
+def _scope(al):
+    """En qué periodo se resuelve la apuesta, dicho de forma que no quepa duda."""
+    if al["type"] != "cuarto":
+        return "el PARTIDO ENTERO (resultado final)", "al final del partido"
+    if al["target"] == "mitad":
+        return "la 2.ª PARTE (3.er y 4.º cuarto juntos, sin contar la 1.ª parte)", "sumando solo el 3.er y el 4.º cuarto"
+    o = ORD[int(al["target"])]
+    return f"el {o} CUARTO (solo ese cuarto)", f"contando solo los puntos del {o} cuarto"
+
+
+def bet_of(al, home, away):
+    """La apuesta de un aviso, desmenuzada: mercado, sentido, cómo se gana y cada línea con su condición exacta."""
+    scope, count = _scope(al)
+    team = home if al.get("side") == 1 else away if al.get("side") == -1 else None
+    market = "hcap" if al["type"] in ("desfase", "ritmo", "triples") else "total" if al["type"] == "total" else al["market"]
+    order = sorted(al["lines"].items(), key=lambda kv: -int(kv[0]))          # primero la más segura
+    if market == "hcap":
+        thing = "el partido" if al["type"] != "cuarto" else "la 2.ª parte" if al["target"] == "mitad" else "ese cuarto"
+
+        def cond(line):
+            return (f"gana si {team} gana {thing}, o si lo pierde por {int(line - 0.5)} o menos" if line > 0
+                    else f"gana solo si {team} gana {thing} por {int(-line + 0.5)} o más")
+        return dict(market=f"HÁNDICAP de {team} en {scope}", way=None, team=team,
+                    win=f"Con un hándicap positivo ganas si {team} gana {thing}, o si lo pierde por MENOS puntos que el hándicap, {count}.",
+                    lines=[(int(p), f"{team} {fmt(line)}", cond(line)) for p, line in order])
+    over = al["over"] if al["type"] == "cuarto" else not al["under"]
+    who = f"PUNTOS DE {team}" if market == "equipo" else "PUNTOS ENTRE LOS DOS EQUIPOS"
+    way = "MÁS DE" if over else "MENOS DE"
+    subject = team if market == "equipo" else "entre los dos"
+    lines = [(int(p), f"{way.capitalize()} {num(line)}",
+              f"gana si {subject} {'suman' if market != 'equipo' else 'mete'} {int(line + 0.5)} o más" if over
+              else f"gana si {subject} {'suman' if market != 'equipo' else 'mete'} {int(line - 0.5)} o menos") for p, line in order]
+    return dict(market=f"{who} en {scope}", way=way, team=team, lines=lines,
+                win=f"Ganas si {subject} {'suman' if market != 'equipo' else 'mete'} {'MÁS' if over else 'MENOS'} puntos que la línea, {count}."
+                    + ("" if al["type"] == "cuarto" else " Nuestro cálculo no cuenta la prórroga."))
+
+
+def what_happens(al, home, away):
+    """Una o dos frases: qué está pasando en el partido para que salte el aviso."""
+    team, rival = (home, away) if al.get("side") == 1 else (away, home)
+    if al["type"] == "cuarto":
+        q, u = ORD[al["done"]], num(al.get("usual", 0))
+        return {
+            "eq_frio": f"{team} solo ha metido {al['pts']} puntos en el {q} cuarto. Su media es {u} por cuarto.",
+            "eq_caliente": f"{team} ha metido {al['pts']} puntos en el {q} cuarto. Su media es {u} por cuarto.",
+            "tot_frio": f"Solo {al['pts']} puntos entre los dos en el {q} cuarto. Lo habitual son {u}.",
+            "tot_caliente": f"{al['pts']} puntos entre los dos en el {q} cuarto. Lo habitual son {u}.",
+            "paliza": f"{team} ha perdido el {q} cuarto por {al['pts']} puntos.",
+            "mitad_fria": f"Primera parte con solo {al['pts']} puntos entre los dos. Lo habitual son {u} por mitad.",
+            "mitad_caliente": f"Primera parte con {al['pts']} puntos entre los dos. Lo habitual son {u} por mitad.",
+        }[al["sub"]] + f"\nEn el histórico ({al['n']} casos), el {num(al['fact'], 0)} % de las veces {FACTS[al['sub']]}."
+    if al["type"] == "total":
+        return (f"Al ritmo que llevan acabarían en {al['pace']} puntos entre los dos. Su total habitual es {al['usual']}.\n"
+                "En el histórico, del exceso (o defecto) de ritmo solo se mantiene un 8 % en lo que queda de partido.")
+    if al["type"] == "desfase":
+        return (f"{team} es el favorito y va peor de lo previsto: {al['gap']} puntos del marcador se explican por un acierto fuera de lo normal "
+                f"(él por debajo de lo suyo, {rival} por encima).")
+    if al["type"] == "ritmo":
+        return f"{rival} gana de {round(al['deficit'])} anotando a un ritmo de {al['pace']} puntos por partido. Su media es {al['usual']}."
+    parts = []
+    if al.get("hot"):
+        h = al["hot"]
+        parts.append(f"{rival} lleva {h['m']} de {h['a']} en triples ({100 * h['m'] / h['a']:.0f} %); su habitual es {h['usual']:.0f} %")
+    if al.get("cold"):
+        c = al["cold"]
+        parts.append(f"{team} lleva {c['m']} de {c['a']} en triples ({100 * c['m'] / c['a']:.0f} %); su habitual es {c['usual']:.0f} %")
+    return (f"{rival} gana de {round(al['deficit'])}. " + " y ".join(parts)
+            + ".\nEn el histórico ese acierto vuelve a lo normal, pero la ventaja ya conseguida se mantiene en su mayor parte.")
 
 
 def describe(al, home, away):
-    """Texto del aviso para Telegram (sin el encabezado del partido)."""
-    if al["type"] == "cuarto":
-        return describe_quarter(al, home, away)
-    if al["type"] == "total":
-        way = "MENOS de" if al["under"] else "MÁS de"
-        head = f"Van camino de {al['pace']} puntos; el habitual de los dos es {al['usual']}. Del exceso de ritmo solo se mantiene un 8 %."
-        lines = [f"  {p} %: {way} {num(line)}  (cuota mínima {num(100 / p, 2)})" for p, line in al["lines"].items()]
-        return head + "\nApuesta: total de puntos\n" + "\n".join(lines)
-    team, rival = (home, away) if al["side"] > 0 else (away, home)
-    if al["type"] == "desfase":
-        head = f"{team} es favorito y va peor de lo previsto: {al['gap']} puntos del marcador vienen de un acierto fuera de lo normal."
-    elif al["type"] == "ritmo":
-        head = f"{rival} gana de {round(al['deficit'])} anotando a ritmo de {al['pace']} puntos (su media es {al['usual']})."
-    else:
-        parts = []
-        if al.get("hot"):
-            h = al["hot"]
-            parts.append(f"{rival} lleva {h['m']}/{h['a']} en triples ({100 * h['m'] / h['a']:.0f} %; su habitual es {h['usual']:.0f} %)")
-        if al.get("cold"):
-            c = al["cold"]
-            parts.append(f"{team} lleva {c['m']}/{c['a']} en triples ({100 * c['m'] / c['a']:.0f} %; su habitual es {c['usual']:.0f} %)")
-        head = " y ".join(parts) + ". En el histórico ese acierto vuelve a lo normal, aunque la ventaja ya conseguida se mantiene en su mayor parte."
-    lines = [f"  {p} %: {team} {fmt(line)}  (cuota mínima {num(100 / p, 2)})" for p, line in al["lines"].items()]
-    return head + f"\nApuesta: hándicap positivo de {team}\n" + "\n".join(lines)
+    """Cuerpo del aviso para Telegram y la web: qué pasa, qué apostar, cada línea con su condición y cómo se gana."""
+    b = bet_of(al, home, away)
+    out = ["QUÉ PASA", what_happens(al, home, away), "", "QUÉ APOSTAR", "Mercado: " + b["market"]]
+    if b["way"]:
+        out.append("Sentido: " + b["way"])
+    out += ["", "ELIGE UNA LÍNEA (de más segura a más ajustada)"]
+    for p, label, cond in b["lines"]:
+        out += [f"{ICON[p]} {label}", f"     {cond}", f"     acierta {p} de cada 100 · apuesta solo si la cuota es {num(100 / p, 2)} o más"]
+    out += ["", "CÓMO SE GANA", b["win"]]
+    return "\n".join(out)
+
+
+def result_lines(al, res, home, away):
+    """Para el mensaje de resultado: cada línea con su marca y GANADA / PERDIDA."""
+    labels = {p: label for p, label, _ in bet_of(al, home, away)["lines"]}
+    return [f"{'✅' if res[k] else '❌'} {labels[int(k)]} (la del {int(k)} %): {'GANADA' if res[k] else 'PERDIDA'}"
+            for k in sorted(res, key=lambda k: -int(k))]

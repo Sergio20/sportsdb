@@ -376,7 +376,7 @@ function paceHistoryTxt(x, el) {
 }
 // Hándicaps de seguridad: el justo acierta 1 de cada 2; estos se alargan lo necesario para acertar el 80, 90 y 95 %.
 // Comprobado con el histórico (analisis.py): aciertan 76-83 %, 87-93 % y 93-96 %.
-const SAFE = [[80, 0.8416], [90, 1.2816], [95, 1.6449]], upHalf = v => Math.ceil(v * 2) / 2, downHalf = v => Math.floor(v * 2) / 2;
+const SAFE = [[80, 0.8416], [90, 1.2816], [95, 1.6449]], upHalf = v => Math.ceil(v - 0.5) + 0.5, downHalf = v => Math.floor(v + 0.5) - 0.5;
 function safeHtml(title, lines) {
   return `<div class="safe"><div class="small strong">${title}</div><div class="kpis">${lines.map(([p, txt]) => `<div class="kpi"><div class="v">${txt}</div><div class="k">Acierta el ${p} % · cuota mínima ${nf(100 / p, 2)}</div></div>`).join('')}</div>
     <div class="muted small">Cuanto más largo el hándicap, más aciertas pero menos paga. «Cuota mínima» es la que necesitas para no perder dinero a la larga: por debajo, ni acertando ese porcentaje compensa. Ninguno acierta siempre.</div></div>`;
