@@ -18,7 +18,8 @@ LEAD, PACE_EXTRA, LEVEL_GAP, MIN_EL_PACE = 10, 20, 3, 6   # ritmo insostenible
 TOTAL_GAP = 18                                      # total desfasado
 T3_ATT, T3_HOT, T3_COLD, T3_LEAD = 8, 1.5, -2.0, 8  # triples: intentos mínimos, z caliente, z frío, ventaja mínima
 SAFE = ((80, 0.8416), (90, 1.2816), (95, 1.6449))
-NAMES = {"desfase": "Desfase", "ritmo": "Ritmo insostenible", "triples": "Triples insostenibles", "total": "Total desfasado"}
+NAMES = {"desfase": "Desfase", "ritmo": "Ritmo insostenible", "triples": "Triples insostenibles", "total": "Total desfasado",
+         "cuarto": "Cuarto anormal"}
 PLAYS = {"2FGM": ("m2", "a2", 2), "2FGA": (None, "a2", 0), "3FGM": ("m3", "a3", 3), "3FGA": (None, "a3", 0),
          "FTM": ("mf", "af", 1), "FTA": (None, "af", 0)}
 
@@ -113,8 +114,69 @@ def evaluate(el, A, B, bA, bB):
     return out
 
 
+def quarter_alerts(done, quarters, bA, bB, rules):
+    """Avisos de «cuarto anormal» al acabar el cuarto `done` (1, 2 o 3). quarters = [[local, visitante], ...] ya terminados;
+    rules = analisis.quarter_rules(...). Cada aviso propone una apuesta para el periodo SIGUIENTE (cuarto done+1, o la
+    segunda parte) con sus líneas del 80, 90 y 95 %."""
+    out = []
+    if not rules or done not in (1, 2, 3) or len(quarters) < done:
+        return out
+    h, a = quarters[done - 1]
+    Q = (bA["pf"] - bA["pa"]) - (bB["pf"] - bB["pa"])
+    exp_q = 10 * (K["home"] + K["q"] * Q)                   # diferencia esperable por cuarto para el local
+    usual_q = (bA["tot"] + bB["tot"]) / 8 if bA.get("tot") and bB.get("tot") else None
+
+    def add(rid, pred, target, side=None, **extra):
+        r = rules.get(rid)
+        if not r or pred is None:
+            return
+        if r["market"] == "hcap":       # línea L tal que (diferencia del equipo en el periodo + L) > 0
+            lines = {int(p): up_half(-(pred + float(q))) for p, q in r["q"].items()}
+        else:
+            lines = {int(p): (down_half if r["over"] else up_half)(pred + float(q)) for p, q in r["q"].items()}
+        out.append(dict(type="cuarto", sub=rid, market=r["market"], over=r["over"], side=side, done=done, target=target, level="fuerte",
+                        lines=lines, fact=r["fact"], n=r["n"], **extra))
+
+    for s, me, base in ((1, h, bA), (-1, a, bB)):
+        if me <= 10:
+            add("eq_frio", base["pf"] / 4, done + 1, s, pts=me, usual=round(base["pf"] / 4, 1))
+        if me >= 30:
+            add("eq_caliente", base["pf"] / 4, done + 1, s, pts=me, usual=round(base["pf"] / 4, 1))
+        if s * (h - a) <= -10:
+            add("paliza", s * exp_q, done + 1, s, pts=abs(h - a))
+    if usual_q:
+        if h + a <= 30:
+            add("tot_frio", usual_q, done + 1, pts=h + a, usual=round(usual_q, 1))
+        if h + a >= 54:
+            add("tot_caliente", usual_q, done + 1, pts=h + a, usual=round(usual_q, 1))
+        if done == 2:
+            h1 = sum(x[0] + x[1] for x in quarters[:2])
+            if h1 <= 66:
+                add("mitad_fria", 2 * usual_q, "mitad", pts=h1, usual=round(2 * usual_q, 1))
+            if h1 >= 100:
+                add("mitad_caliente", 2 * usual_q, "mitad", pts=h1, usual=round(2 * usual_q, 1))
+    return out
+
+
+def settle_quarter(al, quarters):
+    """Resultado de un aviso de cuarto cuando su periodo ya ha terminado; None si aún no. quarters = [[local, visitante], ...]."""
+    need = 4 if al["target"] == "mitad" else int(al["target"])
+    if len(quarters) < need:
+        return None
+    if al["target"] == "mitad":
+        value = sum(x[0] + x[1] for x in quarters[2:4])
+    else:
+        h, a = quarters[need - 1]
+        value = {"equipo": h if al["side"] == 1 else a, "total": h + a, "hcap": (h - a) * (al["side"] or 1)}[al["market"]]
+    if al["market"] == "hcap":
+        return {p: value + line > 0 for p, line in al["lines"].items()}, value
+    return {p: (value > line) if al["over"] else (value < line) for p, line in al["lines"].items()}, value
+
+
 def key(al):
     """Identidad de un aviso dentro de un partido (para no repetirlo)."""
+    if al["type"] == "cuarto":
+        return f"cuarto:{al['sub']}:{al['done']}:{al['side']}"
     return al["type"] + ":" + ("u" if al.get("under") else "o" if al["type"] == "total" else str(al["side"]))
 
 
@@ -135,8 +197,42 @@ def num(x, d=1):
     return f"{x:.{d}f}".replace(".", ",")
 
 
+ORD = {1: "1.er", 2: "2.º", 3: "3.er", 4: "4.º"}
+
+
+def describe_quarter(al, home, away):
+    team = home if al["side"] == 1 else away if al["side"] == -1 else None
+    nxt = "la 2.ª parte" if al["target"] == "mitad" else f"el {ORD[al['target']]} cuarto"
+    way = "MÁS de" if al["over"] else "MENOS de"
+    head = {
+        "eq_frio": f"{team} solo ha metido {al['pts']} puntos en el {ORD[al['done']]} cuarto (su media por cuarto es {num(al.get('usual', 0))}).",
+        "eq_caliente": f"{team} ha metido {al['pts']} puntos en el {ORD[al['done']]} cuarto (su media por cuarto es {num(al.get('usual', 0))}).",
+        "tot_frio": f"Solo {al['pts']} puntos entre los dos en el {ORD[al['done']]} cuarto (lo habitual son {num(al.get('usual', 0))}).",
+        "tot_caliente": f"{al['pts']} puntos entre los dos en el {ORD[al['done']]} cuarto (lo habitual son {num(al.get('usual', 0))}).",
+        "paliza": f"{team} ha perdido el {ORD[al['done']]} cuarto por {al['pts']}.",
+        "mitad_fria": f"Primera parte con solo {al['pts']} puntos (lo habitual por mitad son {num(al.get('usual', 0))}).",
+        "mitad_caliente": f"Primera parte con {al['pts']} puntos (lo habitual por mitad son {num(al.get('usual', 0))}).",
+    }[al["sub"]]
+    fact = {
+        "eq_frio": "anotó más en el cuarto siguiente", "eq_caliente": "anotó menos en el cuarto siguiente",
+        "tot_frio": "el cuarto siguiente tuvo más puntos", "tot_caliente": "el cuarto siguiente tuvo menos puntos",
+        "paliza": "no perdió el cuarto siguiente por más de 5", "mitad_fria": "la 2.ª parte tuvo más puntos", "mitad_caliente": "la 2.ª parte tuvo menos puntos",
+    }[al["sub"]]
+    head += f" En el histórico ({al['n']} casos), el {num(al['fact'], 0)} % de las veces {fact}."
+    if al["market"] == "hcap":
+        bet = f"Apuesta: hándicap de {team} en {nxt}"
+        lines = [f"  {p} %: {team} {fmt(line)}  (cuota mínima {num(100 / int(p), 2)})" for p, line in al["lines"].items()]
+    else:
+        what = f"puntos de {team}" if al["market"] == "equipo" else "puntos entre los dos"
+        bet = f"Apuesta: {what} en {nxt}"
+        lines = [f"  {p} %: {way} {num(line)}  (cuota mínima {num(100 / int(p), 2)})" for p, line in al["lines"].items()]
+    return head + "\n" + bet + "\n" + "\n".join(lines)
+
+
 def describe(al, home, away):
     """Texto del aviso para Telegram (sin el encabezado del partido)."""
+    if al["type"] == "cuarto":
+        return describe_quarter(al, home, away)
     if al["type"] == "total":
         way = "MENOS de" if al["under"] else "MÁS de"
         head = f"Van camino de {al['pace']} puntos; el habitual de los dos es {al['usual']}. Del exceso de ritmo solo se mantiene un 8 %."

@@ -300,6 +300,82 @@ def timing(con, games):
     return out
 
 
+# ---------- Cuartos anormales ----------
+# Un cuarto son unos 20 tiros por equipo: uno disparatado casi siempre es casualidad y el siguiente vuelve a lo normal.
+# Cada regla: (id, texto, mercado). El «residuo» es lo que pasó en el periodo siguiente menos lo esperable por la media
+# del equipo (o de los dos); las líneas de seguridad son cuantiles de ese residuo en el histórico.
+Q_RULES = {
+    "eq_frio": dict(txt="un equipo anota 10 puntos o menos en un cuarto", market="equipo", over=True),
+    "eq_caliente": dict(txt="un equipo anota 30 puntos o más en un cuarto", market="equipo", over=False),
+    "tot_frio": dict(txt="un cuarto con 30 puntos o menos entre los dos", market="total", over=True),
+    "tot_caliente": dict(txt="un cuarto con 54 puntos o más entre los dos", market="total", over=False),
+    "paliza": dict(txt="un equipo pierde un cuarto por 10 o más", market="hcap", over=True),
+    "mitad_fria": dict(txt="una primera parte con 66 puntos o menos", market="mitad", over=True),
+    "mitad_caliente": dict(txt="una primera parte con 100 puntos o más", market="mitad", over=False),
+}
+Q_LEVELS = (80, 90, 95)
+
+
+def quarter_cases(games):
+    """Casos históricos de cada regla: (regla, temporada, residuo del periodo siguiente, ¿se cumplió el hecho simple?)."""
+    out = []
+    for g in games:
+        if g["Q"] is None:
+            continue
+        q, exp_q = g["q"], 10 * (K["home"] + K["q"] * g["Q"])      # diferencia esperada por cuarto para el local
+        pf = {0: g["pf_h"] / 4, 1: g["pf_a"] / 4}
+        for p in (1, 2, 3):
+            tot, nxt = q[p][0] + q[p][1], q[p + 1][0] + q[p + 1][1]
+            for s in (0, 1):
+                me, me_next = q[p][s], q[p + 1][s]
+                if me <= 10:
+                    out.append(("eq_frio", g["season"], me_next - pf[s], me_next > me))
+                if me >= 30:
+                    out.append(("eq_caliente", g["season"], me_next - pf[s], me_next < me))
+                sign = 1 if s == 0 else -1
+                if sign * (q[p][0] - q[p][1]) <= -10:
+                    m_next = sign * (q[p + 1][0] - q[p + 1][1])
+                    out.append(("paliza", g["season"], m_next - sign * exp_q, m_next > -5.5))
+            if tot <= 30:
+                out.append(("tot_frio", g["season"], nxt - g["usual"] / 4, nxt > tot))
+            if tot >= 54:
+                out.append(("tot_caliente", g["season"], nxt - g["usual"] / 4, nxt < tot))
+        h1, h2 = q[1][0] + q[1][1] + q[2][0] + q[2][1], q[3][0] + q[3][1] + q[4][0] + q[4][1]
+        if h1 <= 66:
+            out.append(("mitad_fria", g["season"], h2 - g["usual"] / 2, h2 > h1))
+        if h1 >= 100:
+            out.append(("mitad_caliente", g["season"], h2 - g["usual"] / 2, h2 < h1))
+    return out
+
+
+def _quantiles(xs, over):
+    """Residuo que deja por debajo (si se apuesta a «más de») o por encima («menos de») el 20, 10 y 5 % de los casos."""
+    xs = sorted(xs)
+    pick = lambda frac: xs[min(len(xs) - 1, max(0, int(frac * len(xs))))]  # noqa: E731
+    return {p: (pick(1 - p / 100) if over else pick(p / 100)) for p in Q_LEVELS}
+
+
+def quarter_rules(games, split=2024):
+    """Líneas de cada regla (con todo el histórico) y su comprobación honrada: se aprenden con las temporadas
+    anteriores a `split` y se mira cuántas veces se cumplen en las siguientes, que no han intervenido."""
+    cases, rules = quarter_cases(games), {}
+    for rid, meta in Q_RULES.items():
+        mine = [c for c in cases if c[0] == rid]
+        if len(mine) < 60:
+            continue
+        over, train, test = meta["over"], [c[2] for c in mine if c[1] < split], [c[2] for c in mine if c[1] >= split]
+        qs = _quantiles([c[2] for c in mine], over)
+        check = {}
+        if len(train) >= 40 and len(test) >= 20:
+            qt = _quantiles(train, over)
+            # misma cuenta que al apostar: la línea se redondea al medio punto del lado seguro
+            hit = lambda x, r: (x > math.floor(r * 2) / 2) if over else (x < math.ceil(r * 2) / 2)  # noqa: E731
+            check = {p: round(100 * sum(hit(x, qt[p]) for x in test) / len(test), 1) for p in Q_LEVELS}
+        rules[rid] = dict(n=len(mine), fact=round(100 * sum(c[3] for c in mine) / len(mine), 1), q={p: round(v, 2) for p, v in qs.items()},
+                          test_n=len(test), test=check, **meta)
+    return rules
+
+
 def triples(con, games):
     """Triples insostenibles al descanso (Euroliga, EuroCup y Liga Endesa): ¿vuelve el acierto a lo normal? ¿y el marcador?"""
     half = defaultdict(dict)
@@ -362,9 +438,18 @@ def sent_log(con, path):
                            FROM matches m WHERE m.league = ? AND m.season_start = ? AND m.source_id = ?""",
                         ({"E": "Euroliga", "U": "EuroCup", "A": "Liga Endesa"}[e["comp"]], e["year"], str(e["code"]))).fetchone()
         al = e["alert"]
+        if al["type"] == "cuarto":      # su resultado lo anota el propio vigilante al acabar el periodo apostado
+            team = e["home"] if al["side"] == 1 else e["away"] if al["side"] == -1 else None
+            where = "2.ª parte" if al["target"] == "mitad" else f"cuarto {al['target']}"
+            bet = (f"hándicap de {team}" if al["market"] == "hcap" else f"puntos de {team}: {'más' if al['over'] else 'menos'} de" if al["market"] == "equipo"
+                   else f"total: {'más' if al['over'] else 'menos'} de") + f" ({where})"
+            rows.append(dict(ts=e["ts"], comp=e["comp"], home=e["home"], away=e["away"], el=e["el"], score=e["score"], type="cuarto", level=al["level"],
+                             bet=bet, lines=al["lines"], hcap=al["market"] == "hcap", res=e.get("res"),
+                             final=str(e.get("value")) if e.get("res") else (f"{r[0]}-{r[1]}" if r and r[2] == "played" else None)))
+            continue
         row = dict(ts=e["ts"], comp=e["comp"], home=e["home"], away=e["away"], el=e["el"], score=e["score"], type=al["type"], level=al["level"],
                    bet=("menos de" if al.get("under") else "más de") if al["type"] == "total" else (e["home"] if al["side"] > 0 else e["away"]),
-                   lines=al["lines"], res=None, final=None)
+                   lines=al["lines"], hcap=al["type"] != "total", res=None, final=None)
         if r and r[2] == "played" and r[0] is not None:
             row["res"] = {str(p): ok for p, ok in avisos.settle({**al, "lines": {int(p): v for p, v in al["lines"].items()}}, r[0], r[1], r[4]).items()}
             row["final"] = f"{r[0]}-{r[1]}"
@@ -382,7 +467,7 @@ def sent_log(con, path):
 def build(con, today=None, log_path=None):
     games, halves, hist = walk(con)
     pre = fit_pre(games)
-    return dict(triples=triples(con, games), sent=sent_log(con, log_path) if log_path else None,updated=dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ"), pre=pre,
+    return dict(triples=triples(con, games), sent=sent_log(con, log_path) if log_path else None, cuartos=quarter_rules(games),updated=dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ"), pre=pre,
                 check=check(games, halves, pre), games=upcoming(con, hist, pre, today), timing=timing(con, games),
                 consts=dict(K=K, KT=KT, eurocup_gap=EUROCUP_GAP))
 

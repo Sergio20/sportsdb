@@ -59,14 +59,23 @@ function render() {
     <div class="note warn"><strong>El precio de la seguridad.</strong> Ningún hándicap acierta siempre: incluso el de 95 % falla 1 de cada 20. Y cuanto más seguro, menos paga: para no perder dinero a la larga necesitas una cuota de al menos 1,25 con el de 80 %, 1,11 con el de 90 % y 1,05 con el de 95 %. Con el de 90 %, un solo fallo se lleva la ganancia de nueve aciertos. La apuesta solo compensa si la casa te da ese hándicap largo a una cuota mayor que la mínima.</div>
   </section>`;
 
-  const SN = D.sent, KIND = { desfase: 'Desfase', ritmo: 'Ritmo insostenible', triples: 'Triples insostenibles', total: 'Total desfasado' };
+  const QR = D.cuartos;
+  if (QR && Object.keys(QR).length) html += `<section class="panel"><h2>Cuartos anormales</h2>
+    <div class="muted small">Un cuarto son unos 20 tiros por equipo: uno disparatado casi siempre es casualidad, y el siguiente vuelve a lo normal. El vigilante avisa justo al acabar el cuarto y propone una apuesta para el periodo siguiente. La comprobación es exigente: las líneas se calculan solo con las temporadas hasta 2023-24 y se mira cuántas veces se cumplen en las dos siguientes, que no han intervenido.</div>
+    <div class="scroll"><table><thead><tr><th class="l">Cuando…</th><th class="l">Se apuesta (periodo siguiente)</th><th>Casos</th><th>Pasa lo previsible</th><th>Casos de prueba</th><th>Línea 80 %</th><th>Línea 90 %</th><th>Línea 95 %</th></tr></thead><tbody>${Object.values(QR).map(r =>
+      `<tr><td class="l w">${esc(r.txt)}</td><td class="l w">${r.market === 'hcap' ? 'hándicap positivo de ese equipo' : (r.market === 'equipo' ? 'sus puntos: ' : r.market === 'mitad' ? 'puntos de la 2.ª parte: ' : 'puntos del cuarto: ') + (r.over ? 'más de' : 'menos de')}</td><td>${nf(r.n)}</td><td class="strong">${nf(r.fact, 0)} %</td><td>${nf(r.test_n)}</td><td>${r.test[80] != null ? nf(r.test[80], 0) + ' %' : '–'}</td><td>${r.test[90] != null ? nf(r.test[90], 0) + ' %' : '–'}</td><td>${r.test[95] != null ? nf(r.test[95], 0) + ' %' : '–'}</td></tr>`).join('')}</tbody></table></div>
+    <div class="note">«Pasa lo previsible» es el hecho simple: el equipo que metió 10 puntos mete más en el siguiente, el cuarto de 54 puntos va seguido de uno con menos, etc. Las tres últimas columnas son lo que de verdad se apuesta: las líneas de seguridad, comprobadas con partidos que no se usaron para calcularlas.</div>
+    <div class="note warn"><strong>Ojo:</strong> la casa también sabe que los cuartos vuelven a lo normal y no te ofrecerá como línea el cuarto anterior. Estas líneas dicen dónde debería estar la suya; hay valor solo si la que te ofrece se aleja de ahí y la cuota supera la mínima (1,25 · 1,11 · 1,05).</div>
+  </section>`;
+
+  const SN = D.sent, KIND = { desfase: 'Desfase', ritmo: 'Ritmo insostenible', triples: 'Triples insostenibles', total: 'Total desfasado', cuarto: 'Cuarto anormal' };
   const mark = (r, p) => r ? `<span class="${r[p] ? 'pos' : 'neg'}">${r[p] ? 'Sí' : 'No'}</span>` : '–';
   html += `<section class="panel"><h2>Avisos enviados de verdad por Telegram</h2>
     ${SN && SN.n ? `<div class="muted small">Lo que cuenta: avisos que saltaron en directo, antes de saber el resultado. ${nf(SN.n)} enviados, ${nf(SN.done)} con el partido ya terminado.</div>
     ${Object.keys(SN.by).length ? `<div class="scroll"><table><thead><tr><th class="l">Aviso</th><th>Resueltos</th><th>Línea 80 %</th><th>Línea 90 %</th><th>Línea 95 %</th></tr></thead><tbody>${Object.entries(SN.by).map(([k, b]) =>
       `<tr><td class="l strong">${esc(KIND[k] || k)}</td><td>${b.n}</td><td>${nf(100 * b.s80 / b.n, 0)} %</td><td>${nf(100 * b.s90 / b.n, 0)} %</td><td>${nf(100 * b.s95 / b.n, 0)} %</td></tr>`).join('')}</tbody></table></div>` : ''}
     <div class="scroll"><table><thead><tr><th class="l">Fecha</th><th class="l">Partido</th><th class="l">Aviso</th><th class="l">Momento</th><th class="l">Apuesta</th><th>80 %</th><th>90 %</th><th>95 %</th><th>Final</th></tr></thead><tbody>${SN.rows.map(x => {
-      const ln = p => x.type === 'total' ? nf(x.lines[p], 1) : signed(x.lines[p], 1);
+      const ln = p => x.hcap === false || x.type === 'total' ? nf(x.lines[p], 1) : signed(x.lines[p], 1);
       return `<tr><td class="l">${esc(new Date(x.ts).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }))}</td><td class="l w">${esc(x.home)} - ${esc(x.away)}</td><td class="l">${esc(KIND[x.type] || x.type)}</td><td class="l">min ${nf(x.el, 0)} · ${esc(x.score)}</td><td class="l w">${esc(x.bet)}</td><td>${ln('80')} ${mark(x.res, '80')}</td><td>${ln('90')} ${mark(x.res, '90')}</td><td>${ln('95')} ${mark(x.res, '95')}</td><td>${esc(x.final || 'pendiente')}</td></tr>`; }).join('')}</tbody></table></div>`
     : '<div class="muted">Todavía no se ha enviado ningún aviso. En cuanto el vigilante de Telegram esté en marcha, aquí irá quedando cada aviso con su resultado: es la prueba que vale, porque se anota antes de saber cómo acaba el partido.</div>'}
   </section>`;

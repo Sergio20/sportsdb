@@ -80,6 +80,13 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   Cada aviso enviado queda en `avisos.json`
   (rama `avisos`, un solo commit) y `analisis.sent_log` lo resuelve para «¿Funciona?».
   Ensayo sin partidos: `python vigilante.py --repetir E2026 26 16`.
+- Quinto aviso, «Cuarto anormal» (solo lo calcula el vigilante; la web lo enseña tal cual desde
+  `vivo.json`): al acabar cada cuarto, si un equipo metió ≤10 o ≥30, el cuarto tuvo ≤30 o ≥54
+  puntos, un equipo lo perdió por 10+, o la primera parte tuvo ≤66 o ≥100, propone una apuesta para
+  el periodo siguiente (puntos del equipo, total del cuarto, hándicap del cuarto o total de la 2.ª
+  parte). Reglas y líneas en `analisis.Q_RULES` / `quarter_rules` (cuantiles del histórico,
+  comprobados con temporadas que no intervienen); `avisos.quarter_alerts` y `settle_quarter`;
+  el vigilante manda el resultado en cuanto termina el periodo apostado (`quarter_step`).
 - `scripts/repaso.py --desde AAAA-MM-DD`: repasa partidos ya jugados minuto a minuto con las
   mismas reglas de aviso del panel y dice qué hándicap se habría ganado con cada línea.
 - `scripts/cronologia.py E2026 22 26`: un partido minuto a minuto (marcador, ritmo, máxima ventaja).

@@ -76,6 +76,7 @@ th.grp { text-align: center; border-left: 1px solid var(--line) } td.b { border-
 .safe { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 10px } .strong { font-weight: 600 }
 .safe .kpi { background: var(--accent-soft) }
 .alert .st { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; color: var(--fg-2) }
+#acb { display: flex; flex-direction: column; gap: 18px } #acb:empty { display: none }
 #view, #top { display: flex; flex-direction: column; gap: 18px }
 .calc { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 16px; align-items: end }
 .field { display: flex; flex-direction: column; gap: 4px } .field label { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-2); font-weight: 600 }
@@ -746,12 +747,17 @@ function renderAcb() {
   // Los partidos de Liga Endesa se ven en su propia competición (botón de arriba). Este bloque solo enseña, estés en la
   // competición que estés, los que tienen un aviso activo.
   gs = gs.filter(g => g.live && g.alerts.length);
-  if (!gs.length) { box.innerHTML = ''; return; }
+  // Avisos de «cuarto anormal» de las tres ligas: los calcula y redacta el vigilante; duran hasta que acaba el periodo apostado.
+  const qs = fresh && ACB.cuartos || [];
+  const newQ = qs.map(a => a.home + a.ts).filter(k => !announced.has(k)); newQ.forEach(k => announced.add(k)); if (newQ.length && NOTIFY) beep();
+  const qHtml = qs.length ? `<section class="panel"><h2>Cuartos anormales</h2>${qs.map(a => `<div class="alert fuerte"><div class="st"><span class="tag">${esc(a.title)}</span><span>${esc(a.comp)} · <strong>${esc(a.home)} ${esc(a.score)} ${esc(a.away)}</strong> · ${esc(new Date(a.ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))}</span></div>
+      <div style="white-space:pre-line">${esc(a.text)}</div></div>`).join('')}<div class="muted small">Saltan al acabar un cuarto y proponen una apuesta para el periodo siguiente; desaparecen cuando ese periodo termina. Llegan antes por Telegram. Cuánto aciertan: <a href="funciona.html">¿Funciona?</a></div></section>` : '';
+  if (!gs.length) { box.innerHTML = qHtml; return; }
   const clock = g => { const s = Math.max(0, Math.round((g.left || 0) * 60)); return `${g.q}.º cuarto · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
   const shot = (name, t) => t ? `<tr><td class="l strong">${esc(name)}</td><td>${nf(t.p2, 0)} % <span class="muted">(${nf(t.u2, 0)})</span></td><td>${t.m3}/${t.a3} · ${nf(t.p3, 0)} % <span class="muted">(${nf(t.u3, 0)})</span></td><td>${nf(t.ft, 0)} % <span class="muted">(${nf(t.uft, 0)})</span></td></tr>` : '';
   const fresh2 = gs.flatMap(g => g.live ? g.alerts.map(a => g.home + a.type + a.level) : []).filter(k => !announced.has(k));
   fresh2.forEach(k => announced.add(k)); if (fresh2.length && NOTIFY) beep();
-  box.innerHTML = `<section class="panel"><h2>Avisos de Liga Endesa</h2>${gs.map(g => `<div class="alert ${g.alerts.some(a => a.level === 'fuerte') ? 'fuerte' : ''}" style="${g.alerts.length ? '' : 'border-left-color:var(--line)'}">
+  box.innerHTML = qHtml + `<section class="panel"><h2>Avisos de Liga Endesa</h2>${gs.map(g => `<div class="alert ${g.alerts.some(a => a.level === 'fuerte') ? 'fuerte' : ''}" style="${g.alerts.length ? '' : 'border-left-color:var(--line)'}">
       <div class="st">${g.live ? '<span class="dot"></span>' : ''}<span>${g.live ? esc(clock(g)) : g.final ? 'Final' : esc(new Date(g.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))}</span>
         <span><strong>${esc(g.home)} ${g.live || g.final ? g.hs + '-' + g.as_ : '–'} ${esc(g.away)}</strong></span></div>
       ${g.shooting ? `<div class="scroll"><table><thead><tr><th class="l"></th><th>Tiros de 2 (habitual)</th><th>Triples (habitual)</th><th>Tiros libres (habitual)</th></tr></thead><tbody>${shot(g.home, g.shooting[0])}${shot(g.away, g.shooting[1])}</tbody></table></div>` : ''}

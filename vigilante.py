@@ -29,6 +29,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 
+import analisis
 import avisos
 import export_live
 from build_timeline import PERIODS, minute
@@ -107,16 +108,18 @@ local = lambda t=None: (t or now()).astimezone(MADRID)  # noqa: E731
 
 def message(al, g, el, score):
     q = min(4, int(el // 10) + 1)
+    if al["type"] == "cuarto":
+        return (f"🔔 Cuarto anormal\n{COMP[g['comp']]} · {g['home']} {score} {g['away']} · final del {avisos.ORD[al['done']]} cuarto\n\n"
+                + avisos.describe(al, g["home"], g["away"])
+                + f"\n\nSolo compensa si la cuota que te dan supera la mínima. Ninguna línea acierta siempre.\nDetectado a las {local():%H:%M:%S} · {WEB}")
     return (f"🔔 {avisos.NAMES[al['type']]} ({al['level']})\n{COMP[g['comp']]} · {g['home']} {score} {g['away']} · minuto {el:.0f} ({q}.º cuarto)\n\n"
             + avisos.describe(al, g["home"], g["away"])
             + f"\n\nSolo compensa si la cuota que te dan supera la mínima. Ninguna línea acierta siempre.\nDetectado a las {local():%H:%M:%S} · {WEB}")
 
 
-def agenda(con, log, log_path, hours):
+def agenda(con, log, log_path, hours, games, hist):
     """Mensaje previo, una vez al día: los partidos que se van a vigilar, con lo que se espera de cada uno."""
     told = {i for e in log for i in e.get("agenda", [])}    # partidos ya anunciados en una tanda anterior
-    import analisis
-    games, _, hist = analisis.walk(con)
     rows = analisis.upcoming(con, hist, analisis.fit_pre(games), today=now().date())
     lines, ids = [], []
     for r in rows:
@@ -146,6 +149,40 @@ def agenda(con, log, log_path, hours):
          + "\n\nTe aviso en el momento en que salte un desfase, un ritmo insostenible, unos triples anormales o un total desfasado.")
     log.append(dict(agenda=ids, ts=now().isoformat(timespec="seconds")))
     log_path.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def quarter_step(g, st, base, rules, log, save):
+    """Avisos de «cuarto anormal» nada más terminar cada cuarto, y su resultado en cuanto acaba el periodo apostado."""
+    quarters, done = st.get("quarters") or [], st.get("done") or 0
+    for e in g["sent"].values():                       # 1) resultados de avisos anteriores
+        al = e["alert"]
+        if al["type"] != "cuarto" or e.get("closed"):
+            continue
+        r = avisos.settle_quarter(al, quarters[:4 if st["final"] else done])
+        if not r:
+            continue
+        res, value = r
+        e.update(closed=True, res={str(p): bool(ok) for p, ok in res.items()}, value=value)
+        what = "la 2.ª parte" if al["target"] == "mitad" else f"el {avisos.ORD[int(al['target'])]} cuarto"
+        team = g["home"] if al["side"] == 1 else g["away"] if al["side"] == -1 else None
+        got = (f"{team} {avisos.fmt(value)} en {what}" if al["market"] == "hcap" else f"{team}: {value} puntos en {what}" if al["market"] == "equipo"
+               else f"{value} puntos entre los dos en {what}")
+        send(f"🏁 Cuarto anormal · {g['home']} – {g['away']}\n{got}\n" + " · ".join(f"{p} % {'✅' if ok else '❌'}" for p, ok in res.items()))
+        save()
+    el, bA, bB = st.get("el"), base.get(g["hc"]), base.get(g["ac"])
+    if not st["live"] or el is None or not bA or not bB or done not in (1, 2, 3) or el - done * 10 > 2.5:
+        return                                         # 2) avisos nuevos: solo justo al acabar el cuarto
+    for al in avisos.quarter_alerts(done, quarters[:done], bA, bB, rules):
+        k = avisos.key(al)
+        if k in g["sent"]:
+            continue
+        score = f"{st['hs']}-{st['as_']}"
+        send(message(al, g, done * 10, score))
+        entry = dict(ts=now().isoformat(timespec="seconds"), comp=g["comp"], year=g["year"], code=g["code"], home=g["home"], away=g["away"],
+                     key=k, el=done * 10, score=score, alert=al)
+        g["sent"][k] = entry
+        log.append(entry)
+        save()
 
 
 def result_message(g, entries, hs, as_):
@@ -195,14 +232,21 @@ def state_euro(g):
              for p in raw]
     A, B = avisos.totals(plays, g["hc"])
     hs, as_ = A["pts"], B["pts"]
+    quarters, done = [], 0                  # puntos de cada equipo por cuarto y cuántos cuartos han terminado ya
+    for k in PERIODS[:4]:
+        per = [dict(t=0, team=(p.get("CODETEAM") or "").strip(), type=(p.get("PLAYTYPE") or "").strip()) for p in (d.get(k) or [])]
+        qa, qb = avisos.totals(per, g["hc"])
+        quarters.append([qa["pts"], qb["pts"]])
+        if done == len(quarters) - 1 and any(p["type"] in ("EP", "EG") for p in per):   # jugada «fin de periodo»
+            done += 1
     if not d.get("Live"):
         ended = any(p["type"] == "EG" for p in plays) or (hs + as_ > 0 and now() > g["start"] + dt.timedelta(minutes=100))
-        return dict(live=False, final=ended, hs=hs, as_=as_)
+        return dict(live=False, final=ended, hs=hs, as_=as_, quarters=quarters, done=4 if ended else done)
     q, timed = int(d.get("ActualQuarter") or 0), [p["t"] for p in plays if p["clock"]]
     if not 1 <= q <= 4 or not timed:       # prórroga o recién empezado: sin avisos
-        return dict(live=True, final=False, el=None, hs=hs, as_=as_)
+        return dict(live=True, final=False, el=None, hs=hs, as_=as_, quarters=quarters, done=done)
     el = min(q * 10, max((q - 1) * 10, max(timed)))    # minuto de la última jugada con reloj
-    return dict(live=True, final=False, el=el, A=A, B=B, hs=hs, as_=as_, q=q, left=q * 10 - el)
+    return dict(live=True, final=False, el=el, A=A, B=B, hs=hs, as_=as_, q=q, left=q * 10 - el, quarters=quarters, done=done)
 
 
 def state_acb(g):
@@ -239,13 +283,14 @@ def state_acb(g):
                                 blk=n("blocks"), pf=n("personalFouls"), val=n("rating"))
     both = dict(A=tot[True], B=tot[False]) if len(tot) == 2 else {}
     if status == "FINALIZED":     # terminado: se dejan las estadísticas finales para la web
-        return dict(live=False, final=True, hs=hs, as_=as_, quarters=quarters, **both)
+        return dict(live=False, final=True, hs=hs, as_=as_, quarters=quarters, done=4, **both)
     if not 1 <= q <= 4:           # prórroga o entre estados: sin avisos
-        return dict(live=False, final=False, hs=hs, as_=as_, quarters=quarters)
+        return dict(live=False, final=False, hs=hs, as_=as_, quarters=quarters, done=min(4, len(quarters)))
+    done = int(el // 10) if el is not None else 0     # al acabar un cuarto el reloj queda en 0:00 (o ya marca 10:00 del siguiente)
     if el is None or not both:
         print(f"  Liga Endesa {g['home']}: en juego pero sin datos completos (estado {status}, cuarto {q}, tiempo {head.get('timeLeft')!r})", flush=True)
-        return dict(live=True, final=False, el=None, hs=hs, as_=as_)
-    return dict(live=True, final=False, el=el, A=tot[True], B=tot[False], hs=hs, as_=as_, q=q, left=q * 10 - el, quarters=quarters)
+        return dict(live=True, final=False, el=None, hs=hs, as_=as_, quarters=quarters, done=done)
+    return dict(live=True, final=False, el=el, A=tot[True], B=tot[False], hs=hs, as_=as_, q=q, left=q * 10 - el, quarters=quarters, done=done)
 
 
 def publish(snapshot):
@@ -286,7 +331,11 @@ def vivo_data(games, bases):
         for al in g.get("live_alerts") or []:
             row["alerts"].append(dict(type=al["type"], level=al["level"], title=avisos.NAMES[al["type"]], text=avisos.describe(al, g["home"], g["away"])))
         out.append(row)
-    return dict(updated=now().isoformat(timespec="seconds"), games=out)
+    # Avisos de cuarto anormal aún abiertos, de las tres ligas (la web no los calcula: los enseña tal cual)
+    quarters = [dict(comp=COMP[g["comp"]], home=g["home"], away=g["away"], score=e["score"], title="Cuarto anormal",
+                     text=avisos.describe(e["alert"], g["home"], g["away"]), ts=e["ts"])
+                for g in games for e in g["sent"].values() if e["alert"]["type"] == "cuarto" and not e.get("closed")]
+    return dict(updated=now().isoformat(timespec="seconds"), games=out, cuartos=quarters)
 
 
 def watch(con, log_path, hours):
@@ -298,14 +347,18 @@ def watch(con, log_path, hours):
     games = todays_games(year) + acb_games(con, year)
     for g in games:   # lo ya avisado en una tanda anterior del mismo día no se repite
         g["sent"] = {e["key"]: e for e in log if "alert" in e and (e["comp"], e["year"], e["code"]) == (g["comp"], g["year"], g["code"])}
+    save = lambda: log_path.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")  # noqa: E731
+    rules = {}
     try:
-        agenda(con, log, log_path, hours)
-    except Exception as e:      # el mensaje previo nunca debe impedir la vigilancia
-        print(f"  no se ha podido preparar el mensaje previo: {e}", flush=True)
+        hist_games, _, hist = analisis.walk(con)
+        rules = analisis.quarter_rules(hist_games)       # líneas de los avisos de «cuarto anormal», con todo el histórico
+        agenda(con, log, log_path, hours, hist_games, hist)
+    except Exception as e:      # ni el mensaje previo ni las reglas de cuartos deben impedir la vigilancia
+        print(f"  no se ha podido preparar el mensaje previo o las reglas de cuartos: {e}", flush=True)
     print(f"{len(games)} partidos alrededor de esta hora; vigilando hasta las {deadline:%H:%M} UTC como muy tarde", flush=True)
     for g in sorted(games, key=lambda g: g["start"]):
         print(f"  {g['start']:%H:%M} UTC · {COMP[g['comp']]} · {g['home']} - {g['away']}" + (" (ya jugado)" if g["done"] else ""), flush=True)
-    loops, published, bg = 0, 0.0, None
+    loops, published, bg, was_open = 0, 0.0, None, False
     if any(g["comp"] == "A" for g in games):      # la web muestra los partidos de Liga Endesa del día desde el arranque
         publish(vivo_data(games, bases))
     while now() < deadline:
@@ -330,9 +383,13 @@ def watch(con, log_path, hours):
                 print(f"  {now():%H:%M:%S} {g['home'][:14]} {st['hs']}-{st['as_']} {g['away'][:14]} · min {st.get('el') or 0:.1f}", flush=True)
             st["score"] = (st["hs"], st["as_"])
             g["st"], g["live_alerts"] = st, []
+            try:
+                quarter_step(g, st, bases[g["comp"]], rules, log, save)
+            except Exception as e:      # un fallo aquí no debe tumbar el resto de avisos
+                print(f"  aviso de cuarto: {e}", flush=True)
             if st["final"]:
                 g["done"] = True
-                mine = [e for e in g["sent"].values()]
+                mine = [e for e in g["sent"].values() if e["alert"]["type"] != "cuarto"]
                 if mine and not any(e.get("closed") for e in mine):
                     send(result_message(g, mine, st["hs"], st["as_"]))
                     for e in mine:
@@ -360,12 +417,14 @@ def watch(con, log_path, hours):
                 log.append(entry)
                 log_path.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")
         # La web va aparte, en segundo plano: nunca retrasa la siguiente revisión ni un aviso de Telegram
-        if time.time() - published >= PUBLISH_EVERY and n_acb and not (bg and bg.is_alive()):
+        open_q = any(e["alert"]["type"] == "cuarto" and not e.get("closed") for g in games for e in g["sent"].values())
+        if time.time() - published >= PUBLISH_EVERY and (n_acb or open_q or was_open) and not (bg and bg.is_alive()):
+            was_open = open_q       # una publicación más al cerrarse el último, para que desaparezca de la web
             bg = threading.Thread(target=publish, args=(vivo_data(games, bases),), daemon=True)
             bg.start()
             published = time.time()
         time.sleep(max(2, every - (time.time() - t0)))
-    if any(g["comp"] == "A" and g.get("st") for g in games):
+    if any(g.get("st") for g in games):
         if bg:
             bg.join(30)
         publish(vivo_data(games, bases))      # deja publicado el estado final
