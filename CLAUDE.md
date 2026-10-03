@@ -40,6 +40,21 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   justo» (importe × cuota × probabilidad) para decidir si aceptar el cash out de la casa.
   La fuente corta (error 429) si se le pide mucho: el escaneo lee como mucho 3 partidos por vuelta
   y cada uno cada 45 s (`SCAN_MAX`, `SCAN_EVERY`); tras un fallo la página espera 30 s.
+  Tercer aviso, «Total desfasado» (`TOTAL_GAP`): el ritmo actual lleva a un total 18+ puntos
+  distinto del esperable. Modelo del total: constantes `KT` (del exceso de ritmo solo se mantiene
+  un 8 %). La calculadora y el registro admiten hándicap y total (más/menos); cada apuesta guarda
+  el aviso que había (`kind`) y el registro resume el resultado por tipo de aviso. Faltas de los
+  jugadores clave contadas en las jugadas (`foulTrouble`). Botón «Activar avisos con sonido»:
+  pitido + notificación del navegador con cada aviso nuevo, también con la pestaña en segundo plano.
+- `analisis.py`: motor de los informes. Recorre el histórico sin mirar el futuro, ajusta la
+  previsión pre-partido por liga y comprueba el modelo en vivo (`K`, `KT`) al final de cada cuarto.
+  `export_informes.py` lo vuelca en `jornada.html` (previsión de los próximos 6 días con descanso,
+  carga de partidos y comparador de líneas; plantilla `panel/jornada_plantilla.html`) y en
+  `funciona.html` (¿se cumplen las probabilidades?, avisos reproducidos con el histórico, entrada y
+  salida; plantilla `panel/funciona_plantilla.html`). Si se cambian `K`/`KT` o los umbrales de los
+  avisos en la plantilla en vivo, cambiarlos también en `analisis.py`.
+- `build_timeline.py`: marcador jugada a jugada (tabla `basket_timeline`), 60 partidos por
+  actualización diaria porque la fuente limita; de ahí sale el apartado «Entrar y salir».
 - `scripts/cronologia.py E2026 22 26`: un partido minuto a minuto (marcador, ritmo, máxima ventaja).
 - `scripts/remontadas.py`: estudio con el histórico de qué pasa cuando el favorito va perdiendo
   al final de cada cuarto (cuánto recupera, cuántas veces cubre +2,5…+8,5) y cuánto bajan los

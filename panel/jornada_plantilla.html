@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SportsDB · Jornada</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>
+/*CSS*/
+.match { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px }
+.teams { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; align-items: center }
+.teams .t { font: 600 20px/1.1 var(--display) } .teams .t.r { text-align: right } .teams .vs { color: var(--fg-3); font-weight: 600 }
+.flags { display: flex; flex-wrap: wrap; gap: 6px }
+.flag { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--surface-2); color: var(--fg-2) }
+.flag.w { background: color-mix(in srgb, var(--series-2) 18%, var(--surface)); color: var(--fg) }
+.cmp { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 16px; align-items: end }
+.out { font-size: 14px; color: var(--fg-2) } .out b { color: var(--fg) }
+h3.day { font: 600 18px var(--display); margin: 6px 0 0; color: var(--fg-2) } h3.day::first-letter { text-transform: uppercase }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><div class="nav"><a href="./">Panel</a><a href="en-vivo.html">En vivo</a><a href="jornada.html" aria-current="page">Jornada</a><a href="funciona.html">¿Funciona?</a></div>
+      <h1>Jornada: previsión antes del partido</h1><div class="muted small" id="status"></div></div>
+    <div class="seg" id="lgSeg" role="group" aria-label="Competición"></div>
+  </header>
+  <div class="note">Para cada partido de los próximos días: la diferencia y el total de puntos que salen del nivel reciente de los dos equipos, y el contexto que una casa de apuestas puede no estar pesando (descanso, carga de partidos, equipos recién llegados). Escribe la línea que te ofrecen y verás la probabilidad y la cuota justa; <strong>hay valor solo si la cuota que te dan es mayor que la justa</strong>. Antes del partido las líneas de las casas suelen estar muy afinadas: usa esto sobre todo para detectar diferencias grandes y para tener la referencia cuando empiece.</div>
+  <div id="list"></div>
+  <div class="muted small" id="foot"></div>
+</div>
+<script>
+(function () {
+'use strict';
+const D = /*DATA*/{}/*END*/;
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const nf = (v, d) => v == null || !isFinite(v) ? '–' : Number(v).toLocaleString('es-ES', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
+const signed = (v, d) => v == null || !isFinite(v) ? '–' : (v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v), d);
+const phi = z => { const t = 1 / (1 + 0.3275911 * Math.abs(z) / Math.SQRT2), e = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-z * z / 2); return z >= 0 ? 0.5 * (1 + e) : 0.5 * (1 - e); };
+const half = v => Math.round(v * 2) / 2;
+const odd = p => p > 0.005 ? nf(1 / p, 2) : '–';
+let LG = 'todas';
+const games = D.games || [];
+const when = g => new Date(g.date + 'T' + (g.time || '12:00') + ':00Z');
+
+function flags(g, k, name) {
+  const s = g[k], f = [];
+  if (!s) return '';
+  if (s.new) f.push(['w', 'Recién llegado a la Euroliga']);
+  if (s.rest != null && s.rest <= 2) f.push(['w', 'Solo ' + s.rest + (s.rest === 1 ? ' día' : ' días') + ' de descanso']);
+  else if (s.rest != null) f.push(['', s.rest + ' días de descanso']);
+  if (s.week >= 2) f.push(['w', (s.week + 1) + '.º partido en 7 días']);
+  if (s.last) f.push([!s.last.home && s.rest != null && s.rest <= 3 ? 'w' : '', 'Viene de jugar ' + (s.last.home ? 'en casa' : 'fuera') + ' (' + s.last.comp.replace(/ \(.*\)/, '') + ')']);
+  if (s.n < 10) f.push(['w', 'Pocos partidos en la base (' + s.n + ')']);
+  return `<div><div class="small muted" style="margin-bottom:4px">${esc(name)} · nivel ${signed(s.net, 1)}</div><div class="flags">${f.map(([c, t]) => `<span class="flag ${c}">${esc(t)}</span>`).join('')}</div></div>`;
+}
+function card(g, i) {
+  const has = g.margin != null, fav = has && g.margin >= 0 ? g.home : g.away;
+  return `<section class="panel match" data-i="${i}">
+    <div class="small muted">${esc(g.league)}${g.round ? ' · jornada ' + esc(g.round) : ''} · ${esc(when(g).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))}</div>
+    <div class="teams"><div class="t r">${esc(g.home)}</div><div class="vs">–</div><div class="t">${esc(g.away)}</div></div>
+    ${has ? `<div class="kpis">
+      <div class="kpi"><div class="v">${signed(-half(Math.abs(g.margin)), 1)}</div><div class="k">Hándicap justo · ${esc(fav)}</div></div>
+      <div class="kpi"><div class="v">${nf(g.p, 0)} % - ${nf(100 - g.p, 0)} %</div><div class="k">Victoria · cuotas justas ${odd(g.p / 100)} y ${odd(1 - g.p / 100)}</div></div>
+      <div class="kpi"><div class="v">${nf(g.total, 1)}</div><div class="k">Total de puntos previsto</div></div></div>
+    <div class="cmp">
+      <div class="field"><label>Hándicap que te ofrecen a ${esc(g.home)}</label><input type="number" step="0.5" data-h placeholder="p. ej. ${nf(-half(g.margin), 1).replace('−', '-')}"></div>
+      <div class="out" data-ho>Escribe la línea de la casa para ver la probabilidad.</div>
+      <div class="field"><label>Línea de total que te ofrecen</label><input type="number" step="0.5" data-t placeholder="p. ej. ${nf(half(g.total), 1)}"></div>
+      <div class="out" data-to>Escribe la línea de total.</div></div>`
+    : '<div class="muted">Alguno de los dos equipos no tiene todavía 5 partidos en la base de datos: sin previsión.</div>'}
+    <div class="grid2">${flags(g, 'H', g.home)}${flags(g, 'A', g.away)}</div>
+  </section>`;
+}
+function render() {
+  const list = games.map((g, i) => [g, i]).filter(([g]) => LG === 'todas' || g.league === LG);
+  let day = '', html = '';
+  list.forEach(([g, i]) => { const d = when(g).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }); if (d !== day) { day = d; html += `<h3 class="day">${esc(d)}</h3>`; } html += card(g, i); });
+  $('#list').innerHTML = html || '<div class="panel"><div class="empty">No hay partidos programados en los próximos días para esta competición.</div></div>';
+}
+document.addEventListener('input', e => {
+  const c = e.target.closest('.match'); if (!c) return; const g = games[+c.dataset.i];
+  if (e.target.matches('[data-h]')) { const l = parseFloat(e.target.value), o = c.querySelector('[data-ho]');
+    if (!isFinite(l)) { o.textContent = 'Escribe la línea de la casa para ver la probabilidad.'; return; }
+    const p = phi((g.margin + l) / g.sd);
+    o.innerHTML = `${esc(g.home)} ${signed(l, 1)}: <b>${nf(100 * p, 0)} %</b> (cuota justa <b>${odd(p)}</b>) · ${esc(g.away)} ${signed(-l, 1)}: <b>${nf(100 * (1 - p), 0)} %</b> (cuota justa <b>${odd(1 - p)}</b>)`; }
+  if (e.target.matches('[data-t]')) { const l = parseFloat(e.target.value), o = c.querySelector('[data-to]');
+    if (!isFinite(l)) { o.textContent = 'Escribe la línea de total.'; return; }
+    const p = 1 - phi((l - g.total) / g.sdt);
+    o.innerHTML = `Más de ${nf(l, 1)}: <b>${nf(100 * p, 0)} %</b> (cuota justa <b>${odd(p)}</b>) · Menos de ${nf(l, 1)}: <b>${nf(100 * (1 - p), 0)} %</b> (cuota justa <b>${odd(1 - p)}</b>)`; }
+});
+const lgs = ['todas'].concat([...new Set(games.map(g => g.league))]);
+$('#lgSeg').innerHTML = lgs.map(l => `<button data-lg="${esc(l)}" aria-pressed="${l === LG}">${l === 'todas' ? 'Todas' : esc(l)}</button>`).join('');
+document.addEventListener('click', e => { const b = e.target.closest('[data-lg]'); if (!b) return; LG = b.dataset.lg; document.querySelectorAll('#lgSeg button').forEach(x => x.setAttribute('aria-pressed', x === b)); render(); });
+$('#status').textContent = 'Actualizado el ' + new Date(D.updated).toLocaleString('es-ES', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) + ' · ' + games.length + ' partidos en los próximos días · horas en tu zona horaria';
+$('#foot').innerHTML = D.check ? `Cómo se calcula: el nivel de cada equipo es su diferencia media de puntos en los últimos 30 partidos (los de EuroCup, rebajados ${nf(D.consts.eurocup_gap, 0)} puntos), más el factor campo de cada liga. En el histórico, esta previsión se equivoca de media en ${nf(D.check.pre.mae_margin, 1)} puntos en la diferencia y ${nf(D.check.pre.mae_total, 1)} en el total: es una referencia, no una certeza. No incluye lesiones ni bajas. Más detalle en <a href="funciona.html">¿Funciona?</a>.` : '';
+render();
+})();
+</script>
+</body>
+</html>

@@ -4,6 +4,8 @@
     _site/index.html     panel SportsDB (panel/index.html + cabecera HTML)
     _site/data.json      datos del panel (export_panel.py)
     _site/en-vivo.html   panel de partidos en directo (export_live.py)
+    _site/jornada.html   previsión pre-partido de los próximos días (export_informes.py)
+    _site/funciona.html  comprobación del modelo con el histórico (export_informes.py)
 """
 from __future__ import annotations
 
@@ -11,6 +13,7 @@ import argparse
 import shutil
 from pathlib import Path
 
+import export_informes
 import export_live
 import export_panel
 from sportsdb.common import DEFAULT_DB
@@ -29,14 +32,18 @@ def build(db=DEFAULT_DB, out=ROOT / "_site"):
     out.mkdir(parents=True)
     panel = (ROOT / "panel" / "index.html").read_text(encoding="utf-8")
     assert LIVE_LINK in panel, "no se encuentra la barra de pestañas del panel"
-    panel = panel.replace(LIVE_LINK, LIVE_LINK + '\n    <a href="en-vivo.html">En vivo</a>')
+    panel = panel.replace(LIVE_LINK, LIVE_LINK + '\n    <a href="en-vivo.html">En vivo</a>\n    <a href="jornada.html">Jornada</a>'
+                                                 '\n    <a href="funciona.html">¿Funciona?</a>')
     (out / "index.html").write_text(HEAD + panel + "</body></html>", encoding="utf-8")
     export_panel.export(db, out / "data.json")
     live = export_live.export(db, out / "en-vivo.html")
     html = live.read_text(encoding="utf-8")
     html = html.replace('<meta name="viewport"', '<meta name="robots" content="noindex,nofollow">\n<meta name="viewport"', 1)
-    html = html.replace('<div><h1>SportsDB en vivo</h1>', '<div><a href="./" class="muted small" style="text-decoration:none">← Volver al panel</a><h1>SportsDB en vivo</h1>', 1)
+    html = html.replace('<div><h1>SportsDB en vivo</h1>', '<div><div class="nav"><a href="./">Panel</a><a href="en-vivo.html" aria-current="page">En vivo</a>'
+                        '<a href="jornada.html">Jornada</a><a href="funciona.html">¿Funciona?</a></div><h1>SportsDB en vivo</h1>', 1)
+    html = html.replace("</style>", export_informes.NAV_CSS + "\n</style>", 1)
     live.write_text(html, encoding="utf-8")
+    export_informes.export(db, out)
     (out / ".nojekyll").write_text("", encoding="utf-8")
     print(f"Web construida en {out}: " + ", ".join(sorted(p.name for p in out.iterdir())))
 

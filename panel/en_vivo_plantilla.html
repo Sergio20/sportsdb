@@ -86,16 +86,18 @@ select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 <div class="wrap">
   <header>
     <div><h1>SportsDB en vivo</h1><div class="muted small" id="status">Cargando…</div></div>
+    <button class="btn" id="notifyBtn" aria-pressed="false">Activar avisos con sonido</button>
     <div class="seg" id="compSeg" role="group" aria-label="Competición"><button data-comp="E" aria-pressed="true">Euroliga</button><button data-comp="U" aria-pressed="false">EuroCup</button></div>
   </header>
   <div class="games" id="games"></div>
   <div id="alerts"></div>
   <div id="top"></div>
   <section class="panel" id="calc" hidden>
-    <h2>¿Tiene valor el hándicap que te ofrecen?</h2>
+    <h2>¿Tiene valor lo que te ofrecen?</h2>
     <div class="calc">
-      <div class="field"><label for="cTeam">Equipo</label><select id="cTeam"></select></div>
-      <div class="field"><label for="cLine">Hándicap (p. ej. 7,5 o -3,5)</label><input type="number" id="cLine" step="0.5" value="5.5"></div>
+      <div class="field"><label for="cMarket">Mercado</label><select id="cMarket"><option value="H">Hándicap</option><option value="U">Total de puntos: menos de</option><option value="O">Total de puntos: más de</option></select></div>
+      <div class="field" id="cTeamField"><label for="cTeam">Equipo</label><select id="cTeam"></select></div>
+      <div class="field"><label for="cLine" id="cLineLabel">Hándicap (p. ej. 7,5 o -3,5)</label><input type="number" id="cLine" step="0.5" value="5.5"></div>
       <div class="field"><label for="cOdd">Cuota</label><input type="number" id="cOdd" step="0.01" min="1" value="1.85"></div>
       <div class="field"><label for="cStake">Importe (€)</label><input type="number" id="cStake" step="1" min="0" value="10"></div>
       <div class="kpi"><div class="v" id="cProb">–</div><div class="k">Probabilidad de acertar</div></div>
@@ -109,6 +111,7 @@ select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   <section class="panel" id="log">
     <div style="display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:space-between;align-items:baseline"><h2>Registro de apuestas</h2><button class="btn" id="logCopy">Copiar como tabla</button></div>
     <div class="kpis" id="logKpis"></div>
+    <div class="scroll" id="logKinds"></div>
     <div class="note" id="logExit" hidden><strong>¿Cuándo salir?</strong> «Cierre justo» es lo que vale tu apuesta ahora mismo según el panel (importe × cuota × probabilidad de acertar). Si tu casa te ofrece cerrarla por <strong>más</strong> de esa cantidad, cerrar te conviene: te pagan más de lo que vale. Si te ofrece <strong>menos</strong>, a la larga sale mejor dejarla correr. Esperar tiene riesgo: el margen de error del panel es de varios puntos hasta el final.</div>
     <div class="scroll" id="logTable"></div>
     <div class="muted small" id="logNote">Las apuestas anotadas se guardan en este navegador y en este ordenador. Se resuelven solas cuando el partido termina. Compara los aciertos reales con la probabilidad que daba el panel: si con el tiempo coinciden, la estimación es fiable; el beneficio dirá si las cuotas que te ofrecen tienen valor.</div>
@@ -126,6 +129,9 @@ const FAST = 5000, SLOW = 20000;
 // Modelo del margen restante, ajustado con 2.660 partidos de Euroliga y EuroCup (2021-26) al final de cada cuarto:
 // por cada minuto que queda, +0,10 para el local, +0,021 por punto de diferencia de nivel y −0,010 por punto de ventaja actual.
 const K = { home: 0.10, q: 0.021, m: -0.010, sd: 2.1 };
+// Modelo del total de puntos (4.086 partidos, analisis.py): lo que queda se juega al ritmo habitual de los dos equipos
+// (×a) y del exceso o defecto de ritmo que llevan solo se mantiene una fracción c. Sin prórrogas.
+const KT = { a: 1.02, c: 0.08, sd: 2.48 };
 const phi = z => { const t = 1 / (1 + 0.3275911 * Math.abs(z) / Math.SQRT2), e = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-z * z / 2); return z >= 0 ? 0.5 * (1 + e) : 0.5 * (1 - e); };
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -161,7 +167,7 @@ async function loadGames() {
   S.year = seasonYear();
   const old = new Map(S.games.concat(S.other).map(g => [g.comp + g.gameCode, g]));
   [S.games, S.other] = await Promise.all([dayGames(S.comp), dayGames(S.comp === 'E' ? 'U' : 'E').catch(() => [])]);
-  S.games.concat(S.other).forEach(g => { const o = old.get(g.comp + g.gameCode); if (o) Object.assign(g, { h: o.h, al: o.al, mod: o.mod, scanned: o.scanned }); });
+  S.games.concat(S.other).forEach(g => { const o = old.get(g.comp + g.gameCode); if (o) Object.assign(g, { h: o.h, al: o.al, als: o.als, mod: o.mod, scanned: o.scanned }); });
   await refreshHeaders();
   if (!S.games.some(g => g.gameCode === S.code)) {
     const liveG = S.games.find(g => g.h && g.h.Live);
@@ -177,7 +183,7 @@ async function refreshHeaders() {
 const SCAN_MAX = 3, SCAN_EVERY = 45000;
 async function scan() {
   const now = Date.now(), due = S.games.concat(S.other).filter(g => {
-    if (!g.h || !(g.h.Live || (DEMO && +g.h.ScoreA + +g.h.ScoreB > 0))) { g.al = g.mod = null; return false; }
+    if (!g.h || !(g.h.Live || (DEMO && +g.h.ScoreA + +g.h.ScoreB > 0))) { g.al = g.mod = null; g.als = []; return false; }
     return !(g.comp === S.comp && g.gameCode === S.code) && now - (g.scanned || 0) >= SCAN_EVERY;
   }).sort((a, b) => (a.scanned || 0) - (b.scanned || 0)).slice(0, SCAN_MAX);
   await Promise.all(due.map(async g => {
@@ -200,7 +206,7 @@ function elapsed(h) {
 }
 function renderGames() {
   $('#games').innerHTML = S.games.map(g => { const st = stateOf(g), h = g.h, sa = h && (st.live || st.txt === 'Final') ? h.ScoreA : (g.played ? g.local.score : ''), sb = h && (st.live || st.txt === 'Final') ? h.ScoreB : (g.played ? g.road.score : '');
-    return `<button class="game" data-code="${g.gameCode}" aria-pressed="${g.gameCode === S.code}"><div class="st">${st.live ? '<span class="dot"></span>' : ''}${esc(st.txt)}${st.live && g.al ? ` <span class="tag">${g.al.type === 'ritmo' ? 'Ritmo' : 'Desfase'}</span>` : ''}</div><div class="row"><span>${esc(g.local.club.abbreviatedName || g.local.club.name)}</span><b>${esc(sa)}</b></div><div class="row"><span>${esc(g.road.club.abbreviatedName || g.road.club.name)}</span><b>${esc(sb)}</b></div></button>`; }).join('')
+    return `<button class="game" data-code="${g.gameCode}" aria-pressed="${g.gameCode === S.code}"><div class="st">${st.live ? '<span class="dot"></span>' : ''}${esc(st.txt)}${st.live && g.al ? ` <span class="tag">${{ ritmo: 'Ritmo', total: 'Total' }[g.al.type] || 'Desfase'}</span>` : ''}</div><div class="row"><span>${esc(g.local.club.abbreviatedName || g.local.club.name)}</span><b>${esc(sa)}</b></div><div class="row"><span>${esc(g.road.club.abbreviatedName || g.road.club.name)}</span><b>${esc(sb)}</b></div></button>`; }).join('')
     || '<div class="muted">No hay partidos programados.</div>';
 }
 
@@ -217,7 +223,7 @@ async function loadGame(slow) {
   if (code !== S.code) return;
   const [h, pbp] = h0 ? demoCut(h0, pbp0) : [h0, pbp0];
   S.data = { code, h, box, pbp };
-  const g = S.games.find(x => x.gameCode === code); if (g && h) { g.h = h; if (h.Live) assess(g, h, pbp); else g.al = g.mod = null; }
+  const g = S.games.find(x => x.gameCode === code); if (g && h) { g.h = h; if (h.Live) assess(g, h, pbp); else { g.al = g.mod = null; g.als = []; } }
 }
 const PERIODS = ['FirstQuarter', 'SecondQuarter', 'ThirdQuarter', 'ForthQuarter', 'ExtraTime'];
 const allPlays = pbp => pbp ? PERIODS.flatMap(k => pbp[k] || []) : [];
@@ -239,7 +245,9 @@ function model(h, A, B, el) {
   const Q = bA && bB ? (bA.pf - bA.pa) - (bB.pf - bB.pa) : 0, M = A.Points - B.Points, r = Math.max(0, (el > 40 ? 40 + Math.ceil((el - 40) / 5) * 5 : 40) - el);
   const mean = M + r * (K.home + K.q * Q + K.m * M), sd = Math.max(0.01, K.sd * Math.sqrt(r));
   const xp = (t, b) => b ? 2 * t.FieldGoalsAttempted2 * b.p2 / 100 + 3 * t.FieldGoalsAttempted3 * b.p3 / 100 + t.FreeThrowsAttempted * b.ft / 100 : null;
-  return { Q, M, r, mean, sd, pA: r > 0 ? phi(mean / sd) : (M > 0 ? 1 : 0), xA: xp(A, bA), xB: xp(B, bB), known: !!(bA && bB) };
+  const usualT = bA && bB && bA.tot && bB.tot ? (bA.tot + bB.tot) / 2 : null, cur = A.Points + B.Points;
+  const tMean = usualT != null && el > 0 ? cur + r * (KT.a * usualT / 40 + KT.c * (cur / el - usualT / 40)) : null;
+  return { usualT, cur, tMean, tSd: Math.max(0.01, KT.sd * Math.sqrt(r)), Q, M, r, mean, sd, pA: r > 0 ? phi(mean / sd) : (M > 0 ? 1 : 0), xA: xp(A, bA), xB: xp(B, bB), known: !!(bA && bB) };
 }
 // Jugadores clave (BASE[equipo].pl) que no aparecen en ninguna jugada pasados 10 minutos: no juegan.
 const pid = s => String(s || '').trim().replace(/^P/, '');
@@ -253,15 +261,16 @@ const absTxt = ps => ps.map(p => esc(p[1]) + ' (' + nf(p[2], 1) + ' pts)').join(
 function contextPanel(codes, names, pbp, el) {
   const team = (code, name) => { const b = BASE[(code || '').trim()];
     if (!b) return `<div class="ctx"><h3>${esc(name)}</h3><div class="muted small">Sin partidos recientes en la base de datos.</div></div>`;
-    const out = new Set(absent(code, pbp, el).map(p => p[0])), notes = [];
+    const out = new Set(absent(code, pbp, el).map(p => p[0])), notes = [], fc = pbp ? foulCount(pbp) : null, lim = foulLimit(el), trouble = foulTrouble(code, pbp, el);
     if (b.new) notes.push(`<div class="note warn"><strong>Recién llegado a la Euroliga</strong>: la temporada pasada no la jugó. Los equipos que suben de la EuroCup rinden de media 9-10 puntos por partido peor que allí (6 casos desde 2021). Su nivel ya está corregido, pero hay pocos datos: fíate menos de la estimación.</div>`);
     else if (b.ec) notes.push(`<div class="muted small">${b.ec} de sus últimos ${b.n} partidos son de EuroCup; su nivel está pasado a escala Euroliga.</div>`);
     if (out.size) notes.push(`<div class="note warn"><strong>No ha jugado todavía</strong>: ${absTxt(b.pl.filter(p => out.has(p[0])))}. Puede ser baja o decisión técnica.</div>`);
+    if (trouble.length) notes.push(`<div class="note warn"><strong>Problemas de faltas</strong>: ${foulTxt(trouble)}. Jugará menos minutos o con más cuidado.</div>`);
     return `<div class="ctx"><h3>${esc(name)}</h3><div class="kpis"><div class="kpi"><div class="v">${signed(b.pf - b.pa, 1)}</div><div class="k">Nivel · diferencia por partido</div></div>
       <div class="kpi"><div class="v">${b.elx}</div><div class="k">Temporadas previas en Euroliga</div></div></div>${notes.join('')}
-      <div class="scroll"><table><thead><tr><th class="l">Jugadores clave</th><th>Pts</th><th>Min</th><th></th></tr></thead><tbody>${(b.pl || []).map(p => `<tr><td class="l">${esc(p[1])}</td><td>${nf(p[2], 1)}</td><td>${nf(p[3], 0)}</td><td class="l">${!pbp || el < 10 ? '' : out.has(p[0]) ? '<span class="neg">No ha jugado</span>' : '<span class="pos">Juega</span>'}</td></tr>`).join('')}</tbody></table></div></div>`; };
+      <div class="scroll"><table><thead><tr><th class="l">Jugadores clave</th><th>Pts</th><th>Min</th><th>Faltas hoy</th><th></th></tr></thead><tbody>${(b.pl || []).map(p => `<tr><td class="l">${esc(p[1])}</td><td>${nf(p[2], 1)}</td><td>${nf(p[3], 0)}</td><td class="${fc && (fc.get(p[0]) || 0) >= lim ? 'neg' : ''}">${fc ? fc.get(p[0]) || 0 : '–'}</td><td class="l">${!pbp || el < 10 ? '' : out.has(p[0]) ? '<span class="neg">No ha jugado</span>' : '<span class="pos">Juega</span>'}</td></tr>`).join('')}</tbody></table></div></div>`; };
   return `<div class="panel"><h2>Contexto del partido</h2><div class="grid2">${team(codes[0], names[0])}${team(codes[1], names[1])}</div>
-    <div class="muted small">Nivel = diferencia media de puntos en sus últimos partidos de Euroliga y EuroCup (los de EuroCup, rebajados 9 puntos). Jugadores clave = los que más minutos juegan en sus últimos 10 partidos de esta temporada. La fuente oficial no publica las bajas antes del partido: aquí se detectan cuando, pasados 10 minutos, un jugador clave no ha aparecido en ninguna jugada. Revisa las lesiones de última hora en la web de cada club.</div></div>`;
+    <div class="muted small">Nivel = diferencia media de puntos en sus últimos partidos de Euroliga y EuroCup (los de EuroCup, rebajados 9 puntos). Jugadores clave = los que más minutos juegan en sus últimos 10 partidos de esta temporada. Faltas en rojo: 2 en el primer cuarto, 3 antes del descanso o 4 después. La fuente oficial no publica las bajas antes del partido: aquí se detectan cuando, pasados 10 minutos, un jugador clave no ha aparecido en ninguna jugada. Revisa las lesiones de última hora en la web de cada club.</div></div>`;
 }
 // Varianza de los puntos anotados con unos tiros dados, si el equipo acertara lo habitual.
 const luckVar = (t, b) => 4 * t.FieldGoalsAttempted2 * b.p2 / 100 * (1 - b.p2 / 100) + 9 * t.FieldGoalsAttempted3 * b.p3 / 100 * (1 - b.p3 / 100) + t.FreeThrowsAttempted * b.ft / 100 * (1 - b.ft / 100);
@@ -276,14 +285,31 @@ function desfase(h, pbp) {
   if (Math.abs(pre) < FAV || gap < GAP || z < Z || s * mod.M >= Math.abs(pre) * el / 40) return null;
   const tf = teamAgg(s > 0 ? A : B), td = teamAgg(s > 0 ? B : A), bf = s > 0 ? bA : bB, bd = s > 0 ? bB : bA;
   const fc = s > 0 ? h.CodeTeamA : h.CodeTeamB, dc = s > 0 ? h.CodeTeamB : h.CodeTeamA;
-  return { favNew: !!bf.new, favOut: absent(fc, pbp, el), dogOut: absent(dc, pbp, el), level: z >= Z_STRONG && gap >= GAP_STRONG ? 'fuerte' : 'moderado', fav: s > 0 ? h.TeamA : h.TeamB, dog: s > 0 ? h.TeamB : h.TeamA, pre: Math.abs(pre), M: s * mod.M,
+  return { type: 'desfase', favNew: !!bf.new, favOut: absent(fc, pbp, el), dogOut: absent(dc, pbp, el), favFouls: foulTrouble(fc, pbp, el), level: z >= Z_STRONG && gap >= GAP_STRONG ? 'fuerte' : 'moderado', fav: s > 0 ? h.TeamA : h.TeamB, dog: s > 0 ? h.TeamB : h.TeamA, pre: Math.abs(pre), M: s * mod.M,
     gap, z, favLuck, dogLuck, fair: Math.round(-s * mod.mean * 2) / 2, sa: A.Points, sb: B.Points, favEfg: tf.efg, favBase: bf.efg, dogEfg: td.efg, dogBase: bd.efg };
 }
 // Modelo y avisos de un partido en directo (para la lista de avisos y para seguir las apuestas abiertas).
 function assess(g, h, pbp) {
-  if (!pbp) { g.al = null; return; }
+  if (!pbp) { g.al = null; g.als = []; return; }
   const [A, B] = pbpTotals(pbp, h); g.mod = model(h, A, B, elapsed(h));
-  g.al = desfase(h, pbp) || ritmo(h, pbp);
+  g.als = [desfase(h, pbp), ritmo(h, pbp), totalAl(h, g.mod, A, B)].filter(Boolean); g.al = g.als[0] || null;
+}
+// Faltas personales por jugador, contadas en las jugadas (coinciden con la estadística oficial).
+const FOUL_PLAYS = new Set(['CM', 'CMU', 'CMT', 'CMD', 'OF']);
+function foulCount(pbp) { const m = new Map(); allPlays(pbp).forEach(p => { if (FOUL_PLAYS.has((p.PLAYTYPE || '').trim())) { const k = pid(p.PLAYER_ID); m.set(k, (m.get(k) || 0) + 1); } }); return m; }
+// Problemas de faltas: 2 en el 1.er cuarto, 3 antes del descanso, 4 después.
+const foulLimit = el => Math.min(4, Math.floor(Math.max(0, el - 0.01) / 10) + 2);
+function foulTrouble(code, pbp, el) {
+  const b = BASE[(code || '').trim()]; if (!b || !b.pl || !pbp) return [];
+  const f = foulCount(pbp), lim = foulLimit(el); return b.pl.map(p => [p[1], f.get(p[0]) || 0, p[2]]).filter(x => x[1] >= lim);
+}
+const foulTxt = fs => fs.map(x => esc(x[0]) + ' (' + x[1] + ' faltas' + (x[1] >= 5 ? ', eliminado' : '') + ')').join(', ');
+// Aviso de total: el marcador va camino de un total muy distinto del que cabe esperar.
+const TOTAL_GAP = 18, TOTAL_STRONG = 28;
+function totalAl(h, m, A, B) {
+  const el = elapsed(h); if (m.tMean == null || el < 8 || el > 32 || m.r <= 0) return null;
+  const pace = m.cur * 40 / el, gap = pace - m.tMean; if (Math.abs(gap) < TOTAL_GAP) return null;
+  return { type: 'total', level: Math.abs(gap) >= TOTAL_STRONG ? 'fuerte' : 'moderado', z: Math.abs(gap) / 12, high: gap > 0, pace, tMean: m.tMean, tSd: m.tSd, usualT: m.usualT, sa: A.Points, sb: B.Points };
 }
 function ritmo(h, pbp) {
   const bA = BASE[(h.CodeTeamA || '').trim()], bB = BASE[(h.CodeTeamB || '').trim()];
@@ -296,7 +322,8 @@ function ritmo(h, pbp) {
   const leads = allPlays(pbp).filter(p => p.POINTS_A != null && p.POINTS_B != null).map(p => s * (p.POINTS_A - p.POINTS_B));
   return { type: 'ritmo', level: extra >= 35 || Math.abs(mod.M) >= 18 ? 'fuerte' : 'moderado', z: extra / 10,
     lead: s > 0 ? h.TeamA : h.TeamB, trail: s > 0 ? h.TeamB : h.TeamA, M: Math.abs(mod.M), pace, usual: bL.pf, trailExp,
-    maxLead: Math.max(0, ...leads), fair: Math.round(s * mod.mean * 2) / 2, sa: A.Points, sb: B.Points, extra };
+    maxLead: Math.max(0, ...leads), fair: Math.round(s * mod.mean * 2) / 2, sa: A.Points, sb: B.Points, extra,
+    leadFouls: foulTrouble(s > 0 ? h.CodeTeamA : h.CodeTeamB, pbp, el), trailFouls: foulTrouble(s > 0 ? h.CodeTeamB : h.CodeTeamA, pbp, el) };
 }
 // Qué pasó en el histórico cuando un equipo ganaba de lo mismo a un ritmo anormal ante un rival de su nivel.
 function paceHistoryTxt(x, el) {
@@ -308,15 +335,23 @@ function paceHistoryTxt(x, el) {
     + lines.map(([l, p], i) => `${i ? 'con' : 'Con'} <strong>${signed(l, 1)}</strong> habría acertado el <strong>${nf(p, 0)} %</strong> (cuota justa ${p > 0 ? nf(100 / p, 2) : '–'})`).join('; ')
     + '. El ritmo anormal recorta algo más que una ventaja normal, pero poco: la mayor parte de la ventaja se mantiene.</div>';
 }
-function alertHtml(g) {
-  const x = g.al, h = g.h, head = `<div class="st"><span class="tag">${x.type === 'ritmo' ? 'Ritmo insostenible' : 'Desfase'} ${x.level}</span><span>${COMP[g.comp]} · ${esc(h.TeamA)} <strong>${x.sa}-${x.sb}</strong> ${esc(h.TeamB)} · ${esc(periodTxt(h))}</span></div>`;
+function alertHtml([g, x]) {
+  const h = g.h, head = `<div class="st"><span class="tag">${KIND[x.type]} ${x.level}</span><span>${COMP[g.comp]} · ${esc(h.TeamA)} <strong>${x.sa}-${x.sb}</strong> ${esc(h.TeamB)} · ${esc(periodTxt(h))}</span></div>`;
   const go = `<div><button class="btn" data-go="${g.comp}|${g.gameCode}">Ver partido y calcular el hándicap</button></div>`;
   if (x.type === 'ritmo') return `<div class="alert ${x.level}">${head}
       <div><strong>${esc(x.lead)}</strong> gana de ${nf(x.M)} anotando a un ritmo de <strong>${nf(x.pace, 0)} puntos</strong> por partido (su media es ${nf(x.usual, 0)}), ante un rival ${x.trailExp >= 3 ? 'que era favorito' : 'de su nivel'}. ${x.maxLead > x.M ? `La ventaja máxima fue de ${nf(x.maxLead)}: ya ha empezado a bajar, así que el mejor momento para entrar puede haber pasado.` : 'Está en su ventaja máxima del partido.'}</div>
       <div class="kpis"><div class="kpi"><div class="v">${signed(x.fair, 1)}</div><div class="k">Hándicap justo · ${esc(x.trail)}</div></div>
         <div class="kpi"><div class="v">+${nf(x.M + 0.5, 1)}</div><div class="k">Hándicap igual a la ventaja actual</div></div>
         <div class="kpi"><div class="v">${signed(x.extra, 0)}</div><div class="k">Ritmo por encima de su media</div></div></div>
-      ${paceHistoryTxt(x, elapsed(h))}${go}</div>`;
+      ${paceHistoryTxt(x, elapsed(h))}
+      ${x.leadFouls.length ? `<div class="note">A favor de la remontada: ${esc(x.lead)} tiene en problemas de faltas a ${foulTxt(x.leadFouls)}.</div>` : ''}
+      ${x.trailFouls.length ? `<div class="note warn">Ojo: ${esc(x.trail)} tiene en problemas de faltas a ${foulTxt(x.trailFouls)}.</div>` : ''}${go}</div>`;
+  if (x.type === 'total') return `<div class="alert ${x.level}">${head}
+      <div>Van camino de <strong>${nf(x.pace, 0)} puntos</strong> entre los dos, pero lo esperable al final es <strong>${nf(x.tMean, 0)}</strong> (su habitual es ${nf(x.usualT, 0)}). En el histórico, del ${x.high ? 'exceso' : 'defecto'} de ritmo solo se mantiene un ${nf(100 * KT.c, 0)} % en lo que queda de partido. Si la casa ha ${x.high ? 'subido' : 'bajado'} mucho la línea de total, el «${x.high ? 'menos' : 'más'} de» es donde puede haber valor.</div>
+      <div class="kpis"><div class="kpi"><div class="v">${nf(x.tMean, 0)}</div><div class="k">Total justo al final (±${nf(x.tSd, 0)})</div></div>
+        <div class="kpi"><div class="v">${nf(x.pace, 0)}</div><div class="k">Total al ritmo actual</div></div>
+        <div class="kpi"><div class="v">${nf(x.high ? x.tMean + x.tSd : x.tMean - x.tSd, 0)}</div><div class="k">«${x.high ? 'Menos' : 'Más'} de» esta línea: 84 % de acierto (cuota justa 1,19)</div></div></div>
+      <div class="muted small">No cuenta prórrogas. Usa la calculadora del partido (mercado «Total de puntos») con la línea y la cuota que te ofrezcan.</div>${go}</div>`;
   return `<div class="alert ${x.level}">${head}
       <div><strong>${esc(x.fav)}</strong>, favorito por ${nf(x.pre, 0)} según sus últimos partidos, ${x.M < 0 ? 'pierde por ' + nf(-x.M) : x.M > 0 ? 'gana solo por ' + nf(x.M) : 'va empatado'}. Con esos mismos tiros y su acierto habitual, ${esc(x.fav)} llevaría ${nf(Math.abs(x.favLuck), 0)} ${Math.round(Math.abs(x.favLuck)) === 1 ? 'punto' : 'puntos'} ${x.favLuck < 0 ? 'más' : 'menos'} y ${esc(x.dog)} ${nf(Math.abs(x.dogLuck), 0)} ${x.dogLuck > 0 ? 'menos' : 'más'}: ${nf(x.gap, 0)} puntos del marcador vienen de un acierto fuera de lo normal.</div>
       <div class="kpis"><div class="kpi"><div class="v">${signed(x.fair, 1)}</div><div class="k">Hándicap justo · ${esc(x.fav)}</div></div>
@@ -326,6 +361,7 @@ function alertHtml(g) {
       ${historyTxt(x, elapsed(h))}
       ${x.favNew ? `<div class="note warn">Ojo: ${esc(x.fav)} es recién llegado a la Euroliga; su condición de favorito se basa en pocos partidos en esta competición.</div>` : ''}
       ${x.favOut.length ? `<div class="note warn">Ojo: a ${esc(x.fav)} le faltan jugadores clave: ${absTxt(x.favOut)}. Su acierto habitual puede no servir hoy.</div>` : ''}
+      ${x.favFouls.length ? `<div class="note warn">Ojo: ${esc(x.fav)} tiene en problemas de faltas a ${foulTxt(x.favFouls)}.</div>` : ''}
       ${x.dogOut.length ? `<div class="muted small">A ${esc(x.dog)} le faltan: ${absTxt(x.dogOut)}.</div>` : ''}${go}</div>`;
 }
 // Qué pasó en el histórico con favoritos que perdían por lo mismo en un momento parecido del partido.
@@ -345,15 +381,39 @@ function historyTxt(x, el) {
   return `<div class="note"><strong>En el histórico</strong> (${r.n} partidos de Euroliga, EuroCup y Liga Endesa con un favorito perdiendo de ${r.lo}${r.hi < 99 ? ' a ' + r.hi : ' o más'} ${MOMENT[r.q]}${r.similar ? ' y con el rival tirando 15 puntos o más mejor de eFG' : ''}): recuperó de media ${signed(r.rec, 1)} puntos y ganó el ${nf(r.win, 0)} %. `
     + r.lines.map(([l, p], i) => `${i ? 'con' : 'Con'} <strong>${signed(l, 1)}</strong> habría acertado el <strong>${nf(p, 0)} %</strong> (cuota justa ${p > 0 ? nf(100 / p, 2) : '–'})`).join('; ') + '.</div>';
 }
+/* ---------- Avisos con sonido y notificación ---------- */
+let NOTIFY = false, actx = null; const announced = new Set();
+try { NOTIFY = localStorage.getItem('sdb_notify') === '1'; } catch (e) { /* sin almacenamiento: se queda desactivado */ }
+function beep() {
+  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume();
+    [0, 0.28].forEach(t => { const o = actx.createOscillator(), g = actx.createGain(), t0 = actx.currentTime + t; o.frequency.value = 880; o.connect(g); g.connect(actx.destination);
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.3, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22); o.start(t0); o.stop(t0 + 0.24); });
+  } catch (e) { /* navegador sin sonido */ }
+}
+function notifyButton() { const b = $('#notifyBtn'); b.textContent = NOTIFY ? 'Avisos con sonido: activados' : 'Activar avisos con sonido'; b.setAttribute('aria-pressed', NOTIFY); }
+async function toggleNotify() {
+  NOTIFY = !NOTIFY; try { localStorage.setItem('sdb_notify', NOTIFY ? '1' : '0'); } catch (e) { /* solo para esta sesión */ }
+  if (NOTIFY) { beep(); if ('Notification' in window && Notification.permission === 'default') { try { await Notification.requestPermission(); } catch (e) { /* sin permiso: queda el sonido */ } } }
+  notifyButton();
+}
+// Suena una vez por aviso nuevo (o cuando pasa de moderado a fuerte), aunque la pestaña esté en segundo plano.
+function announce(list) {
+  const fresh = list.filter(([g, x]) => { const k = g.comp + g.gameCode + x.type + x.level; if (announced.has(k)) return false; announced.add(k); return true; });
+  if (!fresh.length || !NOTIFY) return;
+  beep();
+  if ('Notification' in window && Notification.permission === 'granted') fresh.forEach(([g, x]) => {
+    try { new Notification(KIND[x.type] + ' ' + x.level, { body: `${g.h.TeamA} ${x.sa}-${x.sb} ${g.h.TeamB} · ${periodTxt(g.h)}`, tag: g.comp + g.gameCode + x.type }); } catch (e) { /* algunos móviles no lo permiten */ } });
+}
 function renderAlerts() {
-  const gs = S.games.concat(S.other).filter(g => g.h && g.h.Live), al = gs.filter(g => g.al).sort((x, y) => y.al.z - x.al.z), box = $('#alerts');
+  const gs = S.games.concat(S.other).filter(g => g.h && g.h.Live), al = gs.flatMap(g => (g.als || []).map(x => [g, x])).sort((x, y) => y[1].z - x[1].z), box = $('#alerts');
   document.title = (al.length ? '(' + al.length + ') ' : '') + 'SportsDB en vivo';
+  announce(al);
   const next = S.games.concat(S.other).filter(g => !g.played && !(g.h && +g.h.ScoreA + +g.h.ScoreB > 0)).map(g => g.utcDate).sort()[0];
   box.hidden = false;
   if (!gs.length) { box.innerHTML = `<section class="panel"><h2>Desfases ahora</h2><div class="muted">Ahora no hay ningún partido en directo de Euroliga ni EuroCup${next ? '; el próximo empieza el ' + esc(new Date(next).toLocaleString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })) : ''}. Los avisos aparecerán aquí solos en cuanto haya partidos en juego.</div></section>`; return; }
   box.innerHTML = `<section class="panel"><h2>Desfases ahora</h2>${al.map(alertHtml).join('')
     || `<div class="muted">Ningún desfase claro en ${gs.length === 1 ? 'el partido' : 'los ' + gs.length + ' partidos'} en directo de Euroliga y EuroCup.</div>`}
-    <div class="muted small">Dos tipos de aviso. <strong>Desfase</strong>: un favorito claro va peor de lo previsto y al menos ${GAP} puntos del marcador se explican por un acierto anormal. <strong>Ritmo insostenible</strong>: un equipo gana de ${LEAD} o más anotando a un ritmo de ${PACE_EXTRA}+ puntos por encima de su media, ante un rival de su nivel o mejor. Se revisan todos los partidos en directo cada 20 segundos. Hay valor si te ofrecen un hándicap mayor que el justo a una cuota mayor que la justa; el aviso no ve lesiones, faltas ni rotaciones, así que no es una señal segura.</div></section>`;
+    <div class="muted small">Tres tipos de aviso. <strong>Desfase</strong>: un favorito claro va peor de lo previsto y al menos ${GAP} puntos del marcador se explican por un acierto anormal. <strong>Ritmo insostenible</strong>: un equipo gana de ${LEAD} o más anotando a un ritmo de ${PACE_EXTRA}+ puntos por encima de su media, ante un rival de su nivel o mejor. <strong>Total desfasado</strong>: el marcador va camino de un total ${TOTAL_GAP}+ puntos distinto del esperable. Cada partido en directo se revisa cada 45-60 segundos. Hay valor si te ofrecen una línea mejor que la justa a una cuota mayor que la justa; el aviso no ve lesiones ni rotaciones, así que no es una señal segura. Cuánto aciertan: <a href="funciona.html">¿Funciona?</a></div></section>`;
 }
 // Repetición de un partido ya jugado: lo deja como estaba en el minuto DEMO.
 const playMin = p => { const [m, s] = String(p.MARKERTIME || '0:0').split(':').map(Number), mi = +p.MINUTE || 1; return (mi <= 40 ? Math.ceil(mi / 10) * 10 : 40 + Math.ceil((mi - 40) / 5) * 5) - ((m || 0) + (s || 0) / 60); };
@@ -363,15 +423,26 @@ function demoCut(h, pbp) {
   const [A, B] = pbpTotals(cut, h), q = Math.ceil(DEMO / 10), rem = q * 10 - DEMO;
   return [Object.assign({}, h, { Live: true, Quarter: q, RemainingPartialTime: rem + ':00', ScoreA: A.Points, ScoreB: B.Points }), cut];
 }
+// Probabilidad de acertar una apuesta con el modelo m. Mercado: 'H' hándicap del equipo side, 'O' más de, 'U' menos de (total de puntos).
+function betProb(m, mk, side, line) {
+  if (!isFinite(line)) return null;
+  if (mk === 'O' || mk === 'U') { if (m.tMean == null) return null; const o = m.r > 0 ? 1 - phi((line - m.tMean) / m.tSd) : (m.cur > line ? 1 : 0); return mk === 'O' ? o : 1 - o; }
+  const sd = side === 'A' ? 1 : -1; return m.r > 0 ? phi((sd * m.mean + line) / m.sd) : (sd * m.M + line > 0 ? 1 : 0);
+}
+const betLabel = x => x.mk === 'O' ? 'Más de ' + nf(x.line, 1) : x.mk === 'U' ? 'Menos de ' + nf(x.line, 1) : (x.side === 'A' ? x.a : x.b) + ' ' + signed(x.line, 1);
 function updateCalc() {
   const D = S.data, box = $('#calc'); if (!D || !D.mod || !D.live) { box.hidden = true; return; }
-  box.hidden = false; const sel = $('#cTeam'), h = D.h, key = h.CodeTeamA + '|' + h.CodeTeamB;
-  if (sel.dataset.key !== key) { sel.dataset.key = key; sel.innerHTML = `<option value="A">${esc(h.TeamA)}</option><option value="B">${esc(h.TeamB)}</option>`; sel.value = D.mod.M > 0 ? 'B' : 'A'; }
-  const side = sel.value === 'A' ? 1 : -1, line = parseFloat($('#cLine').value), odd = parseFloat($('#cOdd').value), m = D.mod;
-  const p = isFinite(line) ? phi((side * m.mean + line) / m.sd) : null, ok = p != null && isFinite(odd) && odd > 1;
+  box.hidden = false; const sel = $('#cTeam'), h = D.h, key = h.CodeTeamA + '|' + h.CodeTeamB, m = D.mod, mk = $('#cMarket').value, tot = mk !== 'H';
+  if (sel.dataset.key !== key) { sel.dataset.key = key; sel.innerHTML = `<option value="A">${esc(h.TeamA)}</option><option value="B">${esc(h.TeamB)}</option>`; sel.value = m.M > 0 ? 'B' : 'A'; }
+  if (box.dataset.mk !== mk) { // al cambiar de mercado se propone una línea razonable
+    box.dataset.mk = mk; $('#cTeamField').hidden = tot; $('#cLineLabel').textContent = tot ? 'Línea de total (p. ej. 165,5)' : 'Hándicap (p. ej. 7,5 o -3,5)';
+    $('#cLine').value = tot ? (m.tMean != null ? Math.round(m.tMean) + 0.5 : '') : 5.5; }
+  const line = parseFloat($('#cLine').value), odd = parseFloat($('#cOdd').value), p = betProb(m, mk, sel.value, line), ok = p != null && isFinite(odd) && odd > 1;
   $('#cProb').textContent = p != null ? nf(100 * p, 0) + ' %' : '–'; $('#cFair').textContent = p ? nf(1 / p, 2) : '–';
   const ev = ok ? p * odd - 1 : null, e = $('#cEv'); e.textContent = ev != null ? signed(100 * ev, 0) + ' %' : '–'; e.className = 'v ' + (ev != null ? cls(ev) : '');
-  $('#cNote').textContent = 'Escribe el hándicap y la cuota que veas en tu casa de apuestas. Hay valor cuando la cuota ofrecida supera la cuota justa. La estimación parte del marcador, el tiempo que queda, el factor campo y el nivel reciente de cada equipo; el margen de error es de ±' + nf(m.sd, 0) + ' puntos, así que ningún hándicap es seguro.';
+  $('#cNote').textContent = tot
+    ? (m.tMean == null ? 'No hay suficientes partidos de alguno de los dos equipos para estimar el total.' : 'Total esperado al final: ' + nf(m.tMean, 0) + ' puntos (sin prórroga), con un margen de error de ±' + nf(m.tSd, 0) + '. El panel supone que el ritmo vuelve casi del todo al habitual de los dos equipos (' + nf(m.usualT, 0) + ' puntos por partido). Hay valor cuando la cuota ofrecida supera la cuota justa.')
+    : 'Escribe el hándicap y la cuota que veas en tu casa de apuestas. Hay valor cuando la cuota ofrecida supera la cuota justa. La estimación parte del marcador, el tiempo que queda, el factor campo y el nivel reciente de cada equipo; el margen de error es de ±' + nf(m.sd, 0) + ' puntos, así que ningún hándicap es seguro.';
 }
 
 function shootingTable(h, A, B, a, b) {
@@ -431,7 +502,8 @@ function render() {
       <div class="kpi"><div class="v">${signed(mod.M)}</div><div class="k">Diferencia actual · ${esc(h.CodeTeamA)}</div></div>
       <div class="kpi"><div class="v">${signed(mod.mean, 1)}</div><div class="k">Diferencia esperada al final · ${esc(h.CodeTeamA)}</div></div>
       <div class="kpi"><div class="v">+${nf(fair, 1)}</div><div class="k">Hándicap justo · ${esc(trail)}</div></div>
-      <div class="kpi"><div class="v">${nf(100 * mod.pA, 0)} % - ${nf(100 * (1 - mod.pA), 0)} %</div><div class="k">Probabilidad de victoria</div></div></div>
+      <div class="kpi"><div class="v">${nf(100 * mod.pA, 0)} % - ${nf(100 * (1 - mod.pA), 0)} %</div><div class="k">Probabilidad de victoria</div></div>
+      <div class="kpi"><div class="v">${nf(mod.tMean, 0)}</div><div class="k">Total esperado al final · al ritmo actual ${el > 0 ? nf(mod.cur * 40 / el, 0) : '–'}</div></div></div>
       ${mod.xA != null && mod.xB != null ? `<div class="scroll"><table><thead><tr><th class="l"></th><th>Puntos</th><th>Con su acierto habitual</th><th>Puntos de más o de menos</th></tr></thead><tbody>
         <tr><td class="l strong">${esc(h.TeamA)}</td><td class="strong">${A.Points}</td><td>${nf(mod.xA, 0)}</td><td class="${cls(luckA)}">${signed(luckA, 0)}</td></tr>
         <tr><td class="l strong">${esc(h.TeamB)}</td><td class="strong">${B.Points}</td><td>${nf(mod.xB, 0)}</td><td class="${cls(luckB)}">${signed(luckB, 0)}</td></tr></tbody></table></div>
@@ -490,6 +562,7 @@ document.addEventListener('click', e => {
 });
 let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(render, 200); });
 document.addEventListener('input', e => { if (e.target.closest('#calc')) updateCalc(); });
+document.addEventListener('change', e => { if (e.target.id === 'cMarket') updateCalc(); });
 
 /* ---------- Registro de apuestas ---------- */
 let BETS = []; let memOnly = false;
@@ -497,11 +570,14 @@ try { BETS = JSON.parse(localStorage.getItem('sdb_bets') || '[]'); } catch (e) {
 function saveBets() { try { localStorage.setItem('sdb_bets', JSON.stringify(BETS)); } catch (e) { memOnly = true; } }
 function addBet() {
   const D = S.data; if (!D || !D.mod || !D.live) return;
-  const h = D.h, side = $('#cTeam').value, line = parseFloat($('#cLine').value), odd = parseFloat($('#cOdd').value), stake = parseFloat($('#cStake').value) || 0, msg = $('#cSaved');
-  if (!isFinite(line) || !(odd > 1)) { msg.textContent = 'Escribe un hándicap y una cuota mayor que 1.'; return; }
-  const p = phi(((side === 'A' ? 1 : -1) * D.mod.mean + line) / D.mod.sd), A = D.mod.M;
-  BETS.unshift({ id: Date.now(), ts: new Date().toISOString(), comp: S.comp, year: S.year, code: S.code, a: h.TeamA, b: h.TeamB, side, line, odd, stake, when: periodTxt(h), score: $('#top .sc') ? $('#top .sc').textContent : '', p, status: 'pendiente', fin: '' });
-  saveBets(); renderLog(); msg.textContent = 'Anotada: ' + (side === 'A' ? h.TeamA : h.TeamB) + ' ' + signed(line, 1) + ' a ' + nf(odd, 2) + '.';
+  const h = D.h, mk = $('#cMarket').value, side = $('#cTeam').value, line = parseFloat($('#cLine').value), odd = parseFloat($('#cOdd').value), stake = parseFloat($('#cStake').value) || 0, msg = $('#cSaved');
+  const p = betProb(D.mod, mk, side, line);
+  if (p == null || !(odd > 1)) { msg.textContent = 'Escribe una línea y una cuota mayor que 1.'; return; }
+  // kind = aviso que había en ese partido al apostar, para medir después cada tipo de aviso por separado
+  const g = S.games.find(x => x.gameCode === S.code), al = g && (g.als || []).find(x => (x.type === 'total') === (mk !== 'H'));
+  const bet = { id: Date.now(), ts: new Date().toISOString(), comp: S.comp, year: S.year, code: S.code, a: h.TeamA, b: h.TeamB, mk, side, line, odd, stake, kind: al ? al.type : 'sin aviso',
+    when: periodTxt(h), score: $('#top .sc') ? $('#top .sc').textContent : '', p, status: 'pendiente', fin: '' };
+  BETS.unshift(bet); saveBets(); renderLog(); msg.textContent = 'Anotada: ' + betLabel(bet) + ' a ' + nf(odd, 2) + '.';
 }
 async function settleBets() {
   const pend = BETS.filter(x => x.status === 'pendiente'); if (!pend.length) return;
@@ -509,7 +585,7 @@ async function settleBets() {
   for (const x of pend) { const k = x.comp + x.year + '_' + x.code;
     try { if (!(k in seen)) seen[k] = await getJSON(`${API}Header?gamecode=${x.code}&seasoncode=${x.comp}${x.year}`); } catch (e) { continue; }
     const h = seen[k]; if (!h || h.Live || !(+h.ScoreA + +h.ScoreB > 0)) continue;
-    const m = (x.side === 'A' ? 1 : -1) * (+h.ScoreA - +h.ScoreB) + x.line;
+    const tot = +h.ScoreA + +h.ScoreB, m = x.mk === 'O' ? tot - x.line : x.mk === 'U' ? x.line - tot : (x.side === 'A' ? 1 : -1) * (+h.ScoreA - +h.ScoreB) + x.line;
     x.status = m > 0 ? 'ganada' : m < 0 ? 'perdida' : 'nula'; x.fin = h.ScoreA + '-' + h.ScoreB; }
   saveBets(); renderLog();
 }
@@ -519,11 +595,21 @@ function betNow(x) {
   if (x.status !== 'pendiente') return null;
   const g = S.games.concat(S.other).find(g => g.comp === x.comp && g.gameCode === x.code);
   if (!g || !g.mod || !g.h || !g.h.Live) return null;
-  const sd = x.side === 'A' ? 1 : -1, m = g.mod, p = m.r > 0 ? phi((sd * m.mean + x.line) / m.sd) : (sd * m.M + x.line > 0 ? 1 : 0);
-  return { cov: sd * m.M + x.line, p, value: x.stake * x.odd * p, when: periodTxt(g.h) };
+  const m = g.mod, p = betProb(m, x.mk || 'H', x.side, x.line); if (p == null) return null;
+  return { tot: x.mk === 'O' || x.mk === 'U' ? m.tMean : null, cov: (x.side === 'A' ? 1 : -1) * m.M + x.line, p, value: x.stake * x.odd * p };
 }
 const betNowTxt = x => { const n = betNow(x); if (!n) return '–';
-  return `<span class="${n.cov > 0 ? 'pos' : 'neg'}">${n.cov > 0 ? 'Cubre por ' + nf(n.cov, 1) : n.cov < 0 ? 'Le faltan ' + nf(-n.cov, 1) : 'Justo en la línea'}</span> · ${nf(100 * n.p, 0)} % · cierre justo <strong>${nf(n.value, 2)} €</strong>`; };
+  const st = n.tot != null ? `Total esperado ${nf(n.tot, 0)}` : `<span class="${n.cov > 0 ? 'pos' : 'neg'}">${n.cov > 0 ? 'Cubre por ' + nf(n.cov, 1) : n.cov < 0 ? 'Le faltan ' + nf(-n.cov, 1) : 'Justo en la línea'}</span>`;
+  return `${st} · ${nf(100 * n.p, 0)} % · cierre justo <strong>${nf(n.value, 2)} €</strong>`; };
+const KIND = { desfase: 'Desfase', ritmo: 'Ritmo insostenible', total: 'Total desfasado', 'sin aviso': 'Sin aviso' };
+// Resultado por tipo de aviso: lo que dice si cada señal da dinero con las cuotas que te ofrecen de verdad.
+function kindsTable(done) {
+  const by = {}; done.forEach(x => { (by[x.kind || 'sin aviso'] = by[x.kind || 'sin aviso'] || []).push(x); });
+  if (!done.length) return '';
+  return `<table><thead><tr><th class="l">Por tipo de aviso</th><th>Apuestas</th><th>Aciertos</th><th>Esperaba el panel</th><th>Cuota media</th><th>Beneficio</th><th>Rentabilidad</th></tr></thead><tbody>${Object.entries(by).map(([k, xs]) => {
+    const pr = xs.reduce((s, x) => s + betProfit(x), 0), st = xs.reduce((s, x) => s + x.stake, 0);
+    return `<tr><td class="l strong">${esc(KIND[k] || k)}</td><td>${xs.length}</td><td>${nf(100 * xs.filter(x => x.status === 'ganada').length / xs.length, 0)} %</td><td>${nf(100 * xs.reduce((s, x) => s + x.p, 0) / xs.length, 0)} %</td><td>${nf(xs.reduce((s, x) => s + x.odd, 0) / xs.length, 2)}</td><td class="${cls(pr)}">${signed(pr, 2)} €</td><td class="${cls(pr)}">${st ? signed(100 * pr / st, 1) + ' %' : '–'}</td></tr>`; }).join('')}</tbody></table>`;
+}
 function renderLog() {
   const done = BETS.filter(x => x.status === 'ganada' || x.status === 'perdida'), won = done.filter(x => x.status === 'ganada').length;
   const profit = done.reduce((s, x) => s + betProfit(x), 0), staked = done.reduce((s, x) => s + x.stake, 0), exp = done.length ? done.reduce((s, x) => s + x.p, 0) / done.length : null;
@@ -532,24 +618,26 @@ function renderLog() {
     <div class="kpi"><div class="v">${exp != null ? nf(100 * exp, 0) + ' %' : '–'}</div><div class="k">Aciertos que esperaba el panel</div></div>
     <div class="kpi"><div class="v ${cls(profit)}">${done.length ? signed(profit, 2) + ' €' : '–'}</div><div class="k">Beneficio</div></div>
     <div class="kpi"><div class="v ${cls(profit)}">${staked ? signed(100 * profit / staked, 1) + ' %' : '–'}</div><div class="k">Rentabilidad</div></div>` : '';
-  $('#logTable').innerHTML = BETS.length ? `<table><thead><tr><th class="l">Fecha</th><th class="l">Partido</th><th class="l">Apuesta</th><th>Cuota</th><th>Importe</th><th class="l">Momento</th><th>Prob. panel</th><th class="l">Ahora (en directo)</th><th class="l">Resultado</th><th>Beneficio</th><th></th></tr></thead><tbody>${BETS.map(x => `<tr><td class="l">${esc(new Date(x.ts).toLocaleDateString('es-ES'))}</td><td class="l">${esc(x.a)} - ${esc(x.b)}</td><td class="l strong">${esc(x.side === 'A' ? x.a : x.b)} ${signed(x.line, 1)}</td><td>${nf(x.odd, 2)}</td><td>${nf(x.stake, 2)} €</td><td class="l">${esc(x.score)} · ${esc(x.when)}</td><td>${nf(100 * x.p, 0)} %</td><td class="l">${betNowTxt(x)}</td><td class="l ${x.status === 'ganada' ? 'pos' : x.status === 'perdida' ? 'neg' : ''}">${x.status}${x.fin ? ' (' + esc(x.fin) + ')' : ''}</td><td class="${cls(betProfit(x))}">${x.status === 'pendiente' ? '–' : signed(betProfit(x), 2) + ' €'}</td><td><button class="btn x" data-del="${x.id}" title="Borrar esta apuesta">Borrar</button></td></tr>`).join('')}</tbody></table>` : '<div class="empty">Todavía no has anotado ninguna apuesta. Usa la calculadora de arriba durante un partido en directo y pulsa «Anotar esta apuesta».</div>';
+  $('#logTable').innerHTML = BETS.length ? `<table><thead><tr><th class="l">Fecha</th><th class="l">Partido</th><th class="l">Apuesta</th><th>Cuota</th><th>Importe</th><th class="l">Momento</th><th>Prob. panel</th><th class="l">Ahora (en directo)</th><th class="l">Resultado</th><th>Beneficio</th><th></th></tr></thead><tbody>${BETS.map(x => `<tr><td class="l">${esc(new Date(x.ts).toLocaleDateString('es-ES'))}</td><td class="l">${esc(x.a)} - ${esc(x.b)}</td><td class="l strong">${esc(betLabel(x))}<div class="muted small" style="font-weight:400">${esc(KIND[x.kind || 'sin aviso'] || x.kind)}</div></td><td>${nf(x.odd, 2)}</td><td>${nf(x.stake, 2)} €</td><td class="l">${esc(x.score)} · ${esc(x.when)}</td><td>${nf(100 * x.p, 0)} %</td><td class="l">${betNowTxt(x)}</td><td class="l ${x.status === 'ganada' ? 'pos' : x.status === 'perdida' ? 'neg' : ''}">${x.status}${x.fin ? ' (' + esc(x.fin) + ')' : ''}</td><td class="${cls(betProfit(x))}">${x.status === 'pendiente' ? '–' : signed(betProfit(x), 2) + ' €'}</td><td><button class="btn x" data-del="${x.id}" title="Borrar esta apuesta">Borrar</button></td></tr>`).join('')}</tbody></table>` : '<div class="empty">Todavía no has anotado ninguna apuesta. Usa la calculadora de arriba durante un partido en directo y pulsa «Anotar esta apuesta».</div>';
+  $('#logKinds').innerHTML = kindsTable(done);
   $('#logExit').hidden = !BETS.some(betNow);
   if (memOnly) $('#logNote').textContent = 'Este navegador no permite guardar datos en archivos locales: el registro se perderá al cerrar la pestaña. Usa «Copiar como tabla» para conservarlo.';
 }
 function copyLog() {
-  const head = ['Fecha', 'Partido', 'Equipo', 'Hándicap', 'Cuota', 'Importe', 'Marcador', 'Momento', 'Prob. panel', 'Estado', 'Final', 'Beneficio'];
-  const txt = [head].concat(BETS.map(x => [x.ts.slice(0, 16).replace('T', ' '), x.a + ' - ' + x.b, x.side === 'A' ? x.a : x.b, x.line, x.odd, x.stake, x.score, x.when, Math.round(100 * x.p) + '%', x.status, x.fin, betProfit(x).toFixed(2)])).map(r => r.join('\t')).join('\n');
+  const head = ['Fecha', 'Partido', 'Apuesta', 'Aviso', 'Línea', 'Cuota', 'Importe', 'Marcador', 'Momento', 'Prob. panel', 'Estado', 'Final', 'Beneficio'];
+  const txt = [head].concat(BETS.map(x => [x.ts.slice(0, 16).replace('T', ' '), x.a + ' - ' + x.b, betLabel(x), KIND[x.kind || 'sin aviso'] || x.kind, x.line, x.odd, x.stake, x.score, x.when, Math.round(100 * x.p) + '%', x.status, x.fin, betProfit(x).toFixed(2)])).map(r => r.join('\t')).join('\n');
   const b = $('#logCopy'), ok = () => { b.textContent = 'Copiado'; setTimeout(() => b.textContent = 'Copiar como tabla', 1500); };
   (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(ok).catch(() => { const t = document.createElement('textarea'); t.value = txt; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); ok(); } catch (e) {} t.remove(); });
 }
 document.addEventListener('click', e => {
   const d = e.target.closest('[data-del]');
-  if (e.target.id === 'cSave') addBet(); else if (e.target.id === 'logCopy') copyLog();
+  if (e.target.id === 'cSave') addBet(); else if (e.target.id === 'logCopy') copyLog(); else if (e.target.id === 'notifyBtn') toggleNotify();
   else if (d) { BETS = BETS.filter(x => String(x.id) !== d.dataset.del); saveBets(); renderLog(); }
 });
-renderLog(); settleBets(); setInterval(settleBets, 60000);
+renderLog(); notifyButton(); settleBets(); setInterval(settleBets, 60000);
 let n = 0; tick('full');
-setInterval(() => { if (document.hidden) return; n++; tick(n % (SLOW / FAST) === 0 ? 'slow' : 'fast'); }, FAST);
+// Con la pestaña en segundo plano se sigue revisando (más despacio) para que los avisos con sonido salten igual.
+setInterval(() => { n++; const slow = n % (SLOW / FAST) === 0; if (document.hidden && !slow) return; tick(slow ? 'slow' : 'fast'); }, FAST);
 setInterval(() => tick('full'), 15 * 60000);
 })();
 </script>

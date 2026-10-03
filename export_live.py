@@ -103,6 +103,7 @@ def baseline(con) -> dict:
                      "ft": round(100 * s(7) / s(8), 1), "efg": round(100 * (fgm + 0.5 * s(5)) / fga, 1),
                      "r3": round(100 * s(6) / fga, 1), "ppp": round(s(2) / poss, 3),
                      "poss": round(poss / n, 1), "pf": round(s(2) / n, 1),
+                     "tot": round((s(2) + s(11)) / n, 1),   # total de puntos habitual de sus partidos
                      # puntos recibidos en escala Euroliga (pf - pa = nivel comparable entre competiciones)
                      "pa": round((s(11) + EUROCUP_GAP * ec) / n, 1), "ec": ec,
                      # temporadas de Euroliga anteriores a la actual (de las que hay en la base)

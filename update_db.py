@@ -54,6 +54,11 @@ def main() -> int:
         build_halves.main(a.db)
     except Exception as e:
         print(f"[mitades] ERROR: {e}", file=sys.stderr)
+    try:  # marcador jugada a jugada (para el estudio de entrada y salida); pocos por vez: la fuente corta si se abusa
+        import build_timeline
+        build_timeline.main(a.db, limit=60)
+    except Exception as e:
+        print(f"[jugadas] ERROR: {e}", file=sys.stderr)
     if a.excel:
         import export_excel
         export_excel.export(a.db)

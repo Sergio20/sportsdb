@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SportsDB · ¿Funciona?</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>
+/*CSS*/
+.bar { position: relative; height: 10px; background: var(--surface-2); border-radius: 5px; min-width: 120px }
+.bar i { position: absolute; top: 0; bottom: 0; left: 0; background: var(--series); border-radius: 5px }
+.bar b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--fg) }
+.verdict { font: 600 19px/1.3 var(--display) }
+td.l.w { white-space: normal }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><div class="nav"><a href="./">Panel</a><a href="en-vivo.html">En vivo</a><a href="jornada.html">Jornada</a><a href="funciona.html" aria-current="page">¿Funciona?</a></div>
+      <h1>¿Funciona? El panel frente a lo que pasó</h1><div class="muted small" id="status"></div></div>
+  </header>
+  <div id="view"></div>
+</div>
+<script>
+(function () {
+'use strict';
+const D = /*DATA*/{}/*END*/;
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const nf = (v, d) => v == null || !isFinite(v) ? '–' : Number(v).toLocaleString('es-ES', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
+const signed = (v, d) => v == null || !isFinite(v) ? '–' : (v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v), d);
+const cls = v => v > 3 ? 'pos' : v < -3 ? 'neg' : '';
+const C = D.check, T = D.timing;
+
+// Tabla «cuando el panel dice X %, ¿pasa el X %?». La barra es lo que pasó; la marca negra, lo que decía el panel.
+function calib(rows) {
+  return `<div class="scroll"><table><thead><tr><th class="l">El panel decía</th><th>Casos</th><th>Media prevista</th><th>Pasó de verdad</th><th>Diferencia</th><th class="l">Previsto (marca) frente a real (barra)</th></tr></thead><tbody>${rows.map(r =>
+    `<tr><td class="l">Entre ${r[0]} % y ${r[1]} %</td><td>${nf(r[2])}</td><td>${nf(r[3], 1)} %</td><td class="strong">${nf(r[4], 1)} %</td><td class="${cls(r[4] - r[3])}">${signed(r[4] - r[3], 1)}</td><td class="l"><div class="bar"><i style="width:${r[4]}%"></i><b style="left:${r[3]}%"></b></div></td></tr>`).join('')}</tbody></table></div>`;
+}
+const worst = rows => Math.max(...rows.filter(r => r[2] >= 100).map(r => Math.abs(r[4] - r[3])));
+
+function render() {
+  const lv = [1, 2, 3].map(k => C.live[k]);
+  const dev = Math.max(worst(C.pre.bins), ...lv.map(x => worst(x.win)), ...lv.map(x => worst(x.hcap)));
+  const al = C.alerts;
+  let html = `<section class="panel">
+    <div class="verdict">${dev <= 6 ? 'Sí: las probabilidades del panel se cumplen.' : 'A medias: hay tramos donde el panel se desvía.'}</div>
+    <div>En ${nf(C.pre.n)} partidos de Euroliga, EuroCup y Liga Endesa desde 2021, cuando el panel da una probabilidad, lo que pasa se parece mucho: la mayor desviación en tramos con al menos 100 casos es de ${nf(dev, 1)} puntos porcentuales. Eso significa que la <strong>cuota justa</strong> que te da el panel es fiable como referencia.</div>
+    <div class="note warn"><strong>Lo que esto no demuestra:</strong> que se pueda ganar a la casa. El panel acierta sus probabilidades, pero solo hay beneficio si la casa te ofrece una cuota <em>mayor</em> que la justa, y no tenemos guardadas las cuotas en directo de baloncesto. Eso solo lo irá diciendo tu registro de apuestas en la página <a href="en-vivo.html">En vivo</a>, que ya separa el resultado por tipo de aviso.</div>
+  </section>
+
+  <section class="panel"><h2>Los avisos, reproducidos con el histórico</h2>
+    <div class="muted small">Se aplican las reglas de cada aviso al final de cada cuarto en todos los partidos jugados. La apuesta que se comprueba es la tuya: <strong>el equipo que va perdiendo, con un hándicap igual a su desventaja en ese momento</strong>.</div>
+    <div class="scroll"><table><thead><tr><th class="l">Aviso</th><th class="l">Momento</th><th>Casos</th><th>Recorta de media</th><th>El panel decía</th><th>Acertó</th><th>Cuota mínima para ganar</th><th>Cubrió el hándicap justo</th></tr></thead><tbody>${al.map(a =>
+      `<tr><td class="l w">${esc(a.kind)}</td><td class="l">${esc(a.when)}</td><td>${nf(a.n)}</td><td>${signed(a.rec, 1)}</td><td>${nf(a.pred, 1)} %</td><td class="strong">${nf(a.real, 1)} %</td><td class="strong">${nf(a.odds, 2)}</td><td>${nf(a.fair, 1)} %</td></tr>`).join('')}</tbody></table></div>
+    <div class="note">Lectura: con el hándicap igual a la desventaja se acierta en torno al ${nf(Math.min(...al.map(a => a.real)), 0)}-${nf(Math.max(...al.map(a => a.real)), 0)} % de las veces, que es justo lo que el panel preveía. Para ganar dinero, la casa tendría que darte por esa apuesta una cuota mayor que la «cuota mínima» de la tabla. Con el <strong>hándicap justo</strong> del panel (más corto), se acierta algo menos de la mitad (${nf(Math.min(...al.map(a => a.fair)), 0)}-${nf(Math.max(...al.map(a => a.fair)), 0)} %): los avisos no dan ventaja por sí solos frente al propio panel; señalan los momentos en que es más probable que la casa se pase de frenada. La ventaja, si existe, está en la diferencia entre su línea y la justa.</div>
+  </section>`;
+
+  if (T && T.levels && T.levels.length) html += `<section class="panel"><h2>Entrar y salir: qué pasa después de una gran ventaja</h2>
+    <div class="muted small">Con el marcador jugada a jugada de ${nf(T.n)} partidos de Euroliga y EuroCup. Se toma la <strong>primera vez</strong> que un equipo alcanza esa ventaja antes del minuto 30, ante un rival de su nivel o mejor.</div>
+    <div class="scroll"><table><thead><tr><th class="l">Ventaja alcanzada</th><th>Casos</th><th>Minuto típico</th><th>Ventaja al final</th><th>El que perdía cubre ese hándicap</th><th>Gana el partido</th><th>La desventaja se redujo a la mitad</th><th>Minutos hasta reducirse a la mitad</th><th>Antes creció 5+ puntos más</th></tr></thead><tbody>${T.levels.map(x =>
+      `<tr><td class="l strong">${x.L} puntos</td><td>${nf(x.n)}</td><td>${nf(x.t0, 0)}</td><td>${signed(x.final, 1)}</td><td class="strong">${nf(x.cover, 0)} %</td><td>${nf(x.win, 0)} %</td><td class="strong">${nf(x.halved, 0)} %</td><td>${nf(x.wait, 0)}</td><td>${nf(x.worse, 0)} %</td></tr>`).join('')}</tbody></table></div>
+    <div class="note"><strong>Para entrar:</strong> «antes creció 5+ puntos más» es el riesgo de entrar demasiado pronto: en ese porcentaje de casos la ventaja todavía aumentó al menos 5 puntos, así que habrías conseguido un hándicap mejor esperando.${T.peak ? ` La ventaja máxima de los partidos con 15 o más de diferencia suele llegar entre los minutos ${nf(T.peak.q1, 0)} y ${nf(T.peak.q3, 0)} (lo más habitual, el ${nf(T.peak.med, 0)}).` : ''} <strong>Para salir:</strong> «se redujo a la mitad» es la frecuencia con la que hubo una ocasión clara de cerrar con beneficio, y los minutos indican cuánto tardó en llegar.</div>
+  </section>`;
+  else html += `<section class="panel"><h2>Entrar y salir: qué pasa después de una gran ventaja</h2><div class="muted">El histórico jugada a jugada se está descargando poco a poco (${T ? nf(T.n) : 0} partidos hasta ahora). Este apartado aparecerá cuando haya suficientes.</div></section>`;
+
+  html += `<section class="panel"><h2>En directo: probabilidad de victoria</h2>
+    <div class="muted small">Al final de cada cuarto, con el marcador de ese momento. Se mira al equipo que el panel daba como ganador.</div>
+    ${lv.map(x => `<h3 style="font:600 17px var(--display);margin:8px 0 0">${esc(x.name)}</h3>${calib(x.win)}`).join('')}</section>
+
+  <section class="panel"><h2>En directo: hándicap del que va perdiendo</h2>
+    <div class="muted small">La apuesta «el que pierde, con hándicap igual a su desventaja». El panel le da una probabilidad distinta según el nivel de los equipos y el tiempo que queda.</div>
+    ${lv.map(x => `<h3 style="font:600 17px var(--display);margin:8px 0 0">${esc(x.name)}</h3>${calib(x.hcap)}
+      <div class="muted small">La diferencia final quedó por encima de la prevista el ${nf(x.over, 1)} % de las veces (lo ideal es 50 %) y dentro del margen de error del panel el ${nf(x.within, 1)} % (lo ideal es 68 %).</div>`).join('')}</section>
+
+  <section class="panel"><h2>En directo: total de puntos</h2>
+    <div class="muted small">El panel supone que el ritmo vuelve casi del todo a lo normal: del exceso de anotación solo se mantiene un ${nf(100 * D.consts.KT.c, 0)} %. Se compara su error con el de proyectar «al ritmo actual», que es lo que hace el ojo (y a veces la casa).</div>
+    <div class="scroll"><table><thead><tr><th class="l">Momento</th><th>Error medio del panel</th><th>Error medio «al ritmo actual»</th><th>Acabó por encima del total previsto</th><th>Dentro del margen del panel</th></tr></thead><tbody>${lv.map(x =>
+      `<tr><td class="l">${esc(x.name)}</td><td class="strong">${nf(x.t_mae_model, 1)} pts</td><td>${nf(x.t_mae_pace, 1)} pts</td><td>${nf(x.t_over, 1)} %</td><td>${nf(x.t_within, 1)} %</td></tr>`).join('')}</tbody></table></div>
+    <div class="note">Tras un primer cuarto disparado, proyectar el ritmo falla de media ${nf(lv[0].t_mae_pace, 0)} puntos; el panel, ${nf(lv[0].t_mae_model, 0)}. Si la casa sube mucho la línea de total después de un arranque anormal, el «menos de» es donde más diferencia puede haber.</div></section>
+
+  <section class="panel"><h2>Antes del partido</h2>
+    <div class="muted small">Probabilidad de victoria del favorito previsto en la página <a href="jornada.html">Jornada</a>. Error medio: ${nf(C.pre.mae_margin, 1)} puntos en la diferencia y ${nf(C.pre.mae_total, 1)} en el total.</div>
+    ${calib(C.pre.bins)}
+    <div class="scroll"><table><thead><tr><th class="l">Liga</th><th>Partidos</th><th>Factor campo</th><th>Peso del nivel</th><th>Error típico de la diferencia</th><th>Error típico del total</th></tr></thead><tbody>${Object.entries(D.pre).map(([lg, f]) =>
+      `<tr><td class="l">${esc(lg)}</td><td>${nf(f.n)}</td><td>${signed(f.h, 1)}</td><td>${nf(f.b, 2)}</td><td>±${nf(f.sd, 1)}</td><td>±${nf(f.sdt, 1)}</td></tr>`).join('')}</tbody></table></div></section>
+
+  <div class="muted small">Límites: las comprobaciones en directo usan el marcador al final de cada cuarto, no cada minuto. Las constantes del modelo se ajustaron con parte de estos mismos partidos, así que el acierto real con partidos nuevos puede ser algo peor. No se tienen en cuenta bajas ni lesiones.</div>`;
+  $('#view').innerHTML = html;
+  $('#status').textContent = 'Actualizado el ' + new Date(D.updated).toLocaleString('es-ES', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) + ' · se rehace cada día con los partidos nuevos';
+}
+render();
+})();
+</script>
+</body>
+</html>
