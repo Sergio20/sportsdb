@@ -264,9 +264,9 @@ def publish(snapshot):
 def vivo_data(games, bases):
     out = []
     for g in games:
-        st = g.get("st")
-        if g["comp"] != "A" or not st or not (st["live"] or st["final"] or g["start"] <= now() + dt.timedelta(hours=3)):
+        if g["comp"] != "A":
             continue
+        st = g.get("st") or dict(live=False, final=g["done"], hs=0, as_=0)     # aún sin leer: se anuncia con su hora
         bA, bB = bases["A"].get(g["hc"]), bases["A"].get(g["ac"])
         row = dict(home=g["home"], away=g["away"], start=g["start"].isoformat(), live=st["live"], final=st["final"], hs=st["hs"], as_=st["as_"],
                    q=st.get("q"), left=round(st["left"], 2) if st.get("left") is not None else None, alerts=[])
@@ -297,6 +297,8 @@ def watch(con, log_path, hours):
     for g in sorted(games, key=lambda g: g["start"]):
         print(f"  {g['start']:%H:%M} UTC · {COMP[g['comp']]} · {g['home']} - {g['away']}" + (" (ya jugado)" if g["done"] else ""), flush=True)
     loops, published, bg = 0, 0.0, None
+    if any(g["comp"] == "A" for g in games):      # la web muestra los partidos de Liga Endesa del día desde el arranque
+        publish(vivo_data(games, bases))
     while now() < deadline:
         pending = [g for g in games if not g["done"] and g["start"] < deadline]
         if not pending:     # nada más que vigilar en esta tanda: la siguiente se ocupa del resto
