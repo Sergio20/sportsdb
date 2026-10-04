@@ -68,7 +68,7 @@ function render() {
     <div class="note warn"><strong>Ojo:</strong> la casa también sabe que los cuartos vuelven a lo normal y no te ofrecerá como línea el cuarto anterior. Estas líneas dicen dónde debería estar la suya; hay valor solo si la que te ofrece se aleja de ahí y la cuota supera la mínima (1,25 · 1,11 · 1,05).</div>
   </section>`;
 
-  const SN = D.sent, KIND = { desfase: 'Desfase', ritmo: 'Ritmo insostenible', triples: 'Triples insostenibles', total: 'Total desfasado', cuarto: 'Cuarto anormal' };
+  const SN = D.sent, KIND = { desfase: 'Desfase', ritmo: 'Ritmo insostenible', triples: 'Triples insostenibles', total: 'Total desfasado', cuarto: 'Cuarto anormal', racha: 'Racha de cuartos' };
   const mark = (r, p) => r ? `<span class="${r[p] ? 'pos' : 'neg'}">${r[p] ? 'Sí' : 'No'}</span>` : '–';
   html += `<section class="panel"><h2>Avisos enviados de verdad por Telegram</h2>
     ${SN && SN.n ? `<div class="muted small">Lo que cuenta: avisos que saltaron en directo, antes de saber el resultado. ${nf(SN.n)} enviados, ${nf(SN.done)} con el partido ya terminado.</div>

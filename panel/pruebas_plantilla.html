@@ -52,7 +52,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&am
 const nf = (v, d) => v == null || !isFinite(v) ? '–' : Number(v).toLocaleString('es-ES', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0, useGrouping: 'always' });
 const eur = v => (v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v), 2) + ' €';
 const sgn = v => v > 0.005 ? 'pos' : v < -0.005 ? 'neg' : '';
-const KIND = { desfase: 'Desfase', ritmo: 'Ritmo insostenible', triples: 'Triples insostenibles', total: 'Total desfasado', cuarto: 'Cuarto anormal' };
+const KIND = { desfase: 'Desfase', ritmo: 'Ritmo insostenible', triples: 'Triples insostenibles', total: 'Total desfasado', cuarto: 'Cuarto anormal', racha: 'Racha de cuartos' };
 const COMP = { E: 'Euroliga', U: 'EuroCup', A: 'Liga Endesa' };
 const LINES = [['95', 'Línea del 95 %'], ['90', 'Línea del 90 %'], ['80', 'Línea del 80 %']];
 const CFG = D.bank_cfg || { stake: 500, odds: { 95: 1.175, 90: 1.275, 80: 1.4 }, min_odds: { 95: 1.05, 90: 1.11, 80: 1.25 } };
@@ -100,7 +100,7 @@ function render() {
       x.res ? ` <b class="${x.res[p] ? 'ok' : 'ko'}">${x.res[p] ? '✓' : '✗'}</b>` : ''}</div>`).join('');
     const g = x.res ? LINES.reduce((s, [p]) => s + gain(!!x.res[p], p), 0) : null;
     return `<tr><td class="l">${esc(when(x.ts))}</td><td class="l w">${esc(x.home)} – ${esc(x.away)}<div class="muted small">${esc(COMP[x.comp] || x.comp)}</div></td>
-      <td class="l">${esc(KIND[x.type] || x.type)}${x.level === 'fuerte' ? ' · fuerte' : ''}<div class="muted small">${x.type === 'cuarto' ? 'al acabar el minuto ' + nf(x.el) : 'minuto ' + nf(x.el)} · ${esc(x.score)}</div></td>
+      <td class="l">${esc(KIND[x.type] || x.type)}${x.level === 'fuerte' ? ' · fuerte' : ''}<div class="muted small">${(x.type === 'cuarto' || x.type === 'racha') ? 'al acabar el minuto ' + nf(x.el) : 'minuto ' + nf(x.el)} · ${esc(x.score)}</div></td>
       <td class="l w">${bets}</td><td>${x.res ? esc(x.final || '') : '<span class="muted">pendiente</span>'}</td><td class="${g == null ? '' : sgn(g)}">${g == null ? '–' : eur(g)}</td></tr>`; }).join('');
 
   $('#view').innerHTML = `

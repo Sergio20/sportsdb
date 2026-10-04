@@ -310,10 +310,13 @@ Q_RULES = {
     "tot_frio": dict(txt="un cuarto con 30 puntos o menos entre los dos", market="total", over=True),
     "tot_caliente": dict(txt="un cuarto con 54 puntos o más entre los dos", market="total", over=False),
     "paliza": dict(txt="un equipo pierde un cuarto por 10 o más", market="hcap", over=True),
+    # Idea de Sergio (scripts/patron_cuartos.py): el favorito que pierde dos cuartos seguidos reacciona en el siguiente
+    "racha": dict(txt="el favorito pierde dos cuartos seguidos", market="hcap", over=True),
     "mitad_fria": dict(txt="una primera parte con 66 puntos o menos", market="mitad", over=True),
     "mitad_caliente": dict(txt="una primera parte con 100 puntos o más", market="mitad", over=False),
 }
 Q_LEVELS = (80, 90, 95)
+RACHA_FAV = 0.5     # favorito = se espera que gane cada cuarto por 0,5 puntos o más (unos 2 por partido)
 
 
 def quarter_cases(games):
@@ -336,6 +339,10 @@ def quarter_cases(games):
                 if sign * (q[p][0] - q[p][1]) <= -10:
                     m_next = sign * (q[p + 1][0] - q[p + 1][1])
                     out.append(("paliza", g["season"], m_next - sign * exp_q, m_next > -5.5))
+                if (p >= 2 and sign * exp_q >= RACHA_FAV and sign * (q[p - 1][0] - q[p - 1][1]) < 0 and sign * (q[p][0] - q[p][1]) < 0
+                        and sign * (q[p][0] - q[p][1]) > -10):     # si perdió el último por 10+, ya avisa «paliza»
+                    m_next = sign * (q[p + 1][0] - q[p + 1][1])
+                    out.append(("racha", g["season"], m_next - sign * exp_q, m_next > 0))
             if tot <= 30:
                 out.append(("tot_frio", g["season"], nxt - g["usual"] / 4, nxt > tot))
             if tot >= 54:
@@ -445,7 +452,8 @@ def sent_log(con, path):
             where = "2.ª parte" if al["target"] == "mitad" else f"cuarto {al['target']}"
             bet = (f"hándicap de {team}" if al["market"] == "hcap" else f"puntos de {team}: {'más' if al['over'] else 'menos'} de" if al["market"] == "equipo"
                    else f"total: {'más' if al['over'] else 'menos'} de") + f" ({where})"
-            rows.append(dict(ts=e["ts"], comp=e["comp"], home=e["home"], away=e["away"], el=e["el"], score=e["score"], type="cuarto", level=al["level"],
+            rows.append(dict(ts=e["ts"], comp=e["comp"], home=e["home"], away=e["away"], el=e["el"], score=e["score"],
+                             type="racha" if al.get("sub") == "racha" else "cuarto", level=al["level"],
                              bet=bet, lines=al["lines"], hcap=al["market"] == "hcap", res=e.get("res"),
                              mk=dict(market=al["market"], team=team, over=bool(al.get("over")),
                                      period="la 2.ª parte" if al["target"] == "mitad" else f"el {int(al['target'])}.º cuarto"),

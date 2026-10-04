@@ -115,7 +115,12 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   cuartos seguidos gana el siguiente un 48 % frente al 44 % normal para su nivel (+4 puntos, igual en 2021-24 y 2024-27).
   Se concentra en el favorito (nivel +2 o más): gana el siguiente un 61 % frente al 56 %; su hándicap +3,5 en ese cuarto
   acierta 81 % (75 % sin la condición). Empate y luego gana A → A pierde el 3.º: +4 puntos (50 %). Prórroga tras perder
-  3.º y 4.º: 50 %, sin efecto. Pendiente: decidir si se convierte en aviso.
+  3.º y 4.º: 50 %, sin efecto. Convertido en el sexto aviso, «Racha de cuartos» (regla `racha` en `Q_RULES`, mismo
+  circuito que «Cuarto anormal»: tipo `cuarto`, `sub="racha"`; nombre con `avisos.name_of`): el favorito
+  (`RACHA_FAV`, se espera que gane cada cuarto por 0,5+) pierde dos cuartos seguidos (sin «paliza» en el último) → su
+  hándicap en el cuarto siguiente. 738 casos; con 2024+ fuera del ajuste acierta 83/92/97 %.
+  Otros candidatos medidos (sin convertir aún): favorito +6 que pierde al descanso gana la 2.ª parte 70 % (65 % normal);
+  quien gana de 20+ tras el 3.º pierde el 4.º un 45 % (38 % normal para su nivel).
 - `scripts/cronologia.py E2026 22 26`: un partido minuto a minuto (marcador, ritmo, máxima ventaja).
 - `scripts/remontadas.py`: estudio con el histórico de qué pasa cuando el favorito va perdiendo
   al final de cada cuarto (cuánto recupera, cuántas veces cubre +2,5…+8,5) y cuánto bajan los

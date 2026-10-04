@@ -115,7 +115,7 @@ def message(al, g, el, score):
     """Aviso completo: cabecera con el partido y el momento, y el cuerpo explícito de avisos.describe."""
     moment = (f"Final del {avisos.ORD[al['done']]} cuarto" if al["type"] == "cuarto"
               else f"Minuto {el:.0f} de partido ({avisos.ORD[min(4, int(el // 10) + 1)]} cuarto)")
-    return (f"🔔 {avisos.NAMES[al['type']].upper()} · {COMP[g['comp']]}\n{g['home']} {score} {g['away']}\n{moment} · detectado a las {local():%H:%M:%S}\n\n"
+    return (f"🔔 {avisos.name_of(al).upper()} · {COMP[g['comp']]}\n{g['home']} {score} {g['away']}\n{moment} · detectado a las {local():%H:%M:%S}\n\n"
             + avisos.describe(al, g["home"], g["away"]) + f"\n\nNinguna línea acierta siempre.\n{WEB}")
 
 
@@ -170,7 +170,7 @@ def quarter_step(g, st, base, rules, log, save):
         got = ((f"{team} ganó {what} por {value}" if value > 0 else f"{team} perdió {what} por {-value}" if value < 0 else f"{team} empató {what}")
                if al["market"] == "hcap" else f"{team} metió {value} puntos en {what}" if al["market"] == "equipo"
                else f"hubo {value} puntos entre los dos en {what}")
-        send(f"🏁 RESULTADO · CUARTO ANORMAL\n{g['home']} – {g['away']}\n\nAPOSTABAS A\n{avisos.bet_of(al, g['home'], g['away'])['market']}"
+        send(f"🏁 RESULTADO · {avisos.name_of(al).upper()}\n{g['home']} – {g['away']}\n\nAPOSTABAS A\n{avisos.bet_of(al, g['home'], g['away'])['market']}"
              + f"\n\nLO QUE PASÓ\n{got[0].upper() + got[1:]}.\n\n" + "\n".join(avisos.result_lines(al, e["res"], g["home"], g["away"])))
         save()
     el, bA, bB = st.get("el"), base.get(g["hc"]), base.get(g["ac"])
@@ -439,7 +439,7 @@ def vivo_data(games, bases):
             row["alerts"].append(dict(type=al["type"], level=al["level"], title=avisos.NAMES[al["type"]], text=avisos.describe(al, g["home"], g["away"])))
         out.append(row)
     # Avisos de cuarto anormal aún abiertos, de las tres ligas (la web no los calcula: los enseña tal cual)
-    quarters = [dict(comp=COMP[g["comp"]], home=g["home"], away=g["away"], score=e["score"], title="Cuarto anormal",
+    quarters = [dict(comp=COMP[g["comp"]], home=g["home"], away=g["away"], score=e["score"], title=avisos.name_of(e["alert"]),
                      text=avisos.describe(e["alert"], g["home"], g["away"]), ts=e["ts"])
                 for g in games for e in g["sent"].values() if e["alert"]["type"] == "cuarto" and not e.get("closed")]
     return dict(updated=now().isoformat(timespec="seconds"), games=out, cuartos=quarters)

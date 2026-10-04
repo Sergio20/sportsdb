@@ -19,7 +19,13 @@ TOTAL_GAP = 18                                      # total desfasado
 T3_ATT, T3_HOT, T3_COLD, T3_LEAD = 8, 1.5, -2.0, 8  # triples: intentos mínimos, z caliente, z frío, ventaja mínima
 SAFE = ((80, 0.8416), (90, 1.2816), (95, 1.6449))
 NAMES = {"desfase": "Desfase", "ritmo": "Ritmo insostenible", "triples": "Triples insostenibles", "total": "Total desfasado",
-         "cuarto": "Cuarto anormal"}
+         "cuarto": "Cuarto anormal", "racha": "Racha de cuartos"}
+RACHA_FAV = 0.5     # igual que analisis.RACHA_FAV: favorito si se espera que gane cada cuarto por 0,5 o más
+
+
+def name_of(al):
+    """Nombre del aviso para los mensajes: la racha de cuartos va con los de cuarto pero tiene nombre propio."""
+    return NAMES["racha"] if al.get("sub") == "racha" else NAMES[al["type"]]
 PLAYS = {"2FGM": ("m2", "a2", 2), "2FGA": (None, "a2", 0), "3FGM": ("m3", "a3", 3), "3FGA": (None, "a3", 0),
          "FTM": ("mf", "af", 1), "FTA": (None, "af", 0)}
 
@@ -145,6 +151,8 @@ def quarter_alerts(done, quarters, bA, bB, rules):
             add("eq_caliente", base["pf"] / 4, done + 1, s, pts=me, usual=round(base["pf"] / 4, 1))
         if s * (h - a) <= -10:
             add("paliza", s * exp_q, done + 1, s, pts=abs(h - a))
+        elif done >= 2 and s * exp_q >= RACHA_FAV and s * (h - a) < 0 and s * (quarters[done - 2][0] - quarters[done - 2][1]) < 0:
+            add("racha", s * exp_q, done + 1, s, pts=abs(h - a), prev=abs(quarters[done - 2][0] - quarters[done - 2][1]))
     if usual_q:
         if h + a <= 30:
             add("tot_frio", usual_q, done + 1, pts=h + a, usual=round(usual_q, 1))
@@ -204,6 +212,7 @@ FACTS = {
     "eq_frio": "ese equipo anotó más en el cuarto siguiente", "eq_caliente": "ese equipo anotó menos en el cuarto siguiente",
     "tot_frio": "el cuarto siguiente tuvo más puntos", "tot_caliente": "el cuarto siguiente tuvo menos puntos",
     "paliza": "ese equipo no perdió el cuarto siguiente por más de 5", "mitad_fria": "la 2.ª parte tuvo más puntos",
+    "racha": "el favorito ganó el cuarto siguiente",
     "mitad_caliente": "la 2.ª parte tuvo menos puntos",
 }
 
@@ -228,6 +237,8 @@ def bet_of(al, home, away):
         thing = "el partido" if al["type"] != "cuarto" else "la 2.ª parte" if al["target"] == "mitad" else "ese cuarto"
 
         def cond(line):
+            if line == 0.5:
+                return f"gana si {team} gana {thing} o lo empata"
             return (f"gana si {team} gana {thing}, o si lo pierde por {int(line - 0.5)} o menos" if line > 0
                     else f"gana solo si {team} gana {thing} por {int(-line + 0.5)} o más")
         return dict(market=f"HÁNDICAP de {team} en {scope}", way=None, team=team,
@@ -256,6 +267,7 @@ def what_happens(al, home, away):
             "tot_frio": f"Solo {al['pts']} puntos entre los dos en el {q} cuarto. Lo habitual son {u}.",
             "tot_caliente": f"{al['pts']} puntos entre los dos en el {q} cuarto. Lo habitual son {u}.",
             "paliza": f"{team} ha perdido el {q} cuarto por {al['pts']} puntos.",
+            "racha": f"{team}, el favorito, ha perdido dos cuartos seguidos: el {ORD[al['done'] - 1]} por {al.get('prev', '?')} y el {q} por {al['pts']}.",
             "mitad_fria": f"Primera parte con solo {al['pts']} puntos entre los dos. Lo habitual son {u} por mitad.",
             "mitad_caliente": f"Primera parte con {al['pts']} puntos entre los dos. Lo habitual son {u} por mitad.",
         }[al["sub"]] + f"\nEn el histórico ({al['n']} casos), el {num(al['fact'], 0)} % de las veces {FACTS[al['sub']]}."
