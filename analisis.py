@@ -433,6 +433,8 @@ def sent_log(con, path):
     for e in log:
         if "alert" not in e or e.get("anulado"):    # marcas del mensaje previo y avisos falsos por un fallo de la fuente
             continue
+        if e.get("score") == "0-0" and (e.get("el") or 0) >= 1:     # 0-0 pasado el minuto 1: lectura vacía de la fuente
+            continue
         r = con.execute("""SELECT m.home_score, m.away_score, m.status, m.date,
                                   (SELECT SUM(p.home + p.away) FROM periods p WHERE p.match_id = m.match_id AND p.period <= 4)
                            FROM matches m WHERE m.league = ? AND m.season_start = ? AND m.source_id = ?""",
