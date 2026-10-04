@@ -498,6 +498,9 @@ def watch(con, log_path, hours):
                 if unstarted_step(g, st, log, save):
                     g["st"] = st
                     continue
+                last = g.get("good") or {}
+                if st["final"] and last.get("A") and not (st.get("A") or {}).get("pts"):     # al acabar, acb.com a veces vacía las
+                    st["A"], st["B"] = last["A"], last["B"]                                # estadísticas: se dejan las últimas buenas
                 why = suspicious(g, st)
                 if why:
                     g["bad"] = g.get("bad", 0) + 1

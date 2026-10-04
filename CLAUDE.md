@@ -111,6 +111,11 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   el vigilante manda el resultado en cuanto termina el periodo apostado (`quarter_step`).
 - `scripts/repaso.py --desde AAAA-MM-DD`: repasa partidos ya jugados minuto a minuto con las
   mismas reglas de aviso del panel y dice qué hándicap se habría ganado con cada línea.
+- `scripts/patron_cuartos.py`: idea de Sergio de que los cuartos «se compensan». Con 7.727 partidos: quien pierde dos
+  cuartos seguidos gana el siguiente un 48 % frente al 44 % normal para su nivel (+4 puntos, igual en 2021-24 y 2024-27).
+  Se concentra en el favorito (nivel +2 o más): gana el siguiente un 61 % frente al 56 %; su hándicap +3,5 en ese cuarto
+  acierta 81 % (75 % sin la condición). Empate y luego gana A → A pierde el 3.º: +4 puntos (50 %). Prórroga tras perder
+  3.º y 4.º: 50 %, sin efecto. Pendiente: decidir si se convierte en aviso.
 - `scripts/cronologia.py E2026 22 26`: un partido minuto a minuto (marcador, ritmo, máxima ventaja).
 - `scripts/remontadas.py`: estudio con el histórico de qué pasa cuando el favorito va perdiendo
   al final de cada cuarto (cuánto recupera, cuántas veces cubre +2,5…+8,5) y cuánto bajan los
