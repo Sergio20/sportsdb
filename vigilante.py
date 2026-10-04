@@ -497,6 +497,8 @@ def watch(con, log_path, hours):
                     send(result_message(g, mine, st["hs"], st["as_"]))
                     for e in mine:
                         e["closed"] = True
+                        e["res"] = {str(k): ok for k, ok in avisos.settle(e["alert"], st["hs"], st["as_"]).items()}
+                        e["final"] = f"{st['hs']}-{st['as_']}"
                     log_path.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")
                 continue
             base = bases[g["comp"]]

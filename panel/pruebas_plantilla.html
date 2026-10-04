@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SportsDB · Banco de pruebas</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>
+/*CSS*/
+/* Una serie por línea de seguridad: mismo orden y color en la gráfica, las fichas y la tabla. */
+:root { --c95: #2a78d6; --c90: #eb6834; --c80: #1baf7a }
+@media (prefers-color-scheme: dark) { :root { --c95: #3987e5; --c90: #d95926; --c80: #199e70 } }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: baseline }
+.kpi .v { font: 700 30px/1.1 var(--display); font-variant-numeric: tabular-nums }
+.kpi .l { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-3) }
+.kpi .s { font-size: 13px; color: var(--fg-2) }
+.pos { color: var(--win) } .neg { color: var(--loss) }
+.odds { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center }
+.odds label { display: inline-flex; gap: 6px; align-items: center; font-weight: 500 }
+.odds input { width: 70px; font: 500 15px var(--body); padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg) }
+.chart { position: relative }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible }
+.chart .grid line { stroke: var(--line); stroke-width: 1 }
+.chart .axis text { fill: var(--fg-3); font: 12px var(--body) }
+.chart .zero { stroke: var(--fg-3); stroke-width: 1 }
+.chart .ser { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round }
+.chart .lab { font: 600 13px var(--body); fill: var(--fg) }
+.chart .xh { stroke: var(--fg-3); stroke-width: 1; stroke-dasharray: 3 3 }
+.chart .tip { transform: none; white-space: normal; color: var(--fg); position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,.12); min-width: 210px; z-index: 2 }
+.chart .tip .h { font-weight: 600; margin-bottom: 4px }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--fg-2) }
+td.ok { color: var(--win); font-weight: 600 } td.ko { color: var(--loss); font-weight: 600 }
+td.l.w { white-space: normal; min-width: 150px }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><div class="nav"><a href="./">Panel</a><a href="en-vivo.html">En vivo</a><a href="jornada.html">Jornada</a><a href="funciona.html">¿Funciona?</a><a href="pruebas.html" aria-current="page">Banco de pruebas</a></div>
+      <h1>Banco de pruebas: los avisos como si se hubieran apostado</h1><div class="muted small" id="status"></div></div>
+  </header>
+  <div id="view"></div>
+</div>
+<script>
+(function () {
+'use strict';
+const D = /*DATA*/{}/*END*/;
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const nf = (v, d) => v == null || !isFinite(v) ? '–' : Number(v).toLocaleString('es-ES', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
+const eur = v => (v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v), 2) + ' €';
+const sgn = v => v > 0.005 ? 'pos' : v < -0.005 ? 'neg' : '';
+const KIND = { desfase: 'Desfase', ritmo: 'Ritmo insostenible', triples: 'Triples insostenibles', total: 'Total desfasado', cuarto: 'Cuarto anormal' };
+const COMP = { E: 'Euroliga', U: 'EuroCup', A: 'Liga Endesa' };
+const LINES = [['95', 'Línea del 95 %'], ['90', 'Línea del 90 %'], ['80', 'Línea del 80 %']];
+const CFG = D.bank_cfg || { stake: 10, odds: { 95: 1.05, 90: 1.11, 80: 1.25 } };
+const ALL = (D.sent && D.sent.bank) || [];
+let odds = Object.assign({}, CFG.odds);
+try { const o = JSON.parse(localStorage.getItem('banco-cuotas') || 'null'); if (o) odds = Object.assign(odds, o); } catch (e) { /* sin memoria del navegador */ }
+
+const when = ts => new Date(ts).toLocaleString('es-ES', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+const lineTxt = (x, p) => { const v = x.lines[p]; if (v == null) return '–'; return x.hcap ? (v > 0 ? '+' : '') + nf(v, 1) : nf(v, 1); };
+const betTxt = x => x.type === 'cuarto' ? x.bet : x.type === 'total' ? 'total del partido: ' + x.bet : 'hándicap de ' + x.bet + ' (partido)';
+const gain = (ok, p) => ok ? CFG.stake * (odds[p] - 1) : -CFG.stake;
+
+function render() {
+  const done = ALL.filter(x => x.res), open = ALL.filter(x => !x.res);
+  if (!ALL.length) { $('#view').innerHTML = '<div class="panel"><div class="empty">Todavía no hay avisos enviados por Telegram.</div></div>'; return; }
+  // Totales por línea y balance acumulado apuesta a apuesta (en el orden en que saltaron los avisos)
+  const tot = {}, run = { 95: [0], 90: [0], 80: [0] };
+  for (const [p] of LINES) tot[p] = { n: 0, ok: 0, bal: 0 };
+  for (const x of done) for (const [p] of LINES) {
+    const ok = !!x.res[p]; tot[p].n++; tot[p].ok += ok; tot[p].bal += gain(ok, p); run[p].push(tot[p].bal); }
+  const promised = { 95: 95, 90: 90, 80: 80 };
+  const kpis = LINES.map(([p, name]) => { const t = tot[p], pct = t.n ? 100 * t.ok / t.n : null, staked = t.n * CFG.stake;
+    return `<div class="kpi"><div class="l"><span class="sw" style="background:var(--c${p})"></span>${name} · cuota ${nf(odds[p], 2)}</div>
+      <div class="v ${sgn(t.bal)}">${t.n ? eur(t.bal) : '–'}</div>
+      <div class="s">${t.n ? `${t.ok} de ${t.n} ganadas (${nf(pct, 0)} %; prometido ${promised[p]} %) · rendimiento ${staked ? (t.bal >= 0 ? '+' : '−') + nf(Math.abs(100 * t.bal / staked), 1) + ' %' : '–'} sobre ${nf(staked)} € apostados` : 'sin apuestas resueltas'}</div></div>`; }).join('');
+
+  // Por tipo de aviso
+  const types = [...new Set(done.map(x => x.type))];
+  const byType = types.map(k => { const xs = done.filter(x => x.type === k);
+    return `<tr><td class="l">${esc(KIND[k] || k)}</td><td>${xs.length}</td>${LINES.map(([p]) => { const ok = xs.filter(x => x.res[p]).length, b = xs.reduce((s, x) => s + gain(!!x.res[p], p), 0);
+      return `<td>${ok}/${xs.length}</td><td class="${sgn(b)}">${eur(b)}</td>`; }).join('')}</tr>`; }).join('');
+
+  // Registro completo: lo más reciente arriba
+  const rows = ALL.slice().reverse().map(x => {
+    const cells = LINES.map(([p]) => x.res ? `<td class="${x.res[p] ? 'ok' : 'ko'}">${lineTxt(x, p)} ${x.res[p] ? '✓' : '✗'}</td>` : `<td>${lineTxt(x, p)}</td>`).join('');
+    const g = x.res ? LINES.reduce((s, [p]) => s + gain(!!x.res[p], p), 0) : null;
+    return `<tr><td class="l">${esc(when(x.ts))}</td><td class="l w">${esc(x.home)} – ${esc(x.away)}<div class="muted small">${esc(COMP[x.comp] || x.comp)}</div></td>
+      <td class="l">${esc(KIND[x.type] || x.type)}${x.level === 'fuerte' ? ' · fuerte' : ''}<div class="muted small">${x.type === 'cuarto' ? 'al acabar el minuto ' + nf(x.el) : 'minuto ' + nf(x.el)} · ${esc(x.score)}</div></td>
+      <td class="l w">${esc(betTxt(x))}</td>${cells}<td>${x.res ? esc(x.final || '') : '<span class="muted">pendiente</span>'}</td><td class="${g == null ? '' : sgn(g)}">${g == null ? '–' : eur(g)}</td></tr>`; }).join('');
+
+  $('#view').innerHTML = `
+  <section class="panel">
+    <div class="muted">Prueba sin dinero. Cada aviso que el vigilante ha mandado por Telegram cuenta como si se hubiera apostado
+      <strong>${nf(CFG.stake)} €</strong> en cada una de sus tres líneas. Sale una cartera por línea, para ver cuál de las tres habría funcionado mejor.
+      Los avisos falsos por fallos de la fuente (el 0-0 del 3 de octubre) no cuentan.
+      Si un aviso pasa de moderado a fuerte, cuenta una sola vez, con las líneas del primer mensaje.</div>
+    <div class="odds"><span class="strong">Cuota supuesta:</span>${LINES.map(([p, name]) => `<label><span class="sw" style="background:var(--c${p})"></span>${name.replace('Línea del ', '')}
+      <input type="number" step="0.01" min="1.01" inputmode="decimal" data-p="${p}" value="${odds[p]}"></label>`).join('')}
+      <button class="seg" style="padding:6px 10px;cursor:pointer" id="reset">Volver a la cuota mínima</button></div>
+    <div class="muted small">Por defecto se usa la cuota mínima que pide cada aviso (1,05 / 1,11 / 1,25). Con esa cuota, ganar justo lo prometido deja el balance en 0:
+      si sale en positivo es que se ha acertado más de lo prometido. Las cuotas reales de la casa pueden ser mejores o peores; cámbialas arriba para ver qué pasaría.</div>
+  </section>
+  <div class="kpis">${kpis}</div>
+  <section class="panel"><h2>Balance acumulado</h2>
+    <div class="legend">${LINES.map(([p, name]) => `<span><span class="sw" style="background:var(--c${p})"></span>${name}</span>`).join('')}</div>
+    ${done.length ? '<div class="chart" id="chart"></div>' : '<div class="empty">Aún no hay ninguna apuesta resuelta.</div>'}
+    <div class="muted small">${done.length} apuestas resueltas${open.length ? ` y ${open.length} pendientes (se resuelven al acabar su partido o su cuarto)` : ''}. Eje horizontal: avisos en el orden en que saltaron.</div>
+  </section>
+  ${types.length ? `<section class="panel"><h2>Por tipo de aviso</h2><div class="scroll"><table><thead><tr><th class="l">Aviso</th><th>Apuestas</th>${LINES.map(([p]) => `<th>${p} %: ganadas</th><th>${p} %: balance</th>`).join('')}</tr></thead><tbody>${byType}</tbody></table></div></section>` : ''}
+  <section class="panel"><h2>Registro de apuestas simuladas</h2>
+    <div class="scroll"><table><thead><tr><th class="l">Cuándo</th><th class="l">Partido</th><th class="l">Aviso</th><th class="l">Apuesta</th>
+      <th><span class="sw" style="background:var(--c95)"></span>95 %</th><th><span class="sw" style="background:var(--c90)"></span>90 %</th><th><span class="sw" style="background:var(--c80)"></span>80 %</th><th>Resultado</th><th>Balance del aviso</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <div class="muted small">✓ ganada · ✗ perdida. En hándicap, la línea es la del equipo apostado. «Resultado»: marcador final o, en los de cuarto, el valor del periodo apostado.</div>
+  </section>`;
+  if (done.length) chart(run, done);
+  document.querySelectorAll('.odds input').forEach(i => i.addEventListener('change', () => {
+    const v = parseFloat(String(i.value).replace(',', '.')); if (v > 1) { odds[i.dataset.p] = v; save(); render(); } }));
+  $('#reset').addEventListener('click', () => { odds = Object.assign({}, CFG.odds); save(); render(); });
+}
+function save() { try { localStorage.setItem('banco-cuotas', JSON.stringify(odds)); } catch (e) { /* sin memoria del navegador */ } }
+
+// Gráfica de líneas: balance acumulado de cada cartera tras cada apuesta. Etiqueta directa al final de cada línea y cruz con detalle al pasar el ratón.
+function chart(run, done) {
+  const box = $('#chart'), W = Math.max(320, box.clientWidth), H = 300, m = { l: 56, r: 150, t: 12, b: 28 };
+  const n = done.length, all = [].concat(run[95], run[90], run[80]);
+  let lo = Math.min(0, ...all), hi = Math.max(0, ...all); if (hi - lo < 10) { hi += 5; lo -= 5; }
+  const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+  const x = i => m.l + (n ? i / n : 0) * (W - m.l - m.r), y = v => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
+  const step = niceStep((hi - lo) / 5), ticks = []; for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) ticks.push(v);
+  const xt = []; const xs = Math.max(1, Math.ceil(n / 8)); for (let i = 0; i <= n; i += xs) xt.push(i);
+  const path = p => run[p].map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ',' + y(v).toFixed(1)).join('');
+  // Etiquetas finales sin solaparse: se ordenan por altura y se separan al menos 16 px
+  const ends = ['95', '90', '80'].map(p => ({ p, v: run[p][n], yy: y(run[p][n]) })).sort((a, b) => a.yy - b.yy);
+  for (let i = 1; i < ends.length; i++) if (ends[i].yy - ends[i - 1].yy < 16) ends[i].yy = ends[i - 1].yy + 16;
+  box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Balance acumulado de cada línea tras cada apuesta simulada">
+    <g class="grid">${ticks.map(v => `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}"></line>`).join('')}</g>
+    <g class="axis">${ticks.map(v => `<text x="${m.l - 8}" y="${y(v) + 4}" text-anchor="end">${(v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v))} €</text>`).join('')}
+      ${xt.map(i => `<text x="${x(i)}" y="${H - 8}" text-anchor="middle">${i}</text>`).join('')}</g>
+    <line class="zero" x1="${m.l}" x2="${W - m.r}" y1="${y(0)}" y2="${y(0)}"></line>
+    ${['95', '90', '80'].map(p => `<path class="ser" d="${path(p)}" style="stroke:var(--c${p})"></path>`).join('')}
+    ${['95', '90', '80'].map(p => `<circle cx="${x(n)}" cy="${y(run[p][n])}" r="4" style="fill:var(--c${p});stroke:var(--surface);stroke-width:2"></circle>`).join('')}
+    ${ends.map(e => `<text class="lab" x="${x(n) + 10}" y="${e.yy + 4}">${e.p} %: ${eur(e.v)}</text>`).join('')}
+    <line class="xh" id="xh" y1="${m.t}" y2="${H - m.b}" x1="-10" x2="-10"></line>
+    <rect x="${m.l}" y="0" width="${W - m.l - m.r}" height="${H}" fill="transparent" id="hit"></rect></svg><div class="tip" id="tip" hidden></div>`;
+  const hit = $('#hit'), tip = $('#tip'), xh = $('#xh');
+  const move = ev => {
+    const r = box.querySelector('svg').getBoundingClientRect(), px = (ev.clientX - r.left) * W / r.width;
+    const i = Math.max(1, Math.min(n, Math.round((px - m.l) / (W - m.l - m.r) * n))), b = done[i - 1];
+    xh.setAttribute('x1', x(i)); xh.setAttribute('x2', x(i));
+    tip.innerHTML = `<div class="h">Apuesta ${i} · ${esc(when(b.ts))}</div><div>${esc(b.home)} – ${esc(b.away)}</div><div class="muted">${esc(KIND[b.type] || b.type)} · ${esc(betTxt(b))}</div>
+      ${['95', '90', '80'].map(p => `<div><span class="sw" style="background:var(--c${p})"></span>${p} %: ${b.res[p] ? 'ganada' : 'perdida'} · acumulado <strong>${eur(run[p][i])}</strong></div>`).join('')}`;
+    tip.hidden = false;
+    const left = x(i) * r.width / W; tip.style.left = Math.min(Math.max(0, left + 12), r.width - tip.offsetWidth) + 'px'; tip.style.top = '8px';
+  };
+  hit.addEventListener('mousemove', move); hit.addEventListener('mouseleave', () => { tip.hidden = true; xh.setAttribute('x1', -10); xh.setAttribute('x2', -10); });
+  hit.addEventListener('touchstart', e => move(e.touches[0]), { passive: true });
+}
+function niceStep(raw) { const p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p; return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p; }
+
+$('#status').textContent = 'Actualizado ' + new Date(D.updated).toLocaleString('es-ES') + ' · se rehace cada día y con cada versión nueva de la web.';
+render();
+let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(render, 200); });
+})();
+</script>
+</body>
+</html>

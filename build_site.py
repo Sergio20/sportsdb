@@ -6,6 +6,7 @@
     _site/en-vivo.html   panel de partidos en directo (export_live.py)
     _site/jornada.html   previsión pre-partido de los próximos días (export_informes.py)
     _site/funciona.html  comprobación del modelo con el histórico (export_informes.py)
+    _site/pruebas.html   banco de pruebas: avisos de Telegram como apuestas simuladas (export_informes.py)
 """
 from __future__ import annotations
 
@@ -51,14 +52,14 @@ def build(db=DEFAULT_DB, out=ROOT / "_site"):
     panel = (ROOT / "panel" / "index.html").read_text(encoding="utf-8")
     assert LIVE_LINK in panel, "no se encuentra la barra de pestañas del panel"
     panel = panel.replace(LIVE_LINK, LIVE_LINK + '\n    <a href="en-vivo.html">En vivo</a>\n    <a href="jornada.html">Jornada</a>'
-                                                 '\n    <a href="funciona.html">¿Funciona?</a>')
+                                                 '\n    <a href="funciona.html">¿Funciona?</a>\n    <a href="pruebas.html">Banco de pruebas</a>')
     (out / "index.html").write_text(HEAD + panel + "</body></html>", encoding="utf-8")
     export_panel.export(db, out / "data.json")
     live = export_live.export(db, out / "en-vivo.html")
     html = live.read_text(encoding="utf-8")
     html = html.replace('<meta name="viewport"', '<meta name="robots" content="noindex,nofollow">\n<meta name="viewport"', 1)
     html = html.replace('<div><h1>SportsDB en vivo</h1>', '<div><div class="nav"><a href="./">Panel</a><a href="en-vivo.html" aria-current="page">En vivo</a>'
-                        '<a href="jornada.html">Jornada</a><a href="funciona.html">¿Funciona?</a></div><h1>SportsDB en vivo</h1>', 1)
+                        '<a href="jornada.html">Jornada</a><a href="funciona.html">¿Funciona?</a><a href="pruebas.html">Banco de pruebas</a></div><h1>SportsDB en vivo</h1>', 1)
     html = html.replace("</style>", export_informes.NAV_CSS + "\n</style>", 1)
     live.write_text(html, encoding="utf-8")
     export_informes.export(db, out)

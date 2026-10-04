@@ -450,11 +450,14 @@ def sent_log(con, path):
                              final=str(e.get("value")) if e.get("res") else (f"{r[0]}-{r[1]}" if r and r[2] == "played" else None)))
             continue
         row = dict(ts=e["ts"], comp=e["comp"], home=e["home"], away=e["away"], el=e["el"], score=e["score"], type=al["type"], level=al["level"],
+                   upgraded=bool(e.get("upgraded")),
                    bet=("menos de" if al.get("under") else "más de") if al["type"] == "total" else (e["home"] if al["side"] > 0 else e["away"]),
                    lines=al["lines"], hcap=al["type"] != "total", res=None, final=None)
         if r and r[2] == "played" and r[0] is not None:
             row["res"] = {str(p): ok for p, ok in avisos.settle({**al, "lines": {int(p): v for p, v in al["lines"].items()}}, r[0], r[1], r[4]).items()}
             row["final"] = f"{r[0]}-{r[1]}"
+        elif e.get("res"):      # la base aún no tiene el resultado: vale el que anotó el vigilante al acabar el partido
+            row["res"], row["final"] = e["res"], e.get("final")
         rows.append(row)
     done = [x for x in rows if x["res"]]
     by = {}
@@ -463,7 +466,28 @@ def sent_log(con, path):
         b["n"] += 1
         for p in ("80", "90", "95"):
             b["s" + p] += int(x["res"][p])
-    return dict(rows=rows[::-1][:200], n=len(rows), done=len(done), by=by)
+    return dict(rows=rows[::-1][:200], n=len(rows), done=len(done), by=by, bank=sorted(rows, key=lambda x: x["ts"]))
+
+
+# Banco de pruebas: cada aviso enviado por Telegram cuenta como una apuesta simulada de STAKE € en cada una de sus
+# tres líneas, a la cuota mínima que pide el aviso (con esa cuota, acertar justo lo prometido deja el balance en 0).
+STAKE, MIN_ODDS = 10, {"95": 1.05, "90": 1.11, "80": 1.25}
+
+
+def save_bank(con, sent):
+    """Guarda el banco de pruebas en la base (tabla banco_pruebas): una fila por aviso y línea."""
+    con.execute("DROP TABLE IF EXISTS banco_pruebas")
+    con.execute("""CREATE TABLE banco_pruebas (fecha TEXT, liga TEXT, partido TEXT, aviso TEXT, nivel TEXT, minuto REAL,
+                   marcador TEXT, apuesta TEXT, linea_de TEXT, linea REAL, cuota REAL, importe REAL, resultado TEXT, ganancia REAL, final TEXT)""")
+    liga = {"E": "Euroliga", "U": "EuroCup", "A": "Liga Endesa"}
+    for x in (sent or {}).get("bank") or []:
+        for p in ("95", "90", "80"):
+            ok = (x["res"] or {}).get(p)
+            gain = None if ok is None else round(STAKE * (MIN_ODDS[p] - 1), 2) if ok else -STAKE
+            con.execute("INSERT INTO banco_pruebas VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (x["ts"], liga[x["comp"]], f"{x['home']} – {x['away']}", x["type"], x["level"], x["el"], x["score"], x["bet"],
+                         p, x["lines"].get(p), MIN_ODDS[p], STAKE, "pendiente" if ok is None else "ganada" if ok else "perdida", gain, x["final"]))
+    con.commit()
 
 
 def build(con, today=None, log_path=None):

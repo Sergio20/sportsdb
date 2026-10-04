@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Genera las páginas «Jornada» (previsión pre-partido) y «¿Funciona?» (comprobación del modelo).
+"""Genera las páginas «Jornada» (previsión pre-partido), «¿Funciona?» (comprobación del modelo) y «Banco de pruebas»
+(cada aviso enviado por Telegram tratado como una apuesta simulada).
 
 Los números salen de analisis.py; aquí solo se incrustan en las plantillas de panel/.
 
@@ -17,7 +18,7 @@ import analisis
 from sportsdb.common import DEFAULT_DB
 
 ROOT = Path(__file__).resolve().parent
-PAGES = {"jornada.html": "jornada_plantilla.html", "funciona.html": "funciona_plantilla.html"}
+PAGES = {"jornada.html": "jornada_plantilla.html", "funciona.html": "funciona_plantilla.html", "pruebas.html": "pruebas_plantilla.html"}
 NAV_CSS = (".nav { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-bottom: 6px; font-size: 14px }\n"
            ".nav a { color: var(--fg-2); text-decoration: none; font-weight: 600 }\n"
            ".nav a:hover, .nav a[aria-current] { color: var(--accent) }\n"
@@ -35,6 +36,8 @@ def export(db=DEFAULT_DB, out=None):
     out = Path(out) if out else db.parent
     con = sqlite3.connect(db)
     data = analisis.build(con, log_path=db.parent / "avisos.json")
+    analisis.save_bank(con, data.get("sent"))
+    data["bank_cfg"] = dict(stake=analisis.STAKE, odds=analisis.MIN_ODDS)
     con.close()
     css, blob = shared_css(), json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     for page, tpl in PAGES.items():
