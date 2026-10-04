@@ -119,8 +119,10 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   circuito que «Cuarto anormal»: tipo `cuarto`, `sub="racha"`; nombre con `avisos.name_of`): el favorito
   (`RACHA_FAV`, se espera que gane cada cuarto por 0,5+) pierde dos cuartos seguidos (sin «paliza» en el último) → su
   hándicap en el cuarto siguiente. 738 casos; con 2024+ fuera del ajuste acierta 83/92/97 %.
-  Otros candidatos medidos (sin convertir aún): favorito +6 que pierde al descanso gana la 2.ª parte 70 % (65 % normal);
-  quien gana de 20+ tras el 3.º pierde el 4.º un 45 % (38 % normal para su nivel).
+  Criterio de Sergio para nuevos avisos: solo si la línea acierta 85 % o más, comprobado con temporadas que no
+  intervienen, y más que la misma apuesta sin la anomalía. Descartados con ese criterio: favorito +6 que pierde al
+  descanso → hándicap 2.ª parte (84 % con la línea del 85 %); quien gana de 20+ tras el 3.º → hándicap del rival en el
+  4.º (con todas las ligas 88 %, pero en Liga Endesa/Euroliga/EuroCup y 2024+ solo 84 % y 86 % con las líneas del 85/90).
 - `scripts/cronologia.py E2026 22 26`: un partido minuto a minuto (marcador, ritmo, máxima ventaja).
 - `scripts/remontadas.py`: estudio con el histórico de qué pasa cuando el favorito va perdiendo
   al final de cada cuarto (cuánto recupera, cuántas veces cubre +2,5…+8,5) y cuánto bajan los
