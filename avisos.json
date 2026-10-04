@@ -1,0 +1,288 @@
+[
+ {
+  "agenda": [
+   "2026-10-03|Asisa Joventut|MoraBanc Andorra",
+   "2026-10-03|Unicaja|La Laguna Tenerife",
+   "2026-10-03|Kids&Us Manresa|Río Breogán"
+  ],
+  "ts": "2026-10-03T13:40:13+00:00"
+ },
+ {
+  "ts": "2026-10-03T17:45:41+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105385,
+  "home": "Unicaja",
+  "away": "La Laguna Tenerife",
+  "key": "total:o",
+  "el": 8.2,
+  "score": "18-12",
+  "alert": {
+   "type": "total",
+   "under": false,
+   "level": "moderado",
+   "pace": 147,
+   "usual": 177,
+   "lines": {
+    "80": 159.5,
+    "90": 153.5,
+    "95": 148.5
+   }
+  },
+  "upgraded": true,
+  "closed": true
+ },
+ {
+  "ts": "2026-10-03T19:15:14+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105386,
+  "home": "Kids&Us Manresa",
+  "away": "Río Breogán",
+  "key": "ritmo:-1",
+  "el": 6.4,
+  "score": "22-9",
+  "alert": {
+   "type": "ritmo",
+   "side": -1,
+   "level": "fuerte",
+   "deficit": 13,
+   "lines": {
+    "80": 20.5,
+    "90": 25.5,
+    "95": 29.5
+   },
+   "pace": 138,
+   "usual": 87
+  },
+  "closed": true
+ },
+ {
+  "ts": "2026-10-03T19:23:06+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105386,
+  "home": "Kids&Us Manresa",
+  "away": "Río Breogán",
+  "key": "total:u",
+  "el": 9.1,
+  "score": "25-24",
+  "alert": {
+   "type": "total",
+   "under": true,
+   "level": "moderado",
+   "pace": 215,
+   "usual": 183,
+   "lines": {
+    "80": 207.5,
+    "90": 213.5,
+    "95": 218.5
+   }
+  },
+  "closed": true
+ },
+ {
+  "ts": "2026-10-03T19:25:44+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105386,
+  "home": "Kids&Us Manresa",
+  "away": "Río Breogán",
+  "key": "total:o",
+  "el": 10.0,
+  "score": "0-0",
+  "alert": {
+   "type": "total",
+   "under": false,
+   "level": "fuerte",
+   "pace": 0,
+   "usual": 183,
+   "lines": {
+    "80": 117.5,
+    "90": 111.5,
+    "95": 106.5
+   }
+  },
+  "closed": true
+ },
+ {
+  "ts": "2026-10-03T19:53:27+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105386,
+  "home": "Kids&Us Manresa",
+  "away": "Río Breogán",
+  "key": "cuarto:paliza:2:1",
+  "el": 20,
+  "score": "40-51",
+  "alert": {
+   "type": "cuarto",
+   "sub": "paliza",
+   "market": "hcap",
+   "over": true,
+   "side": 1,
+   "done": 2,
+   "target": 3,
+   "level": "fuerte",
+   "lines": {
+    "80": 5.5,
+    "90": 8.5,
+    "95": 11.5
+   },
+   "fact": 79.1,
+   "n": 2403,
+   "pts": 14
+  },
+  "closed": true,
+  "res": {
+   "80": false,
+   "90": false,
+   "95": true
+  },
+  "value": -11
+ },
+ {
+  "ts": "2026-10-03T20:36:22+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105386,
+  "home": "Kids&Us Manresa",
+  "away": "Río Breogán",
+  "key": "ritmo:1",
+  "el": 29.1,
+  "score": "66-82",
+  "alert": {
+   "type": "ritmo",
+   "side": 1,
+   "level": "moderado",
+   "deficit": 16,
+   "lines": {
+    "80": 20.5,
+    "90": 23.5,
+    "95": 25.5
+   },
+   "pace": 113,
+   "usual": 93
+  },
+  "upgraded": true,
+  "closed": true
+ },
+ {
+  "ts": "2026-10-03T20:38:53+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105386,
+  "home": "Kids&Us Manresa",
+  "away": "Río Breogán",
+  "key": "cuarto:paliza:3:1",
+  "el": 30,
+  "score": "67-89",
+  "alert": {
+   "type": "cuarto",
+   "sub": "paliza",
+   "market": "hcap",
+   "over": true,
+   "side": 1,
+   "done": 3,
+   "target": 4,
+   "level": "fuerte",
+   "lines": {
+    "80": 5.5,
+    "90": 8.5,
+    "95": 11.5
+   },
+   "fact": 79.1,
+   "n": 2403,
+   "pts": 11
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 16
+ },
+ {
+  "ts": "2026-10-03T20:38:53+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105386,
+  "home": "Kids&Us Manresa",
+  "away": "Río Breogán",
+  "key": "cuarto:eq_caliente:3:-1",
+  "el": 30,
+  "score": "67-89",
+  "alert": {
+   "type": "cuarto",
+   "sub": "eq_caliente",
+   "market": "equipo",
+   "over": false,
+   "side": -1,
+   "done": 3,
+   "target": 4,
+   "level": "fuerte",
+   "lines": {
+    "80": 28.5,
+    "90": 31.5,
+    "95": 33.5
+   },
+   "fact": 95.1,
+   "n": 1150,
+   "pts": 38,
+   "usual": 23.1
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 12
+ },
+ {
+  "ts": "2026-10-03T20:38:54+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105386,
+  "home": "Kids&Us Manresa",
+  "away": "Río Breogán",
+  "key": "cuarto:tot_caliente:3:None",
+  "el": 30,
+  "score": "67-89",
+  "alert": {
+   "type": "cuarto",
+   "sub": "tot_caliente",
+   "market": "total",
+   "over": false,
+   "side": null,
+   "done": 3,
+   "target": 4,
+   "level": "fuerte",
+   "lines": {
+    "80": 54.5,
+    "90": 58.5,
+    "95": 61.5
+   },
+   "fact": 93.3,
+   "n": 655,
+   "pts": 65,
+   "usual": 45.7
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 40
+ },
+ {
+  "agenda": [
+   "2026-10-04|iLERNA Lleida|Recoletas Salud San Pablo Burgos",
+   "2026-10-04|Leyma Coruña|Surne Bilbao",
+   "2026-10-04|Monbus Obradoiro|Real Madrid"
+  ],
+  "ts": "2026-10-04T00:28:33+00:00"
+ }
+]
