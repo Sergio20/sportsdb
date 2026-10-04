@@ -522,7 +522,7 @@ function shootingTable(h, A, B, a, b) {
     <tr><th class="l"></th><th>Hoy</th><th>Habitual</th><th>Dif.</th><th>Hoy</th><th>Habitual</th><th>Dif.</th></tr></thead><tbody>
     ${row('Tiros de 2', 'p2', 1, ' %', frac('FieldGoalsMade2', 'FieldGoalsAttempted2'))}${row('Triples', 'p3', 1, ' %', frac('FieldGoalsMade3', 'FieldGoalsAttempted3'))}${row('Tiros libres', 'ft', 1, ' %', frac('FreeThrowsMade', 'FreeThrowsAttempted'))}
     ${row('Acierto efectivo (eFG)', 'efg', 1, ' %')}${row('Tiros que son triples', 'r3', 1, ' %')}${row('Puntos por posesión', 'ppp', 2, '')}</tbody></table></div>
-    <div class="muted small">Habitual = media de sus últimos ${bA ? bA.n : '–'} y ${bB ? bB.n : '–'} partidos de Euroliga y EuroCup en la base de datos. El acierto efectivo cuenta cada triple como 1,5 canastas. Una diferencia grande, sobre todo en triples, tiende a corregirse durante el partido.</div>`;
+    <div class="muted small">Habitual = media de sus últimos ${bA ? bA.n : '–'} y ${bB ? bB.n : '–'} partidos de ${S.comp === 'A' ? 'Liga Endesa' : 'Euroliga y EuroCup'} en la base de datos${S.comp === 'A' ? '. Los datos de hoy son los de la ficha oficial de acb.com' : ''}. El acierto efectivo cuenta cada triple como 1,5 canastas. Una diferencia grande, sobre todo en triples, tiende a corregirse durante el partido.</div>`;
 }
 function statsTable(h, A, B) {
   const rows = [['Rebotes ofensivos', 'OffensiveRebounds'], ['Rebotes defensivos', 'DefensiveRebounds'], ['Asistencias', 'Assistances'], ['Pérdidas', 'Turnovers'], ['Robos', 'Steals'], ['Tapones', 'BlocksFavour'], ['Faltas', 'FoulsCommited'], ['Valoración', 'Valuation']];
