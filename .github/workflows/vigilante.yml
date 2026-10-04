@@ -87,4 +87,23 @@ jobs:
         if: always() && (github.event_name == 'schedule' || github.event.inputs.modo == 'vigilar')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run vigilante.yml --repo "${{ github.repository }}" -f modo=vigilar
+        run: |
+          for wait in 0 10 30 60 120; do
+            sleep "$wait"
+            if gh workflow run vigilante.yml --repo "${{ github.repository }}" -f modo=vigilar; then exit 0; fi
+          done
+          echo "cadena=rota" >> "$GITHUB_ENV"
+          exit 1
+
+      # Si algo ha ido mal, aviso por Telegram en el momento (no hay que descubrirlo mirando la web).
+      - name: Avisar por Telegram si algo ha fallado
+        if: failure() && (github.event_name == 'schedule' || github.event.inputs.modo == 'vigilar')
+        run: |
+          [ -n "$TELEGRAM_TOKEN" ] || exit 0
+          if [ "$cadena" = "rota" ]; then
+            msg="⚠️ EL VIGILANTE NO HA PODIDO LANZAR LA SIGUIENTE TANDA. El respaldo de cada hora lo volverá a arrancar; si en una hora no llegan avisos, revisa: ${{ github.server_url }}/${{ github.repository }}/actions"
+          else
+            msg="⚠️ UNA TANDA DEL VIGILANTE HA FALLADO. La siguiente ya se ha lanzado. Detalle: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi
+          curl -sS -o /dev/null -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" --data-urlencode "text=${msg}" || true

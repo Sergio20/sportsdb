@@ -90,6 +90,11 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   cero al cambiar de cuarto o una copia vieja (marcador/reloj/tiros hacia atrás). Esas lecturas se descartan y no
   generan avisos (el 3-10-2026 salieron dos «Total desfasado» con 0-0 por esto). Una bajada repetida 4 veces se acepta
   (corrección del acta). `analisis.sent_log` ignora avisos con `anulado` o con 0-0 pasado el minuto 1.
+- Vigilancia de la vigilancia (todo por Telegram, para enterarse al momento): «HE ESTADO SIN VIGILAR» si una tanda
+  arranca más de 10 min después de acabar la anterior con partidos en juego (`gap_step`, marca `tanda_fin` en
+  `avisos.json`); «NO PUEDO LEER» si un partido falla 12 lecturas seguidas (y «Vuelvo a leer bien»); aviso si una tanda
+  falla o no se puede lanzar la siguiente (pasos finales de `vigilante.yml`, con 5 reintentos). Cada partido se revisa
+  en su propio `try`: un error con uno no para los demás. `send` reintenta 4 veces.
 - Partidos aplazados (`unstarted_step` en `vigilante.py`): si la ficha de acb.com dice aplazado (estado o fecha
   cambiada) manda «PARTIDO APLAZADO» por Telegram y deja de vigilarlo; si cualquier partido sigue sin empezar 40 min
   después de su hora (`LATE`) manda «¿PARTIDO APLAZADO?», lo revisa cada 3 min y avisa si arranca; a las 2 h 30

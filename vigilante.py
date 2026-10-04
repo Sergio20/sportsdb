@@ -76,15 +76,19 @@ def send(text):
     if not token or not chat:
         print("  (Telegram sin configurar: el mensaje no se ha enviado)", flush=True)
         return False
-    try:
-        r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage", timeout=30,
-                          json={"chat_id": chat, "text": text, "disable_web_page_preview": True})
-        if r.status_code != 200:
+    for wait in (0, 3, 10, 30):         # un corte momentáneo no puede costar un aviso: hasta 4 intentos
+        time.sleep(wait)
+        try:
+            r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage", timeout=30,
+                              json={"chat_id": chat, "text": text, "disable_web_page_preview": True})
+            if r.status_code == 200:
+                return True
             print(f"  Telegram ha rechazado el mensaje (código {r.status_code})", flush=True)
-        return r.status_code == 200
-    except requests.RequestException:
-        print("  no se ha podido contactar con Telegram", flush=True)
-        return False
+            if r.status_code in (400, 401, 403):    # mensaje o credenciales no válidos: reintentar no sirve
+                return False
+        except requests.RequestException:
+            print("  no se ha podido contactar con Telegram", flush=True)
+    return False
 
 
 def elapsed(h):
@@ -341,6 +345,21 @@ def suspicious(g, st):
 DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 
 
+def gap_step(gap, g, st, games):
+    """Si la tanda anterior acabó hace más de 10 minutos y hay partidos en juego, ha habido un rato sin vigilar
+    (GitHub lanzó tarde esta tanda, o la anterior se cayó). Se avisa por Telegram, una vez, para que se sepa."""
+    if gap["told"] or not gap["since"] or not st["live"] or now() - gap["since"] < dt.timedelta(minutes=10):
+        return
+    if g["start"] > now() - dt.timedelta(minutes=5):      # recién empezado: no se ha perdido nada
+        return
+    gap["told"] = True
+    live = [x for x in games if (x.get("good") or {}).get("live")]
+    send(f"⚠️ HE ESTADO SIN VIGILAR de las {local(gap['since']):%H:%M} a las {local():%H:%M}\n"
+         "GitHub no lanzó a tiempo la tanda del vigilante (o la anterior se cayó). Ya estoy vigilando otra vez.\n"
+         "Partidos en juego ahora: " + ", ".join(f"{x['home']} – {x['away']}" for x in live)
+         + ".\nLos avisos de ese rato no se han podido mandar; los de cuarto anormal de los cuartos ya acabados tampoco.")
+
+
 def unstarted_step(g, st, log, save):
     """Partido que no arranca a su hora. Avisa por Telegram una sola vez: «aplazado» si la ficha oficial lo dice y
     «¿aplazado?» si LATE minutos después sigue sin empezar (la fuente no siempre lo marca). Si luego arranca, avisa
@@ -448,6 +467,9 @@ def watch(con, log_path, hours):
     for g in sorted(games, key=lambda g: g["start"]):
         print(f"  {g['start']:%H:%M} UTC · {COMP[g['comp']]} · {g['home']} - {g['away']}" + (" (ya jugado)" if g["done"] else ""), flush=True)
     loops, published, bg, was_open = 0, 0.0, None, False
+    # ¿Cuándo acabó la tanda anterior? Si hubo un hueco y ahora hay partidos en juego, se avisa una vez (gap_step).
+    last = max((e["tanda_fin"] for e in log if "tanda_fin" in e), default=None)
+    gap = {"since": dt.datetime.fromisoformat(last) if last else None, "told": False}
     if any(g["comp"] == "A" for g in games):      # la web muestra los partidos de Liga Endesa del día desde el arranque
         publish(vivo_data(games, bases))
     while now() < deadline:
@@ -466,62 +488,80 @@ def watch(con, log_path, hours):
         n_acb = sum(g["comp"] == "A" for g in soon)
         every = max(MIN_EVERY, PER_EURO * (len(soon) - n_acb), PER_ACB * n_acb) + pace["extra"]
         for g in soon:
-            if g.get("slow_until", 0) > time.time():
-                continue
-            st = (state_acb if g["comp"] == "A" else state_euro)(g)
-            if not st:
-                continue
-            if unstarted_step(g, st, log, save):
-                g["st"] = st
-                continue
-            why = suspicious(g, st)
-            if why:
-                g["bad"] = g.get("bad", 0) + 1
-                print(f"  {now():%H:%M:%S} {g['home'][:14]}: lectura descartada ({why})", flush=True)
-                # Hacia atrás varias veces seguidas = corrección real del acta (p. ej. un triple que era de 2): se acepta.
-                # Estadísticas vacías o que no cuadran con el marcador: nunca.
-                if g["bad"] < 4 or "atrás" not in why:
-                    continue
-            g["bad"], g["good"] = 0, st
-            if st["live"] and (st["hs"], st["as_"]) != (g.get("st") or {}).get("score"):   # rastro para medir la frescura de la fuente
-                print(f"  {now():%H:%M:%S} {g['home'][:14]} {st['hs']}-{st['as_']} {g['away'][:14]} · min {st.get('el') or 0:.1f}", flush=True)
-            st["score"] = (st["hs"], st["as_"])
-            g["st"], g["live_alerts"] = st, []
+            failed = False
             try:
-                quarter_step(g, st, bases[g["comp"]], rules, log, save)
-            except Exception as e:      # un fallo aquí no debe tumbar el resto de avisos
-                print(f"  aviso de cuarto: {e}", flush=True)
-            if st["final"]:
-                g["done"] = True
-                mine = [e for e in g["sent"].values() if e["alert"]["type"] != "cuarto"]
-                if mine and not any(e.get("closed") for e in mine):
-                    send(result_message(g, mine, st["hs"], st["as_"]))
-                    for e in mine:
-                        e["closed"] = True
-                        e["res"] = {str(k): ok for k, ok in avisos.settle(e["alert"], st["hs"], st["as_"]).items()}
-                        e["final"] = f"{st['hs']}-{st['as_']}"
+                if g.get("slow_until", 0) > time.time():
+                    continue
+                st = (state_acb if g["comp"] == "A" else state_euro)(g)
+                if not st:
+                    continue
+                if unstarted_step(g, st, log, save):
+                    g["st"] = st
+                    continue
+                why = suspicious(g, st)
+                if why:
+                    g["bad"] = g.get("bad", 0) + 1
+                    print(f"  {now():%H:%M:%S} {g['home'][:14]}: lectura descartada ({why})", flush=True)
+                    # Hacia atrás varias veces seguidas = corrección real del acta (p. ej. un triple que era de 2): se acepta.
+                    # Estadísticas vacías o que no cuadran con el marcador: nunca.
+                    if g["bad"] < 4 or "atrás" not in why:
+                        continue
+                g["bad"], g["good"] = 0, st
+                gap_step(gap, g, st, games)
+                if st["live"] and (st["hs"], st["as_"]) != (g.get("st") or {}).get("score"):   # rastro para medir la frescura de la fuente
+                    print(f"  {now():%H:%M:%S} {g['home'][:14]} {st['hs']}-{st['as_']} {g['away'][:14]} · min {st.get('el') or 0:.1f}", flush=True)
+                st["score"] = (st["hs"], st["as_"])
+                g["st"], g["live_alerts"] = st, []
+                try:
+                    quarter_step(g, st, bases[g["comp"]], rules, log, save)
+                except Exception as e:      # un fallo aquí no debe tumbar el resto de avisos
+                    print(f"  aviso de cuarto: {e}", flush=True)
+                if st["final"]:
+                    g["done"] = True
+                    mine = [e for e in g["sent"].values() if e["alert"]["type"] != "cuarto"]
+                    if mine and not any(e.get("closed") for e in mine):
+                        send(result_message(g, mine, st["hs"], st["as_"]))
+                        for e in mine:
+                            e["closed"] = True
+                            e["res"] = {str(k): ok for k, ok in avisos.settle(e["alert"], st["hs"], st["as_"]).items()}
+                            e["final"] = f"{st['hs']}-{st['as_']}"
+                        log_path.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")
+                    continue
+                base = bases[g["comp"]]
+                el, bA, bB = st.get("el"), base.get(g["hc"]), base.get(g["ac"])
+                if not st["live"] or el is None or not bA or not bB:
+                    continue
+                A, B = st["A"], st["B"]
+                g["live_alerts"] = avisos.evaluate(el, A, B, bA, bB)
+                for al in g["live_alerts"]:
+                    k, old = avisos.key(al), g["sent"].get(avisos.key(al))
+                    if old and not (old["alert"]["level"] == "moderado" and al["level"] == "fuerte" and not old.get("upgraded")):
+                        continue
+                    score = f"{A['pts']}-{B['pts']}"
+                    send(message(al, g, el, score))
+                    if old:                 # pasa de moderado a fuerte: se avisa otra vez, pero cuenta el primero
+                        old["upgraded"] = True
+                        continue
+                    entry = dict(ts=now().isoformat(timespec="seconds"), comp=g["comp"], year=g["year"], code=g["code"], home=g["home"], away=g["away"],
+                                 key=k, el=round(el, 1), score=score, alert=al)
+                    g["sent"][k] = entry
+                    log.append(entry)
                     log_path.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")
-                continue
-            base = bases[g["comp"]]
-            el, bA, bB = st.get("el"), base.get(g["hc"]), base.get(g["ac"])
-            if not st["live"] or el is None or not bA or not bB:
-                continue
-            A, B = st["A"], st["B"]
-            g["live_alerts"] = avisos.evaluate(el, A, B, bA, bB)
-            for al in g["live_alerts"]:
-                k, old = avisos.key(al), g["sent"].get(avisos.key(al))
-                if old and not (old["alert"]["level"] == "moderado" and al["level"] == "fuerte" and not old.get("upgraded")):
-                    continue
-                score = f"{A['pts']}-{B['pts']}"
-                send(message(al, g, el, score))
-                if old:                 # pasa de moderado a fuerte: se avisa otra vez, pero cuenta el primero
-                    old["upgraded"] = True
-                    continue
-                entry = dict(ts=now().isoformat(timespec="seconds"), comp=g["comp"], year=g["year"], code=g["code"], home=g["home"], away=g["away"],
-                             key=k, el=round(el, 1), score=score, alert=al)
-                g["sent"][k] = entry
-                log.append(entry)
-                log_path.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")
+            except Exception as e:      # un fallo con un partido no puede parar la vigilancia de los demás
+                failed = True
+                print(f"  {now():%H:%M:%S} {g['home'][:14]}: error al revisarlo ({type(e).__name__}: {e}); sigo", flush=True)
+                g["errs"] = g.get("errs", 0) + 1
+                if g["errs"] == 12 and not g.get("errs_told"):     # ~2-4 minutos seguidos sin poder leerlo: que se sepa
+                    g["errs_told"] = True
+                    send(f"⚠️ NO PUEDO LEER {g['home']} – {g['away']} ({COMP[g['comp']]})\nLa fuente devuelve datos que no entiendo "
+                         "desde hace unos minutos. Sigo intentándolo; mientras tanto, de este partido no saldrán avisos.")
+            finally:                    # (también cuando la vuelta acaba con continue)
+                if not failed:
+                    if g.get("errs_told"):
+                        send(f"✅ Vuelvo a leer bien {g['home']} – {g['away']}.")
+                        g["errs_told"] = False
+                    g["errs"] = 0
+
         # La web va aparte, en segundo plano: nunca retrasa la siguiente revisión ni un aviso de Telegram
         open_q = any(e["alert"]["type"] == "cuarto" and not e.get("closed") for g in games for e in g["sent"].values())
         if time.time() - published >= PUBLISH_EVERY and (n_acb or open_q or was_open) and not (bg and bg.is_alive()):
@@ -534,6 +574,9 @@ def watch(con, log_path, hours):
         if bg:
             bg.join(30)
         publish(vivo_data(games, bases))      # deja publicado el estado final
+    log.append(dict(tanda_fin=now().isoformat(timespec="seconds")))       # para detectar huecos entre tandas
+    log[:] = [e for e in log if "tanda_fin" not in e] + [log[-1]]          # solo hace falta la última marca
+    save()
     print(f"Fin de la vigilancia: {sum(len(g['sent']) for g in games)} avisos en total hoy", flush=True)
     # ¿Quedan partidos sin terminar o por empezar en las próximas horas? Entonces hace falta otra tanda ya.
     # (Un partido aplazado que nunca termina no debe encadenar tandas sin fin: solo cuentan los de las últimas 5 horas.)
