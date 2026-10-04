@@ -37,7 +37,7 @@ def export(db=DEFAULT_DB, out=None):
     con = sqlite3.connect(db)
     data = analisis.build(con, log_path=db.parent / "avisos.json")
     analisis.save_bank(con, data.get("sent"))
-    data["bank_cfg"] = dict(stake=analisis.STAKE, odds=analisis.MIN_ODDS)
+    data["bank_cfg"] = dict(stake=analisis.STAKE, odds=analisis.ODDS, min_odds=analisis.MIN_ODDS)
     con.close()
     css, blob = shared_css(), json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     for page, tpl in PAGES.items():

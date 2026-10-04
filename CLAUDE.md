@@ -56,8 +56,10 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   salida; plantilla `panel/funciona_plantilla.html`). Si se cambian `K`/`KT` o los umbrales de los
   avisos en la plantilla en vivo, cambiarlos también en `analisis.py`.
 - Banco de pruebas (`pruebas.html`, plantilla `panel/pruebas_plantilla.html`; `analisis.save_bank` → tabla
-  `banco_pruebas` de la base): cada aviso enviado por Telegram cuenta como apuesta simulada de 10 € (`STAKE`) en cada
-  una de sus tres líneas a la cuota mínima (`MIN_ODDS`); una cartera por línea, cuotas editables en la página. Es un
+  `banco_pruebas` de la base): cada aviso enviado por Telegram cuenta como apuesta simulada de 500 € (`STAKE`) en cada
+  una de sus tres líneas, a las cuotas aproximadas de la casa que dio Sergio (`ODDS`: 95 % 1,175 · 90 % 1,275 · 80 % 1,40);
+  una cartera por línea; importe y cuotas editables en la página. Cada apuesta se escribe corta («Breogán hándicap +29,5»,
+  «Manresa menos de 28,5 puntos», con el periodo encima). Es un
   simulacro: Sergio no apuesta con esto y nunca se publican sus apuestas reales. El vigilante anota `res`/`final` en
   cada aviso al acabar el partido, así el banco no espera a la actualización diaria.
 - `build_timeline.py`: marcador jugada a jugada (tabla `basket_timeline`), 60 partidos por

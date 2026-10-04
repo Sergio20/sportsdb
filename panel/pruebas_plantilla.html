@@ -30,7 +30,8 @@
 .chart .tip { transform: none; white-space: normal; color: var(--fg); position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,.12); min-width: 210px; z-index: 2 }
 .chart .tip .h { font-weight: 600; margin-bottom: 4px }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--fg-2) }
-td.ok { color: var(--win); font-weight: 600 } td.ko { color: var(--loss); font-weight: 600 }
+.ok { color: var(--win); font-weight: 600 } .ko { color: var(--loss); font-weight: 600 }
+.bet { white-space: nowrap; line-height: 1.6 }
 td.l.w { white-space: normal; min-width: 150px }
 </style>
 </head>
@@ -48,21 +49,30 @@ td.l.w { white-space: normal; min-width: 150px }
 const D = /*DATA*/{}/*END*/;
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const nf = (v, d) => v == null || !isFinite(v) ? '–' : Number(v).toLocaleString('es-ES', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
+const nf = (v, d) => v == null || !isFinite(v) ? '–' : Number(v).toLocaleString('es-ES', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0, useGrouping: 'always' });
 const eur = v => (v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v), 2) + ' €';
 const sgn = v => v > 0.005 ? 'pos' : v < -0.005 ? 'neg' : '';
 const KIND = { desfase: 'Desfase', ritmo: 'Ritmo insostenible', triples: 'Triples insostenibles', total: 'Total desfasado', cuarto: 'Cuarto anormal' };
 const COMP = { E: 'Euroliga', U: 'EuroCup', A: 'Liga Endesa' };
 const LINES = [['95', 'Línea del 95 %'], ['90', 'Línea del 90 %'], ['80', 'Línea del 80 %']];
-const CFG = D.bank_cfg || { stake: 10, odds: { 95: 1.05, 90: 1.11, 80: 1.25 } };
+const CFG = D.bank_cfg || { stake: 500, odds: { 95: 1.175, 90: 1.275, 80: 1.4 }, min_odds: { 95: 1.05, 90: 1.11, 80: 1.25 } };
 const ALL = (D.sent && D.sent.bank) || [];
-let odds = Object.assign({}, CFG.odds);
-try { const o = JSON.parse(localStorage.getItem('banco-cuotas') || 'null'); if (o) odds = Object.assign(odds, o); } catch (e) { /* sin memoria del navegador */ }
+let odds = Object.assign({}, CFG.odds), stake = CFG.stake;
+try { const o = JSON.parse(localStorage.getItem('banco-ajustes') || 'null'); if (o) { odds = Object.assign(odds, o.odds); stake = o.stake || stake; } } catch (e) { /* sin memoria del navegador */ }
 
 const when = ts => new Date(ts).toLocaleString('es-ES', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
-const lineTxt = (x, p) => { const v = x.lines[p]; if (v == null) return '–'; return x.hcap ? (v > 0 ? '+' : '') + nf(v, 1) : nf(v, 1); };
-const betTxt = x => x.type === 'cuarto' ? x.bet : x.type === 'total' ? 'total del partido: ' + x.bet : 'hándicap de ' + x.bet + ' (partido)';
-const gain = (ok, p) => ok ? CFG.stake * (odds[p] - 1) : -CFG.stake;
+// La apuesta, corta: «Río Breogán hándicap +29,5», «Manresa menos de 28,5 puntos», «Menos de 218,5 puntos».
+function shortBet(x, p) {
+  const v = x.lines[p], m = x.mk || {}; if (v == null) return '–';
+  const n = nf(v, 1), ou = m.over ? 'más' : 'menos';
+  if (m.market === 'hcap') return `${m.team} hándicap ${v > 0 ? '+' : ''}${n}`;
+  if (m.market === 'equipo') return `${m.team} ${ou} de ${n} puntos`;
+  return `${ou[0].toUpperCase() + ou.slice(1)} de ${n} puntos entre los dos`;
+}
+const periodTxt = x => { const per = (x.mk || {}).period || 'el partido'; return per === 'el partido' ? 'Partido entero' : 'Solo ' + per; };
+const betTxt = x => shortBet(x, '80') + ' · ' + periodTxt(x).toLowerCase();
+const odd = v => nf(v, Math.round(v * 1000) % 10 ? 3 : 2);
+const gain = (ok, p) => ok ? stake * (odds[p] - 1) : -stake;
 
 function render() {
   const done = ALL.filter(x => x.res), open = ALL.filter(x => !x.res);
@@ -73,8 +83,8 @@ function render() {
   for (const x of done) for (const [p] of LINES) {
     const ok = !!x.res[p]; tot[p].n++; tot[p].ok += ok; tot[p].bal += gain(ok, p); run[p].push(tot[p].bal); }
   const promised = { 95: 95, 90: 90, 80: 80 };
-  const kpis = LINES.map(([p, name]) => { const t = tot[p], pct = t.n ? 100 * t.ok / t.n : null, staked = t.n * CFG.stake;
-    return `<div class="kpi"><div class="l"><span class="sw" style="background:var(--c${p})"></span>${name} · cuota ${nf(odds[p], 2)}</div>
+  const kpis = LINES.map(([p, name]) => { const t = tot[p], pct = t.n ? 100 * t.ok / t.n : null, staked = t.n * stake;
+    return `<div class="kpi"><div class="l"><span class="sw" style="background:var(--c${p})"></span>${name} · cuota ${odd(odds[p])}</div>
       <div class="v ${sgn(t.bal)}">${t.n ? eur(t.bal) : '–'}</div>
       <div class="s">${t.n ? `${t.ok} de ${t.n} ganadas (${nf(pct, 0)} %; prometido ${promised[p]} %) · rendimiento ${staked ? (t.bal >= 0 ? '+' : '−') + nf(Math.abs(100 * t.bal / staked), 1) + ' %' : '–'} sobre ${nf(staked)} € apostados` : 'sin apuestas resueltas'}</div></div>`; }).join('');
 
@@ -86,23 +96,25 @@ function render() {
 
   // Registro completo: lo más reciente arriba
   const rows = ALL.slice().reverse().map(x => {
-    const cells = LINES.map(([p]) => x.res ? `<td class="${x.res[p] ? 'ok' : 'ko'}">${lineTxt(x, p)} ${x.res[p] ? '✓' : '✗'}</td>` : `<td>${lineTxt(x, p)}</td>`).join('');
+    const bets = `<div class="muted small">${esc(periodTxt(x))}</div>` + LINES.map(([p]) => `<div class="bet"><span class="sw" style="background:var(--c${p})"></span>${esc(shortBet(x, p))}${
+      x.res ? ` <b class="${x.res[p] ? 'ok' : 'ko'}">${x.res[p] ? '✓' : '✗'}</b>` : ''}</div>`).join('');
     const g = x.res ? LINES.reduce((s, [p]) => s + gain(!!x.res[p], p), 0) : null;
     return `<tr><td class="l">${esc(when(x.ts))}</td><td class="l w">${esc(x.home)} – ${esc(x.away)}<div class="muted small">${esc(COMP[x.comp] || x.comp)}</div></td>
       <td class="l">${esc(KIND[x.type] || x.type)}${x.level === 'fuerte' ? ' · fuerte' : ''}<div class="muted small">${x.type === 'cuarto' ? 'al acabar el minuto ' + nf(x.el) : 'minuto ' + nf(x.el)} · ${esc(x.score)}</div></td>
-      <td class="l w">${esc(betTxt(x))}</td>${cells}<td>${x.res ? esc(x.final || '') : '<span class="muted">pendiente</span>'}</td><td class="${g == null ? '' : sgn(g)}">${g == null ? '–' : eur(g)}</td></tr>`; }).join('');
+      <td class="l w">${bets}</td><td>${x.res ? esc(x.final || '') : '<span class="muted">pendiente</span>'}</td><td class="${g == null ? '' : sgn(g)}">${g == null ? '–' : eur(g)}</td></tr>`; }).join('');
 
   $('#view').innerHTML = `
   <section class="panel">
     <div class="muted">Prueba sin dinero. Cada aviso que el vigilante ha mandado por Telegram cuenta como si se hubiera apostado
-      <strong>${nf(CFG.stake)} €</strong> en cada una de sus tres líneas. Sale una cartera por línea, para ver cuál de las tres habría funcionado mejor.
+      <strong>${nf(stake)} €</strong> en cada una de sus tres líneas. Sale una cartera por línea, para ver cuál de las tres habría funcionado mejor.
       Los avisos falsos por fallos de la fuente (el 0-0 del 3 de octubre) no cuentan.
       Si un aviso pasa de moderado a fuerte, cuenta una sola vez, con las líneas del primer mensaje.</div>
-    <div class="odds"><span class="strong">Cuota supuesta:</span>${LINES.map(([p, name]) => `<label><span class="sw" style="background:var(--c${p})"></span>${name.replace('Línea del ', '')}
-      <input type="number" step="0.01" min="1.01" inputmode="decimal" data-p="${p}" value="${odds[p]}"></label>`).join('')}
-      <button class="seg" style="padding:6px 10px;cursor:pointer" id="reset">Volver a la cuota mínima</button></div>
-    <div class="muted small">Por defecto se usa la cuota mínima que pide cada aviso (1,05 / 1,11 / 1,25). Con esa cuota, ganar justo lo prometido deja el balance en 0:
-      si sale en positivo es que se ha acertado más de lo prometido. Las cuotas reales de la casa pueden ser mejores o peores; cámbialas arriba para ver qué pasaría.</div>
+    <div class="odds"><label><span class="strong">Importe por apuesta:</span><input type="number" step="10" min="1" inputmode="decimal" id="stake" value="${stake}"> €</label>
+      <span class="strong">Cuota supuesta:</span>${LINES.map(([p, name]) => `<label><span class="sw" style="background:var(--c${p})"></span>${name.replace('Línea del ', '')}
+      <input type="number" step="0.005" min="1.01" inputmode="decimal" data-p="${p}" value="${odds[p]}"></label>`).join('')}
+      <button class="seg" style="padding:6px 10px;cursor:pointer" id="reset">Volver a los valores por defecto</button></div>
+    <div class="muted small">Por defecto: ${nf(CFG.stake)} € por apuesta y las cuotas aproximadas de la casa (${LINES.map(([p]) => odd(CFG.odds[p])).join(' / ')}). Lo que cambies aquí
+      lo recuerda tu navegador. Como referencia, la cuota mínima para que cada línea salga a cuenta si acierta justo lo prometido es ${LINES.map(([p]) => odd(CFG.min_odds[p])).join(' / ')}.</div>
   </section>
   <div class="kpis">${kpis}</div>
   <section class="panel"><h2>Balance acumulado</h2>
@@ -112,17 +124,18 @@ function render() {
   </section>
   ${types.length ? `<section class="panel"><h2>Por tipo de aviso</h2><div class="scroll"><table><thead><tr><th class="l">Aviso</th><th>Apuestas</th>${LINES.map(([p]) => `<th>${p} %: ganadas</th><th>${p} %: balance</th>`).join('')}</tr></thead><tbody>${byType}</tbody></table></div></section>` : ''}
   <section class="panel"><h2>Registro de apuestas simuladas</h2>
-    <div class="scroll"><table><thead><tr><th class="l">Cuándo</th><th class="l">Partido</th><th class="l">Aviso</th><th class="l">Apuesta</th>
-      <th><span class="sw" style="background:var(--c95)"></span>95 %</th><th><span class="sw" style="background:var(--c90)"></span>90 %</th><th><span class="sw" style="background:var(--c80)"></span>80 %</th><th>Resultado</th><th>Balance del aviso</th></tr></thead>
+    <div class="scroll"><table><thead><tr><th class="l">Cuándo</th><th class="l">Partido</th><th class="l">Aviso</th><th class="l">Apuesta</th><th>Final</th><th>Balance</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
-    <div class="muted small">✓ ganada · ✗ perdida. En hándicap, la línea es la del equipo apostado. «Resultado»: marcador final o, en los de cuarto, el valor del periodo apostado.</div>
+    <div class="muted small">Cada aviso son tres apuestas, una por línea: <span class="sw" style="background:var(--c95)"></span>95 % · <span class="sw" style="background:var(--c90)"></span>90 % · <span class="sw" style="background:var(--c80)"></span>80 %. ✓ ganada · ✗ perdida.
+      «Final»: marcador final o, en los de cuarto, el valor del periodo apostado (puntos, o diferencia en los de hándicap). «Balance»: lo que dejan las tres juntas.</div>
   </section>`;
   if (done.length) chart(run, done);
   document.querySelectorAll('.odds input').forEach(i => i.addEventListener('change', () => {
     const v = parseFloat(String(i.value).replace(',', '.')); if (v > 1) { odds[i.dataset.p] = v; save(); render(); } }));
-  $('#reset').addEventListener('click', () => { odds = Object.assign({}, CFG.odds); save(); render(); });
+  $('#stake').addEventListener('change', e => { const v = parseFloat(String(e.target.value).replace(',', '.')); if (v > 0) { stake = v; save(); render(); } });
+  $('#reset').addEventListener('click', () => { odds = Object.assign({}, CFG.odds); stake = CFG.stake; save(); render(); });
 }
-function save() { try { localStorage.setItem('banco-cuotas', JSON.stringify(odds)); } catch (e) { /* sin memoria del navegador */ } }
+function save() { try { localStorage.setItem('banco-ajustes', JSON.stringify({ odds, stake })); } catch (e) { /* sin memoria del navegador */ } }
 
 // Gráfica de líneas: balance acumulado de cada cartera tras cada apuesta. Etiqueta directa al final de cada línea y cruz con detalle al pasar el ratón.
 function chart(run, done) {

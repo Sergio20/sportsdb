@@ -447,12 +447,16 @@ def sent_log(con, path):
                    else f"total: {'más' if al['over'] else 'menos'} de") + f" ({where})"
             rows.append(dict(ts=e["ts"], comp=e["comp"], home=e["home"], away=e["away"], el=e["el"], score=e["score"], type="cuarto", level=al["level"],
                              bet=bet, lines=al["lines"], hcap=al["market"] == "hcap", res=e.get("res"),
+                             mk=dict(market=al["market"], team=team, over=bool(al.get("over")),
+                                     period="la 2.ª parte" if al["target"] == "mitad" else f"el {int(al['target'])}.º cuarto"),
                              final=str(e.get("value")) if e.get("res") else (f"{r[0]}-{r[1]}" if r and r[2] == "played" else None)))
             continue
         row = dict(ts=e["ts"], comp=e["comp"], home=e["home"], away=e["away"], el=e["el"], score=e["score"], type=al["type"], level=al["level"],
                    upgraded=bool(e.get("upgraded")),
                    bet=("menos de" if al.get("under") else "más de") if al["type"] == "total" else (e["home"] if al["side"] > 0 else e["away"]),
-                   lines=al["lines"], hcap=al["type"] != "total", res=None, final=None)
+                   lines=al["lines"], hcap=al["type"] != "total", res=None, final=None,
+                   mk=dict(market="total" if al["type"] == "total" else "hcap", over=not al.get("under"), period="el partido",
+                           team=None if al["type"] == "total" else (e["home"] if al["side"] > 0 else e["away"])))
         if r and r[2] == "played" and r[0] is not None:
             row["res"] = {str(p): ok for p, ok in avisos.settle({**al, "lines": {int(p): v for p, v in al["lines"].items()}}, r[0], r[1], r[4]).items()}
             row["final"] = f"{r[0]}-{r[1]}"
@@ -470,8 +474,9 @@ def sent_log(con, path):
 
 
 # Banco de pruebas: cada aviso enviado por Telegram cuenta como una apuesta simulada de STAKE € en cada una de sus
-# tres líneas, a la cuota mínima que pide el aviso (con esa cuota, acertar justo lo prometido deja el balance en 0).
-STAKE, MIN_ODDS = 10, {"95": 1.05, "90": 1.11, "80": 1.25}
+# tres líneas, a una cuota aproximada de la casa que dio Sergio (ODDS). En la página se pueden cambiar las dos cosas.
+# MIN_ODDS: la cuota a partir de la cual cada línea sale a cuenta si acierta lo prometido.
+STAKE, ODDS, MIN_ODDS = 500, {"95": 1.175, "90": 1.275, "80": 1.40}, {"95": 1.05, "90": 1.11, "80": 1.25}
 
 
 def save_bank(con, sent):
@@ -483,10 +488,10 @@ def save_bank(con, sent):
     for x in (sent or {}).get("bank") or []:
         for p in ("95", "90", "80"):
             ok = (x["res"] or {}).get(p)
-            gain = None if ok is None else round(STAKE * (MIN_ODDS[p] - 1), 2) if ok else -STAKE
+            gain = None if ok is None else round(STAKE * (ODDS[p] - 1), 2) if ok else -STAKE
             con.execute("INSERT INTO banco_pruebas VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                         (x["ts"], liga[x["comp"]], f"{x['home']} – {x['away']}", x["type"], x["level"], x["el"], x["score"], x["bet"],
-                         p, x["lines"].get(p), MIN_ODDS[p], STAKE, "pendiente" if ok is None else "ganada" if ok else "perdida", gain, x["final"]))
+                         p, x["lines"].get(p), ODDS[p], STAKE, "pendiente" if ok is None else "ganada" if ok else "perdida", gain, x["final"]))
     con.commit()
 
 
