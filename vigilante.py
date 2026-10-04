@@ -452,8 +452,9 @@ def watch(con, log_path, hours):
         publish(vivo_data(games, bases))
     while now() < deadline:
         pending = [g for g in games if not g["done"] and g["start"] < deadline]
-        if not pending:     # nada más que vigilar en esta tanda: la siguiente se ocupa del resto
-            break
+        if not pending:     # nada que vigilar en esta tanda: espera a que acabe; la siguiente busca los partidos nuevos
+            time.sleep(max(1, min(300, (deadline - now()).total_seconds())))
+            continue
         soon = [g for g in pending if g["start"] <= now() + dt.timedelta(minutes=3)]
         if not soon:
             time.sleep(min(300, max(30, (min(g["start"] for g in pending) - now()).total_seconds() - 120)))

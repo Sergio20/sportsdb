@@ -1,14 +1,13 @@
 name: Vigilante de avisos (Telegram)
 
-# Cuatro tandas encadenadas que cubren de las 09:10 a las 02:30 UTC sin huecos (un trabajo de GitHub no
-# puede durar más de 6 horas). Cada tanda vigila hasta 4,4 horas y la siguiente espera a que termine.
-# Si en su franja no hay partidos de Euroliga, EuroCup ni Liga Endesa, termina en un minuto.
+# Cadena continua: cada tanda vigila 4,4 horas (un trabajo de GitHub no puede pasar de 6) y al acabar lanza la
+# siguiente, haya partidos o no. Así no se depende del programador de GitHub, que a veces retrasa horas o se salta
+# tandas (el 4-10-2026 la de las 09:10 no llegó a lanzarse y los partidos de las 10:00 se quedaron sin vigilar).
+# El programador queda solo de respaldo, cada hora: si la cadena se rompe, la vuelve a arrancar. Si ya hay una tanda
+# en marcha, la del respaldo espera y la cancela la siguiente de la cadena (solo puede haber una esperando).
 on:
   schedule:
-    - cron: "10 9 * * *"
-    - cron: "30 13 * * *"
-    - cron: "50 17 * * *"
-    - cron: "10 22 * * *"
+    - cron: "23 * * * *"
   workflow_dispatch:
     inputs:
       modo:
@@ -66,7 +65,8 @@ jobs:
         run: |
           code=0
           python vigilante.py --log avisos.json --horas 4.4 || code=$?
-          if [ "$code" = "3" ]; then echo "seguir=1" >> "$GITHUB_OUTPUT"; elif [ "$code" != "0" ]; then exit "$code"; fi
+          echo "seguir=1" >> "$GITHUB_OUTPUT"     # la cadena sigue siempre, también si esta tanda falla
+          if [ "$code" != "0" ] && [ "$code" != "3" ]; then exit "$code"; fi
 
       - name: Guardar los avisos enviados (rama avisos, un solo commit)
         if: always() && (github.event_name == 'schedule' || github.event.inputs.modo == 'vigilar')
@@ -82,10 +82,9 @@ jobs:
           git commit -q -m "Avisos hasta $(date -u +%Y-%m-%d)"
           git push --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" avisos
 
-      # No se depende del programador de GitHub (a veces se retrasa o se salta una tanda):
-      # si al acabar quedan partidos, esta tanda lanza la siguiente.
+      # Siempre se lanza la siguiente tanda (ver arriba), incluso si esta ha fallado.
       - name: Encadenar la siguiente tanda
-        if: steps.vigilar.outputs.seguir == '1'
+        if: always() && (github.event_name == 'schedule' || github.event.inputs.modo == 'vigilar')
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run vigilante.yml --repo "${{ github.repository }}" -f modo=vigilar
