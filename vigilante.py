@@ -315,6 +315,29 @@ def state_acb(g):
     return dict(live=True, final=False, el=el, A=tot[True], B=tot[False], hs=hs, as_=as_, q=q, left=q * 10 - el, quarters=quarters, done=done)
 
 
+def suspicious(g, st):
+    """¿Lectura en la que no hay que fiarse? La fuente a veces da, unos segundos, las estadísticas de equipo vacías
+    (sobre todo al cambiar de cuarto) o una copia vieja del partido (marcador o reloj hacia atrás). Con esas lecturas
+    no se avisa de nada. Devuelve el motivo, o None si la lectura es buena."""
+    A, B, el = st.get("A"), st.get("B"), st.get("el")
+    if st["live"] and A and B:
+        if el is not None and el >= 1 and A["pts"] + B["pts"] == 0:
+            return "estadísticas vacías"
+        if abs(A["pts"] - st["hs"]) > 4 or abs(B["pts"] - st["as_"]) > 4:     # las estadísticas no cuadran con el marcador
+            return f"estadísticas {A['pts']}-{B['pts']} con marcador {st['hs']}-{st['as_']}"
+    last = g.get("good")
+    if not last:
+        return None
+    if st["hs"] < last["hs"] or st["as_"] < last["as_"]:
+        return f"marcador hacia atrás ({last['hs']}-{last['as_']} → {st['hs']}-{st['as_']})"
+    if el is not None and last.get("el") is not None and el < last["el"] - 0.3:
+        return f"reloj hacia atrás (min {last['el']:.1f} → {el:.1f})"
+    if A and B and last.get("A") and last.get("B") and any(
+            T[k] < L[k] for T, L in ((A, last["A"]), (B, last["B"])) for k in ("pts", "a2", "a3", "af")):
+        return "estadísticas hacia atrás"
+    return None
+
+
 DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 
 
@@ -450,6 +473,15 @@ def watch(con, log_path, hours):
             if unstarted_step(g, st, log, save):
                 g["st"] = st
                 continue
+            why = suspicious(g, st)
+            if why:
+                g["bad"] = g.get("bad", 0) + 1
+                print(f"  {now():%H:%M:%S} {g['home'][:14]}: lectura descartada ({why})", flush=True)
+                # Hacia atrás varias veces seguidas = corrección real del acta (p. ej. un triple que era de 2): se acepta.
+                # Estadísticas vacías o que no cuadran con el marcador: nunca.
+                if g["bad"] < 4 or "atrás" not in why:
+                    continue
+            g["bad"], g["good"] = 0, st
             if st["live"] and (st["hs"], st["as_"]) != (g.get("st") or {}).get("score"):   # rastro para medir la frescura de la fuente
                 print(f"  {now():%H:%M:%S} {g['home'][:14]} {st['hs']}-{st['as_']} {g['away'][:14]} · min {st.get('el') or 0:.1f}", flush=True)
             st["score"] = (st["hs"], st["as_"])

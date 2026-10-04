@@ -431,7 +431,7 @@ def sent_log(con, path):
         return None
     rows = []
     for e in log:
-        if "alert" not in e:        # el fichero también guarda la marca del mensaje previo de cada día
+        if "alert" not in e or e.get("anulado"):    # marcas del mensaje previo y avisos falsos por un fallo de la fuente
             continue
         r = con.execute("""SELECT m.home_score, m.away_score, m.status, m.date,
                                   (SELECT SUM(p.home + p.away) FROM periods p WHERE p.match_id = m.match_id AND p.period <= 4)
