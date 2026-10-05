@@ -362,6 +362,16 @@ def describe(al, home, away):
     return "\n".join(out)
 
 
+def offer_lines(al):
+    """Las líneas que se ofrecen como botones: las tres del aviso y hasta cuatro más de la tabla, de más segura a más
+    ajustada. Devuelve [(línea, % de acierto)]."""
+    main = {round(float(v), 1): int(k) for k, v in al["lines"].items()}
+    others = [(line, pct) for line, pct in line_table(al) if round(line, 1) not in main]
+    pick = others[::max(1, len(others) // 4)][:4] if others else []
+    out = [(round(float(v), 1), float(k)) for v, k in ((v, k) for k, v in al["lines"].items())] + pick
+    return sorted(out, key=lambda x: -x[1])
+
+
 def compact(al, home, away):
     """Versión corta para Telegram, para decidir en segundos: por qué, qué apostar, las tres líneas con su cuota mínima
     y unas pocas líneas más por si la casa ofrece otra. El detalle completo (describe) queda en la web."""
@@ -386,8 +396,7 @@ def compact(al, home, away):
         pick = others[::max(1, len(others) // 4)][:4]
         out.append("Otras: " + " · ".join(f"{fmt(line) if hcap else num(line)} {pct:.0f} % ({num(100 / pct, 2)})"
                                           for line, pct in sorted(pick, key=lambda x: -x[1])))
-    out.append("↩️ Responde «línea cuota» (ej. " + (f"{fmt(others[0][0])} 1,12" if others and hcap
-                                                   else f"{num(others[0][0])} 1,12" if others else "+7,5 1,12") + ") y te digo si tiene valor")
+    out.append("👇 Toca la línea que te ofrece tu casa y verás qué cuotas tienen valor")
     return "\n".join(out)
 
 

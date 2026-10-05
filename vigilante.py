@@ -186,7 +186,7 @@ def quarter_step(g, st, base, rules, log, save):
         if k in g["sent"]:
             continue
         score = f"{st['hs']}-{st['as_']}"
-        mid = send(message(al, g, done * 10, score), buttons=BUTTON)
+        mid = send(message(al, g, done * 10, score), buttons=lines_kb(al))
         entry = dict(ts=now().isoformat(timespec="seconds"), comp=g["comp"], year=g["year"], code=g["code"], home=g["home"], away=g["away"],
                      key=k, el=done * 10, score=score, alert=al, msg=[mid] if isinstance(mid, int) else [])
         g["sent"][k] = entry
@@ -351,12 +351,54 @@ DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "doming
 
 
 NO_LINE = re.compile(r"\b(no\s*(aparece|sale|hay|esta|está|ofrece)|nada|ninguna)\b", re.I)
-BUTTON = {"inline_keyboard": [[{"text": "🚫 No aparece en mi casa", "callback_data": "noaparece"},
-                                {"text": "📊 Detalle", "url": "https://sergio20.github.io/sportsdb/en-vivo.html"}]]}
+DETAIL = {"text": "📊 Detalle", "url": "https://sergio20.github.io/sportsdb/en-vivo.html"}
+BUTTON = {"inline_keyboard": [[{"text": "🚫 No aparece en mi casa", "callback_data": "noaparece"}, DETAIL]]}
+LOCK = threading.Lock()         # el hilo que escucha Telegram y la vigilancia tocan el mismo registro de avisos
+
+
+def _label(al, line):
+    hcap = al["type"] in ("desfase", "ritmo", "triples") or al.get("market") == "hcap"
+    return avisos.fmt(line) if hcap else avisos.num(line)
+
+
+def lines_kb(al):
+    """Botones del aviso: una tecla por línea (las del aviso y unas cuantas más), «No aparece» y «Detalle»."""
+    keys = [{"text": _label(al, line), "callback_data": f"L|{line}"} for line, _ in avisos.offer_lines(al)]
+    rows = [keys[i:i + 4] for i in range(0, len(keys), 4)]
+    return {"inline_keyboard": rows + [[{"text": "🚫 No aparece", "callback_data": "noaparece"}, DETAIL]]}
+
+
+def odds_kb(al, line):
+    """Tras tocar una línea: teclas de cuota alrededor de la mínima, ya marcadas con ✅ (tiene valor) o ❌ (no)."""
+    p = max(1.0, min(99.0, avisos.prob_of_line(al, line) or 50))
+    need = 100 / p
+    vals = sorted({round(need + d, 2) for d in (-0.06, -0.04, -0.02, 0.01, 0.03, 0.05, 0.08, 0.12, 0.18, 0.25, 0.35) if need + d > 1.0})
+    keys = [{"text": f"{avisos.num(v, 2)} {'✅' if v > need else '❌'}", "callback_data": f"O|{line}|{v}"} for v in vals]
+    rows = [keys[i:i + 4] for i in range(0, len(keys), 4)]
+    head = [{"text": f"{_label(al, line)}: acierta {p:.0f} % · mínima {avisos.num(need, 2)}", "callback_data": "nada"}]
+    return {"inline_keyboard": [head] + rows + [[{"text": "↩️ Volver", "callback_data": "B"}, {"text": "🚫 No aparece", "callback_data": "noaparece"}]]}
+
+
+def tg(method, **body):
+    token = os.environ.get("TELEGRAM_TOKEN")
+    try:
+        return requests.post(f"https://api.telegram.org/bot{token}/{method}", timeout=10, json=body)
+    except requests.RequestException:
+        return None
 NUM = re.compile(r"[+-]?\d+(?:[.,]\d+)?")
 
 
-def replies_step(log, save):
+def listen(log, save, stop):
+    """Hilo que escucha Telegram sin parar (espera larga): cada toque de botón o respuesta se atiende al instante."""
+    while not stop.is_set():
+        try:
+            replies_step(log, save, wait=25)
+        except Exception as e:      # el hilo no puede morir por un fallo puntual
+            print(f"  escucha de Telegram: {e}", flush=True)
+            time.sleep(3)
+
+
+def replies_step(log, save, wait=0):
     """Respuestas a los avisos en Telegram: Sergio contesta a un aviso con la línea y la cuota que le ofrece su casa
     («+7,5 1,12») y se le dice al momento si tiene valor. Cada respuesta queda anotada en el aviso (banco de pruebas)."""
     token, chat = os.environ.get("TELEGRAM_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
@@ -364,17 +406,24 @@ def replies_step(log, save):
         return
     mark = next((e for e in log if "tg_offset" in e), None)
     try:
-        r = requests.get(f"https://api.telegram.org/bot{token}/getUpdates", timeout=10,
-                         params={"offset": (mark or {}).get("tg_offset", 0), "timeout": 0,
+        r = requests.get(f"https://api.telegram.org/bot{token}/getUpdates", timeout=wait + 10,
+                         params={"offset": (mark or {}).get("tg_offset", 0), "timeout": wait,
                                  "allowed_updates": '["message","callback_query"]'})
         ups = r.json().get("result", []) if r.status_code == 200 else []
     except (requests.RequestException, ValueError):
+        time.sleep(1 if wait else 0)
         return
     if not ups:
         return
-    if not mark:
-        mark = {"tg_offset": 0}
-        log.append(mark)
+    with LOCK:
+        if not mark:
+            mark = {"tg_offset": 0}
+            log.append(mark)
+        handle_updates(ups, mark, chat, log, token)
+    save()
+
+
+def handle_updates(ups, mark, chat, log, token):
     for u in ups:
         mark["tg_offset"] = u["update_id"] + 1
         cq = u.get("callback_query")
@@ -391,7 +440,6 @@ def replies_step(log, save):
             answer_reply(m, log)
         except Exception as e:      # una respuesta rara no puede parar la vigilancia
             print(f"  respuesta de Telegram no entendida: {e}", flush=True)
-    save()
 
 
 def answer_reply(m, log):
@@ -435,22 +483,58 @@ def no_line(e):
 
 
 def button_press(cq, chat, log, token):
-    msg = cq.get("message") or {}
+    """Toques en los botones del aviso. Primero se contesta (aparece al instante en pantalla) y luego se anota."""
+    msg, data = cq.get("message") or {}, cq.get("data") or ""
     if str((msg.get("chat") or {}).get("id")) != str(chat):
         return
-    requests.post(f"https://api.telegram.org/bot{token}/answerCallbackQuery", timeout=10,
-                  json={"callback_query_id": cq["id"], "text": "Anotado: no aparece en tu casa"})
-    e = next((x for x in log if "alert" in x and msg.get("message_id") in (x.get("msg") or [])), None)
-    if e:
-        send(no_line(e), reply_to=msg["message_id"])
+    mid = msg.get("message_id")
+    e = next((x for x in log if "alert" in x and mid in (x.get("msg") or [])), None)
+    al = ((e.get("msg_alert") or {}).get(str(mid)) or e["alert"]) if e else None
+    toast = lambda text, big=False: tg("answerCallbackQuery", callback_query_id=cq["id"], text=text, show_alert=big)  # noqa: E731
+    if not al:          # ensayo o aviso antiguo: se enseña igual cómo responde, pero no se anota nada
+        al = avisos_from_keyboard(msg)
+        if not al:
+            toast("Este aviso es antiguo o de prueba: no se puede anotar")
+            return
+    if data == "nada":
+        toast("Toca una cuota")
+    elif data == "noaparece":
+        toast("🚫 Anotado: no aparece en tu casa")
+        if e:
+            e.setdefault("casa", []).append(dict(ts=now().isoformat(timespec="seconds"), none=True))
+    elif data == "B":
+        toast("")
+        tg("editMessageReplyMarkup", chat_id=chat, message_id=mid, reply_markup=lines_kb(al))
+    elif data.startswith("L|"):
+        line = float(data[2:])
+        toast("")
+        tg("editMessageReplyMarkup", chat_id=chat, message_id=mid, reply_markup=odds_kb(al, line))
+    elif data.startswith("O|"):
+        _, line, odds = data.split("|")
+        line, odds = float(line), float(odds)
+        p = max(1.0, min(99.0, avisos.prob_of_line(al, line)))
+        need, ev = 100 / p, (p / 100 * odds - 1) * 100
+        toast((f"✅ {_label(al, line)} a {avisos.num(odds, 2)}: CON VALOR · +{ev:.0f} € por cada 100 € a la larga" if odds > need
+               else f"❌ {_label(al, line)} a {avisos.num(odds, 2)}: SIN VALOR · {ev:.0f} € por cada 100 €. No apuestes.")
+              + ("" if e else "\n(prueba: no se anota)"), big=True)
+        if e:
+            e.setdefault("casa", []).append(dict(ts=now().isoformat(timespec="seconds"), line=line, odds=odds, p=round(p, 1)))
+        tg("editMessageReplyMarkup", chat_id=chat, message_id=mid, reply_markup=lines_kb(al))
 
 
-def nap(seconds, log, save):
-    """Espera sin partidos, pero atendiendo las respuestas de Telegram cada 20 segundos."""
-    end = time.time() + seconds
-    while time.time() < end:
-        replies_step(log, save)
-        time.sleep(max(0, min(20, end - time.time())))
+def avisos_from_keyboard(msg):
+    """Para el ensayo (no está en el registro): rehace la campana con las líneas de sus propios botones."""
+    rows = ((msg.get("reply_markup") or {}).get("inline_keyboard")) or []
+    lines = [float(k["callback_data"][2:]) for r in rows for k in r if str(k.get("callback_data", "")).startswith("L|")]
+    if len(lines) < 3:
+        return None
+    text = msg.get("text") or ""
+    pcts = [int(x) for x in re.findall(r"· (\d+) % · cuota", text)]
+    vals = [float(x.replace(",", ".")) for x in re.findall(r"(?:🟢|🟡|🟠) .*?([+-]?\d+(?:,\d+)?) · \d+ %", text)]
+    if len(pcts) != len(vals) or len(vals) < 2:
+        return None
+    hcap = "Hándicap" in text
+    return dict(type="ritmo" if hcap else "total", lines=dict(zip(pcts, vals)))
 
 
 def gap_step(gap, g, st, games):
@@ -563,7 +647,13 @@ def watch(con, log_path, hours):
     for g in games:   # lo ya avisado en una tanda anterior del mismo día no se repite
         g["sent"] = {e["key"]: e for e in log if "alert" in e and (e["comp"], e["year"], e["code"]) == (g["comp"], g["year"], g["code"])}
         g["told"] = {e["aplazado"] for e in log if "aplazado" in e}     # avisos de aplazamiento ya enviados
-    save = lambda: log_path.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")  # noqa: E731
+    def save():
+        with LOCK:
+            log_path.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")
+    if not any("tg_offset" in e for e in log):
+        log.append({"tg_offset": 0})
+    stop = threading.Event()
+    threading.Thread(target=listen, args=(log, save, stop), daemon=True).start()
     rules = {}
     try:
         hist_games, _, hist = analisis.walk(con)
@@ -583,15 +673,14 @@ def watch(con, log_path, hours):
     while now() < deadline:
         pending = [g for g in games if not g["done"] and g["start"] < deadline]
         if not pending:     # nada que vigilar en esta tanda: espera a que acabe; la siguiente busca los partidos nuevos
-            nap(max(1, min(300, (deadline - now()).total_seconds())), log, save)
+            time.sleep(max(1, min(300, (deadline - now()).total_seconds())))
             continue
         soon = [g for g in pending if g["start"] <= now() + dt.timedelta(minutes=3)]
         if not soon:
-            nap(min(300, max(30, (min(g["start"] for g in pending) - now()).total_seconds() - 120)), log, save)
+            time.sleep(min(300, max(30, (min(g["start"] for g in pending) - now()).total_seconds() - 120)))
             continue
         t0 = time.time()
         loops += 1
-        replies_step(log, save)
         if loops % 30 == 0 and pace["extra"] > 0:     # tras un rato sin cortes, se vuelve a acelerar
             pace["extra"] -= 5
         n_acb = sum(g["comp"] == "A" for g in soon)
@@ -637,7 +726,7 @@ def watch(con, log_path, hours):
                             e["closed"] = True
                             e["res"] = {str(k): ok for k, ok in avisos.settle(e["alert"], st["hs"], st["as_"]).items()}
                             e["final"] = f"{st['hs']}-{st['as_']}"
-                        log_path.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")
+                        save()
                     continue
                 base = bases[g["comp"]]
                 el, bA, bB = st.get("el"), base.get(g["hc"]), base.get(g["ac"])
@@ -650,7 +739,7 @@ def watch(con, log_path, hours):
                     if old and not (old["alert"]["level"] == "moderado" and al["level"] == "fuerte" and not old.get("upgraded")):
                         continue
                     score = f"{A['pts']}-{B['pts']}"
-                    mid = send(message(al, g, el, score), buttons=BUTTON)
+                    mid = send(message(al, g, el, score), buttons=lines_kb(al))
                     if old:                 # pasa de moderado a fuerte: se avisa otra vez, pero cuenta el primero
                         old["upgraded"] = True
                         if isinstance(mid, int):        # su respuesta se valora con las líneas de ese mensaje
@@ -661,7 +750,7 @@ def watch(con, log_path, hours):
                                  key=k, el=round(el, 1), score=score, alert=al, msg=[mid] if isinstance(mid, int) else [])
                     g["sent"][k] = entry
                     log.append(entry)
-                    log_path.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")
+                    save()
             except Exception as e:      # un fallo con un partido no puede parar la vigilancia de los demás
                 failed = True
                 print(f"  {now():%H:%M:%S} {g['home'][:14]}: error al revisarlo ({type(e).__name__}: {e}); sigo", flush=True)
@@ -689,8 +778,10 @@ def watch(con, log_path, hours):
         if bg:
             bg.join(30)
         publish(vivo_data(games, bases))      # deja publicado el estado final
-    log.append(dict(tanda_fin=now().isoformat(timespec="seconds")))       # para detectar huecos entre tandas
-    log[:] = [e for e in log if "tanda_fin" not in e] + [log[-1]]          # solo hace falta la última marca
+    stop.set()                  # deja de escuchar Telegram: la siguiente tanda toma el relevo
+    with LOCK:
+        log.append(dict(tanda_fin=now().isoformat(timespec="seconds")))       # para detectar huecos entre tandas
+        log[:] = [e for e in log if "tanda_fin" not in e] + [log[-1]]          # solo hace falta la última marca
     save()
     print(f"Fin de la vigilancia: {sum(len(g['sent']) for g in games)} avisos en total hoy", flush=True)
     # ¿Quedan partidos sin terminar o por empezar en las próximas horas? Entonces hace falta otra tanda ya.
@@ -714,7 +805,7 @@ def replay(base, season, code, el):
         print(f"En el minuto {el} no había ningún aviso ({A['pts']}-{B['pts']}).")
     for al in als:
         send("🧪 ENSAYO con un partido ya jugado (no es un aviso real)\n\n" + message(al, g, el, f"{A['pts']}-{B['pts']}")
-             + "\n\n🧪 Prueba: el botón «No aparece» y las respuestas solo funcionan con avisos reales.", buttons=BUTTON)
+             + "\n\n🧪 Prueba: los botones solo anotan con avisos reales; aquí puedes ver cómo responden.", buttons=lines_kb(al))
     if als:
         send("ENSAYO\n" + result_message(g, [dict(alert=al, el=el, score=f"{A['pts']}-{B['pts']}") for al in als], int(h["ScoreA"]), int(h["ScoreB"])))
     return 0

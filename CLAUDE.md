@@ -103,6 +103,11 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
 - Mensaje de Telegram corto (`avisos.compact`, ~10 líneas, para decidir en segundos): por qué, mercado y periodo, las tres
   líneas con su cuota mínima, «Otras» (4 líneas de la tabla) y cómo responder. Botones «No aparece en mi casa» y
   «📊 Detalle» (web). La explicación larga (`describe`) solo va a la web.
+- Botones del aviso (`lines_kb`, `odds_kb`, `button_press` en `vigilante.py`): una tecla por línea (`avisos.offer_lines`);
+  al tocarla, teclas de cuota alrededor de la mínima ya marcadas ✅/❌; al tocar una cuota sale al instante en pantalla si
+  tiene valor y se anota en `casa`. «No aparece» anota `none`. Un hilo (`listen`) escucha Telegram sin parar (espera
+  larga de 25 s) para contestar al momento; `LOCK` protege el registro compartido. En el ensayo los botones responden
+  (rehace la campana con `avisos_from_keyboard`) pero no anotan.
 - Respuestas en Telegram (`replies_step` / `answer_reply` en `vigilante.py`): Sergio contesta a un aviso con la línea y
   la cuota de su casa («+7,5 1,12») y el vigilante responde al momento con el % de acierto (`avisos.prob_of_line`, misma
   campana que `line_table`), la cuota mínima y si tiene valor. Cada aviso guarda el número de su mensaje (`msg`) y las
