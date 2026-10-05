@@ -712,7 +712,8 @@ def replay(base, season, code, el):
     if not als:
         print(f"En el minuto {el} no había ningún aviso ({A['pts']}-{B['pts']}).")
     for al in als:
-        send("ENSAYO con un partido ya jugado\n" + message(al, g, el, f"{A['pts']}-{B['pts']}"))
+        send("🧪 ENSAYO con un partido ya jugado (no es un aviso real)\n\n" + message(al, g, el, f"{A['pts']}-{B['pts']}")
+             + "\n\n🧪 Es una prueba: el botón y las respuestas solo funcionan con avisos reales.", buttons=BUTTON)
     if als:
         send("ENSAYO\n" + result_message(g, [dict(alert=al, el=el, score=f"{A['pts']}-{B['pts']}") for al in als], int(h["ScoreA"]), int(h["ScoreB"])))
     return 0

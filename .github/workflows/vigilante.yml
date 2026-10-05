@@ -21,7 +21,8 @@ permissions:
   actions: write      # para que una tanda pueda lanzar la siguiente
 
 concurrency:
-  group: vigilante
+  # Las pruebas y ensayos van en su propia cola: no esperan a la cadena de tandas ni la interrumpen
+  group: ${{ (github.event.inputs.modo == 'prueba' || github.event.inputs.modo == 'ensayo') && 'vigilante-prueba' || 'vigilante' }}
   cancel-in-progress: false
 
 jobs:
