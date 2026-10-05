@@ -227,6 +227,35 @@ def _scope(al):
     return f"el {o} CUARTO (solo ese cuarto)", f"contando solo los puntos del {o} cuarto"
 
 
+def line_table(al, lo=80, hi=97):
+    """Probabilidad de acertar con CUALQUIER línea, no solo las tres del aviso: la casa mueve sus líneas y pocas veces
+    ofrece justo la nuestra. Las tres líneas del aviso salen de una campana (línea = centro + paso × z), así que con dos
+    de ellas se recupera la campana entera y se puede leer cualquier otra. Devuelve [(línea, % de acierto)] de lo, más
+    seguro... hasta lo más ajustado, solo entre lo % y hi % (por encima del 97 % el histórico ya no da para fiarse)."""
+    ln = {int(k): float(v) for k, v in al["lines"].items()}
+    ps = sorted(ln)
+    if len(ps) < 2:
+        return []
+    z = {80: 0.8416, 85: 1.0364, 90: 1.2816, 95: 1.6449}
+    a, b = ps[0], ps[-1]
+    step = (ln[b] - ln[a]) / (z[b] - z[a])            # puntos por cada unidad de z (con signo: + si subir la línea es más seguro)
+    if abs(step) < 1e-6:
+        return []
+    center = ln[a] - step * z[a]
+    phi = lambda x: 0.5 * (1 + math.erf(x / math.sqrt(2)))  # noqa: E731
+    out, line = [], ln[a]
+    sign = 1 if step > 0 else -1
+    line -= sign * 4                                   # se empieza unos puntos por el lado arriesgado
+    for _ in range(40):
+        pct = 100 * phi((line - center) / step)
+        if lo <= pct <= hi:
+            out.append((line, pct))
+        if pct > hi:
+            break
+        line += sign
+    return out
+
+
 def bet_of(al, home, away):
     """La apuesta de un aviso, desmenuzada: mercado, sentido, cómo se gana y cada línea con su condición exacta."""
     scope, count = _scope(al)
@@ -299,6 +328,14 @@ def describe(al, home, away):
     out += ["", "ELIGE UNA LÍNEA (de más segura a más ajustada)"]
     for p, label, cond in b["lines"]:
         out += [f"{ICON[p]} {label}", f"     {cond}", f"     acierta {p} de cada 100 · apuesta solo si la cuota es {num(100 / p, 2)} o más"]
+    tab = line_table(al)
+    if tab:
+        hcap = b["market"].startswith("HÁNDICAP")
+        out += ["", "SI LA CASA TE OFRECE OTRA LÍNEA (la casa mueve las suyas: busca aquí la que te dé)"]
+        for line, pct in reversed(tab):              # de más segura a más ajustada, como arriba
+            txt = (f"{b['team']} {fmt(line)}" if hcap else f"{b['way'].capitalize()} {num(line)}")
+            out.append(f"   {txt} → acierta {pct:.0f} % → cuota mínima {num(100 / pct, 2)}")
+        out.append("   Si la cuota de la casa es MAYOR que la mínima, tiene valor; si es menor, no apuestes.")
     out += ["", "CÓMO SE GANA", b["win"]]
     return "\n".join(out)
 

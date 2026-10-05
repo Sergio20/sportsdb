@@ -337,7 +337,7 @@ def suspicious(g, st):
     if el is not None and last.get("el") is not None and el < last["el"] - 0.3:
         return f"reloj hacia atrás (min {last['el']:.1f} → {el:.1f})"
     if A and B and last.get("A") and last.get("B") and any(
-            T[k] < L[k] for T, L in ((A, last["A"]), (B, last["B"])) for k in ("pts", "a2", "a3", "af")):
+            T[k] < L[k] - (0 if k == "pts" else 2) for T, L in ((A, last["A"]), (B, last["B"])) for k in ("pts", "a2", "a3", "af")):
         return "estadísticas hacia atrás"
     return None
 
@@ -348,11 +348,11 @@ DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "doming
 def gap_step(gap, g, st, games):
     """Si la tanda anterior acabó hace más de 10 minutos y hay partidos en juego, ha habido un rato sin vigilar
     (GitHub lanzó tarde esta tanda, o la anterior se cayó). Se avisa por Telegram, una vez, para que se sepa."""
-    if gap["told"] or not gap["since"] or not st["live"] or now() - gap["since"] < dt.timedelta(minutes=10):
+    if gap["told"] or not gap["since"] or not st["live"]:
         return
-    if g["start"] > now() - dt.timedelta(minutes=5):      # recién empezado: no se ha perdido nada
+    gap["told"] = True          # se decide con la primera lectura en juego de la tanda, y ya no se vuelve a mirar
+    if now() - gap["since"] < dt.timedelta(minutes=10) or g["start"] > now() - dt.timedelta(minutes=5):
         return
-    gap["told"] = True
     live = [x for x in games if (x.get("good") or {}).get("live")]
     send(f"⚠️ HE ESTADO SIN VIGILAR de las {local(gap['since']):%H:%M} a las {local():%H:%M}\n"
          "GitHub no lanzó a tiempo la tanda del vigilante (o la anterior se cayó). Ya estoy vigilando otra vez.\n"

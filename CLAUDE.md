@@ -97,6 +97,11 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   `avisos.json`); «NO PUEDO LEER» si un partido falla 12 lecturas seguidas (y «Vuelvo a leer bien»); aviso si una tanda
   falla o no se puede lanzar la siguiente (pasos finales de `vigilante.yml`, con 5 reintentos). Cada partido se revisa
   en su propio `try`: un error con uno no para los demás. `send` reintenta 4 veces.
+- Tabla de líneas (`avisos.line_table`): la casa casi nunca ofrece justo nuestras líneas, así que cada aviso trae
+  «SI LA CASA TE OFRECE OTRA LÍNEA»: probabilidad y cuota mínima de cada línea entre el 80 y el 97 %, sacadas de la
+  misma campana que las tres líneas del aviso (con dos de ellas se recupera centro y anchura).
+- Banco a 5-10-2026 (22 avisos): líneas del 95 % 20/22, 90 % 16/22, 80 % 14/22. Los de cuarto, por debajo de lo
+  prometido (57-64 % en 80/90); varios fallos juntos en un mismo partido desigual (Baskonia 118-78 Girona).
 - Partidos aplazados (`unstarted_step` en `vigilante.py`): si la ficha de acb.com dice aplazado (estado o fecha
   cambiada) manda «PARTIDO APLAZADO» por Telegram y deja de vigilarlo; si cualquier partido sigue sin empezar 40 min
   después de su hora (`LATE`) manda «¿PARTIDO APLAZADO?», lo revisa cada 3 min y avisa si arranca; a las 2 h 30
