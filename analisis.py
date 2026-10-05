@@ -311,12 +311,20 @@ Q_RULES = {
     "tot_caliente": dict(txt="un cuarto con 54 puntos o más entre los dos", market="total", over=False),
     "paliza": dict(txt="un equipo pierde un cuarto por 10 o más", market="hcap", over=True),
     # Idea de Sergio (scripts/patron_cuartos.py): el favorito que pierde dos cuartos seguidos reacciona en el siguiente
-    "racha": dict(txt="el favorito pierde dos cuartos seguidos", market="hcap", over=True),
+    "racha": dict(txt="el favorito pierde dos cuartos seguidos o no gana ninguno de los tres primeros", market="hcap", over=True),
     "mitad_fria": dict(txt="una primera parte con 66 puntos o menos", market="mitad", over=True),
     "mitad_caliente": dict(txt="una primera parte con 100 puntos o más", market="mitad", over=False),
 }
 Q_LEVELS = (80, 90, 95)
 RACHA_FAV = 0.5     # favorito = se espera que gane cada cuarto por 0,5 puntos o más (unos 2 por partido)
+
+
+def racha(done, diffs):
+    """¿Racha de cuartos para el favorito? `diffs`: su diferencia en cada cuarto jugado. Dos cuartos seguidos perdidos,
+    o ninguno ganado de los tres primeros (algún empate). Si perdió el último por 10+, ya avisa «paliza»."""
+    if done < 2 or diffs[-1] <= -10:
+        return False
+    return (diffs[-1] < 0 and diffs[-2] < 0) or (done == 3 and max(diffs) <= 0 and min(diffs) < 0)
 
 
 def quarter_cases(games):
@@ -339,8 +347,7 @@ def quarter_cases(games):
                 if sign * (q[p][0] - q[p][1]) <= -10:
                     m_next = sign * (q[p + 1][0] - q[p + 1][1])
                     out.append(("paliza", g["season"], m_next - sign * exp_q, m_next > -5.5))
-                if (p >= 2 and sign * exp_q >= RACHA_FAV and sign * (q[p - 1][0] - q[p - 1][1]) < 0 and sign * (q[p][0] - q[p][1]) < 0
-                        and sign * (q[p][0] - q[p][1]) > -10):     # si perdió el último por 10+, ya avisa «paliza»
+                if sign * exp_q >= RACHA_FAV and racha(p, [sign * (q[k][0] - q[k][1]) for k in range(1, p + 1)]):
                     m_next = sign * (q[p + 1][0] - q[p + 1][1])
                     out.append(("racha", g["season"], m_next - sign * exp_q, m_next > 0))
             if tot <= 30:

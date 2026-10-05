@@ -139,7 +139,7 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   3.º y 4.º: 50 %, sin efecto. Convertido en el sexto aviso, «Racha de cuartos» (regla `racha` en `Q_RULES`, mismo
   circuito que «Cuarto anormal»: tipo `cuarto`, `sub="racha"`; nombre con `avisos.name_of`): el favorito
   (`RACHA_FAV`, se espera que gane cada cuarto por 0,5+) pierde dos cuartos seguidos (sin «paliza» en el último) → su
-  hándicap en el cuarto siguiente. 738 casos; con 2024+ fuera del ajuste acierta 83/92/97 %.
+  hándicap en el cuarto siguiente. Desde el 5-10-2026 también si el favorito no ha ganado ninguno de los tres primeros cuartos aunque empatara alguno (`racha()` en `analisis.py` y `avisos.py`, idea de Sergio): 49 casos más que aciertan como los demás. 788 casos; con 2024+ fuera del ajuste acierta 84/93/98 %. Estudio aparte: un equipo se queda sin ganar ningún cuarto en el 14,5 % de los partidos (1 de cada 7, casi lo mismo que al azar); tras tres sin ganar, gana el 4.º el 49 % (favorito 63 % frente al 56 % normal).
   Criterio de Sergio para nuevos avisos: solo si la línea acierta 85 % o más, comprobado con temporadas que no
   intervienen, y más que la misma apuesta sin la anomalía. Descartados con ese criterio: favorito +6 que pierde al
   descanso → hándicap 2.ª parte (84 % con la línea del 85 %); quien gana de 20+ tras el 3.º → hándicap del rival en el

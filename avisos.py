@@ -23,6 +23,14 @@ NAMES = {"desfase": "Desfase", "ritmo": "Ritmo insostenible", "triples": "Triple
 RACHA_FAV = 0.5     # igual que analisis.RACHA_FAV: favorito si se espera que gane cada cuarto por 0,5 o más
 
 
+def racha(done, diffs):
+    """Igual que analisis.racha: dos cuartos seguidos perdidos, o ninguno ganado de los tres primeros (con algún empate).
+    `diffs`: diferencia del favorito en cada cuarto jugado. Si perdió el último por 10+, ya avisa «paliza»."""
+    if done < 2 or diffs[-1] <= -10:
+        return False
+    return (diffs[-1] < 0 and diffs[-2] < 0) or (done == 3 and max(diffs) <= 0 and min(diffs) < 0)
+
+
 def name_of(al):
     """Nombre del aviso para los mensajes: la racha de cuartos va con los de cuarto pero tiene nombre propio."""
     return NAMES["racha"] if al.get("sub") == "racha" else NAMES[al["type"]]
@@ -151,8 +159,9 @@ def quarter_alerts(done, quarters, bA, bB, rules):
             add("eq_caliente", base["pf"] / 4, done + 1, s, pts=me, usual=round(base["pf"] / 4, 1))
         if s * (h - a) <= -10:
             add("paliza", s * exp_q, done + 1, s, pts=abs(h - a))
-        elif done >= 2 and s * exp_q >= RACHA_FAV and s * (h - a) < 0 and s * (quarters[done - 2][0] - quarters[done - 2][1]) < 0:
-            add("racha", s * exp_q, done + 1, s, pts=abs(h - a), prev=abs(quarters[done - 2][0] - quarters[done - 2][1]))
+        elif s * exp_q >= RACHA_FAV and racha(done, diffs := [s * (x - y) for x, y in quarters[:done]]):
+            add("racha", s * exp_q, done + 1, s, pts=abs(h - a), prev=abs(quarters[done - 2][0] - quarters[done - 2][1]),
+                diffs=diffs)
     if usual_q:
         if h + a <= 30:
             add("tot_frio", usual_q, done + 1, pts=h + a, usual=round(usual_q, 1))
@@ -302,6 +311,14 @@ def bet_of(al, home, away):
                     + ("" if al["type"] == "cuarto" else " Nuestro cálculo no cuenta la prórroga."))
 
 
+def racha_why(al, team, q):
+    d = al.get("diffs")
+    if d and not (d[-1] < 0 and d[-2] < 0):     # ninguno ganado de los tres, con algún empate
+        res = ", ".join(f"{'perdió' if x < 0 else 'empató'} el {ORD[i + 1]}" + (f" por {-x}" if x < 0 else "") for i, x in enumerate(d))
+        return f"{team}, el favorito, no ha ganado ninguno de los tres primeros cuartos: {res}."
+    return f"{team}, el favorito, ha perdido dos cuartos seguidos: el {ORD[al['done'] - 1]} por {al.get('prev', '?')} y el {q} por {al['pts']}."
+
+
 def what_happens(al, home, away):
     """Una o dos frases: qué está pasando en el partido para que salte el aviso."""
     team, rival = (home, away) if al.get("side") == 1 else (away, home)
@@ -313,7 +330,7 @@ def what_happens(al, home, away):
             "tot_frio": f"Solo {al['pts']} puntos entre los dos en el {q} cuarto. Lo habitual son {u}.",
             "tot_caliente": f"{al['pts']} puntos entre los dos en el {q} cuarto. Lo habitual son {u}.",
             "paliza": f"{team} ha perdido el {q} cuarto por {al['pts']} puntos.",
-            "racha": f"{team}, el favorito, ha perdido dos cuartos seguidos: el {ORD[al['done'] - 1]} por {al.get('prev', '?')} y el {q} por {al['pts']}.",
+            "racha": racha_why(al, team, q),
             "mitad_fria": f"Primera parte con solo {al['pts']} puntos entre los dos. Lo habitual son {u} por mitad.",
             "mitad_caliente": f"Primera parte con {al['pts']} puntos entre los dos. Lo habitual son {u} por mitad.",
         }[al["sub"]] + f"\nEn el histórico ({al['n']} casos), el {num(al['fact'], 0)} % de las veces {FACTS[al['sub']]}."
