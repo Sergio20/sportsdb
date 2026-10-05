@@ -355,7 +355,9 @@ def describe(al, home, away):
         out.append("   Si la cuota de la casa es MAYOR que la mínima, tiene valor; si es menor, no apuestes.")
         out += ["", "↩️ RESPONDE A ESTE MENSAJE con la línea y la cuota de tu casa (por ejemplo: "
                 + (f"{fmt(tab[len(tab) // 2][0])} 1,12" if hcap else f"{num(tab[len(tab) // 2][0])} 1,12")
-                + ") y te digo al momento si tiene valor."]
+                + ") y te digo al momento si tiene valor.\n"
+                "Si tu casa no ofrece ninguna de estas líneas, pulsa el botón «No aparece en mi casa» (o responde: no aparece). "
+                "Si ofrece otra línea más ajustada, mándamela igual y te digo cuánto acierta."]
     out += ["", "CÓMO SE GANA", b["win"]]
     return "\n".join(out)
 

@@ -70,7 +70,7 @@ def get(url, **params):
     return r.json() if r.status_code == 200 and r.text.strip() else None
 
 
-def send(text, reply_to=None):
+def send(text, reply_to=None, buttons=None):
     """Manda un mensaje por Telegram y devuelve su número (o False). El token nunca se escribe en pantalla."""
     print("\n" + text + "\n", flush=True)
     token, chat = os.environ.get("TELEGRAM_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
@@ -83,6 +83,8 @@ def send(text, reply_to=None):
             body = {"chat_id": chat, "text": text, "disable_web_page_preview": True}
             if reply_to:
                 body["reply_to_message_id"] = reply_to
+            if buttons:
+                body["reply_markup"] = buttons
             r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage", timeout=30, json=body)
             if r.status_code == 200:
                 return (r.json().get("result") or {}).get("message_id") or True
@@ -184,7 +186,7 @@ def quarter_step(g, st, base, rules, log, save):
         if k in g["sent"]:
             continue
         score = f"{st['hs']}-{st['as_']}"
-        mid = send(message(al, g, done * 10, score))
+        mid = send(message(al, g, done * 10, score), buttons=BUTTON)
         entry = dict(ts=now().isoformat(timespec="seconds"), comp=g["comp"], year=g["year"], code=g["code"], home=g["home"], away=g["away"],
                      key=k, el=done * 10, score=score, alert=al, msg=[mid] if isinstance(mid, int) else [])
         g["sent"][k] = entry
@@ -348,6 +350,8 @@ def suspicious(g, st):
 DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 
 
+NO_LINE = re.compile(r"\b(no\s*(aparece|sale|hay|esta|está|ofrece)|nada|ninguna)\b", re.I)
+BUTTON = {"inline_keyboard": [[{"text": "🚫 No aparece en mi casa", "callback_data": "noaparece"}]]}
 NUM = re.compile(r"[+-]?\d+(?:[.,]\d+)?")
 
 
@@ -360,7 +364,8 @@ def replies_step(log, save):
     mark = next((e for e in log if "tg_offset" in e), None)
     try:
         r = requests.get(f"https://api.telegram.org/bot{token}/getUpdates", timeout=10,
-                         params={"offset": (mark or {}).get("tg_offset", 0), "timeout": 0, "allowed_updates": '["message"]'})
+                         params={"offset": (mark or {}).get("tg_offset", 0), "timeout": 0,
+                                 "allowed_updates": '["message","callback_query"]'})
         ups = r.json().get("result", []) if r.status_code == 200 else []
     except (requests.RequestException, ValueError):
         return
@@ -371,6 +376,13 @@ def replies_step(log, save):
         log.append(mark)
     for u in ups:
         mark["tg_offset"] = u["update_id"] + 1
+        cq = u.get("callback_query")
+        if cq:                      # botón «No aparece en mi casa»
+            try:
+                button_press(cq, chat, log, token)
+            except Exception as e:
+                print(f"  botón de Telegram no atendido: {e}", flush=True)
+            continue
         m = u.get("message") or {}
         if str((m.get("chat") or {}).get("id")) != str(chat) or not m.get("text"):
             continue                # solo se atiende a Sergio
@@ -388,6 +400,9 @@ def answer_reply(m, log):
         if to or NUM.search(m["text"]):
             send("Para valorar una cuota, RESPONDE directamente al mensaje del aviso (mantén pulsado el aviso → Responder) "
                  "con la línea y la cuota, por ejemplo: +7,5 1,12", reply_to=m["message_id"])
+        return
+    if NO_LINE.search(m["text"]) and len(NUM.findall(m["text"])) < 2:
+        send(no_line(e), reply_to=m["message_id"])
         return
     nums = [float(x.replace(",", ".")) for x in NUM.findall(m["text"])]
     if len(nums) < 2:
@@ -408,6 +423,25 @@ def answer_reply(m, log):
     warn = "\n⚠️ Ojo: por debajo del 80 % de acierto. Lo acordado es apostar solo líneas seguras." if p < 80 else ""
     send(f"{what} a {avisos.num(odds, 2)}\nAcierta {p:.0f} % → cuota mínima {avisos.num(need, 2)}\n{verdict}{warn}", reply_to=m["message_id"])
     e.setdefault("casa", []).append(dict(ts=now().isoformat(timespec="seconds"), line=line, odds=odds, p=round(p, 1)))
+
+
+def no_line(e):
+    """Anota que la casa no ofrecía ninguna de nuestras líneas y lo confirma."""
+    e.setdefault("casa", []).append(dict(ts=now().isoformat(timespec="seconds"), none=True))
+    n = sum(1 for x in e["casa"] if x.get("none"))
+    return ("📝 Anotado: tu casa no ofrecía ninguna de nuestras líneas" + (f" ({n}.ª vez en este aviso)" if n > 1 else "") + ".\n"
+            "Si ves otra línea (aunque sea más ajustada), respóndeme al aviso con ella y su cuota y te digo cuánto acierta.")
+
+
+def button_press(cq, chat, log, token):
+    msg = cq.get("message") or {}
+    if str((msg.get("chat") or {}).get("id")) != str(chat):
+        return
+    requests.post(f"https://api.telegram.org/bot{token}/answerCallbackQuery", timeout=10,
+                  json={"callback_query_id": cq["id"], "text": "Anotado: no aparece en tu casa"})
+    e = next((x for x in log if "alert" in x and msg.get("message_id") in (x.get("msg") or [])), None)
+    if e:
+        send(no_line(e), reply_to=msg["message_id"])
 
 
 def nap(seconds, log, save):
@@ -615,7 +649,7 @@ def watch(con, log_path, hours):
                     if old and not (old["alert"]["level"] == "moderado" and al["level"] == "fuerte" and not old.get("upgraded")):
                         continue
                     score = f"{A['pts']}-{B['pts']}"
-                    mid = send(message(al, g, el, score))
+                    mid = send(message(al, g, el, score), buttons=BUTTON)
                     if old:                 # pasa de moderado a fuerte: se avisa otra vez, pero cuenta el primero
                         old["upgraded"] = True
                         if isinstance(mid, int):        # su respuesta se valora con las líneas de ese mensaje

@@ -105,6 +105,9 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   campana que `line_table`), la cuota mínima y si tiene valor. Cada aviso guarda el número de su mensaje (`msg`) y las
   respuestas en `casa`; el banco de pruebas las enseña. Se leen con getUpdates (posición en la marca `tg_offset` de
   `avisos.json`), en cada vuelta y en las esperas (`nap`). Solo se atiende al chat de `TELEGRAM_CHAT_ID`.
+  Botón «🚫 No aparece en mi casa» bajo cada aviso (`BUTTON`, `button_press`) o respuesta «no aparece» (`NO_LINE`): se
+  anota `{"none": true}` en `casa`. El banco de pruebas resume en «Tu casa de apuestas» cuántas veces no ofrecía nuestras
+  líneas y cuántas ofertas tenían valor.
 - Banco a 5-10-2026 (22 avisos): líneas del 95 % 20/22, 90 % 16/22, 80 % 14/22. Los de cuarto, por debajo de lo
   prometido (57-64 % en 80/90); varios fallos juntos en un mismo partido desigual (Baskonia 118-78 Girona).
 - Partidos aplazados (`unstarted_step` en `vigilante.py`): si la ficha de acb.com dice aplazado (estado o fecha

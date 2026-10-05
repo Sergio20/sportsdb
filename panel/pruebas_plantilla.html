@@ -99,7 +99,8 @@ function render() {
     const bets = `<div class="muted small">${esc(periodTxt(x))}</div>` + LINES.map(([p]) => `<div class="bet"><span class="sw" style="background:var(--c${p})"></span>${esc(shortBet(x, p))}${
       x.res ? ` <b class="${x.res[p] ? 'ok' : 'ko'}">${x.res[p] ? '✓' : '✗'}</b>` : ''}</div>`).join('');
     // Lo que ofrecía la casa de Sergio cuando contestó al aviso en Telegram
-    const casa = (x.casa || []).map(c => { const need = 100 / c.p, val = c.odds > need;
+    const casa = (x.casa || []).map(c => { if (c.none) return `<div class="small muted">Tu casa: no ofrecía ninguna de estas líneas</div>`;
+      const need = 100 / c.p, val = c.odds > need;
       return `<div class="small"><span class="${val ? 'ok' : 'ko'}">Tu casa: ${esc(c.line > 0 && x.hcap ? '+' : '')}${nf(c.line, 1)} a ${nf(c.odds, 2)} · acierta ${nf(c.p, 0)} % · ${val ? 'con valor' : 'sin valor'}</span></div>`; }).join('');
     const g = x.res ? LINES.reduce((s, [p]) => s + gain(!!x.res[p], p), 0) : null;
     return `<tr><td class="l">${esc(when(x.ts))}</td><td class="l w">${esc(x.home)} – ${esc(x.away)}<div class="muted small">${esc(COMP[x.comp] || x.comp)}</div></td>
@@ -126,6 +127,7 @@ function render() {
     <div class="muted small">${done.length} apuestas resueltas${open.length ? ` y ${open.length} pendientes (se resuelven al acabar su partido o su cuarto)` : ''}. Eje horizontal: avisos en el orden en que saltaron.</div>
   </section>
   ${types.length ? `<section class="panel"><h2>Por tipo de aviso</h2><div class="scroll"><table><thead><tr><th class="l">Aviso</th><th>Apuestas</th>${LINES.map(([p]) => `<th>${p} %: ganadas</th><th>${p} %: balance</th>`).join('')}</tr></thead><tbody>${byType}</tbody></table></div></section>` : ''}
+  ${casaSummary()}
   <section class="panel"><h2>Registro de apuestas simuladas</h2>
     <div class="scroll"><table><thead><tr><th class="l">Cuándo</th><th class="l">Partido</th><th class="l">Aviso</th><th class="l">Apuesta</th><th>Final</th><th>Balance</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
@@ -137,6 +139,18 @@ function render() {
     const v = parseFloat(String(i.value).replace(',', '.')); if (v > 1) { odds[i.dataset.p] = v; save(); render(); } }));
   $('#stake').addEventListener('change', e => { const v = parseFloat(String(e.target.value).replace(',', '.')); if (v > 0) { stake = v; save(); render(); } });
   $('#reset').addEventListener('click', () => { odds = Object.assign({}, CFG.odds); stake = CFG.stake; save(); render(); });
+}
+// Lo que ofrecía la casa de Sergio en los avisos que valoró desde Telegram (botón «No aparece» o respuesta con línea y cuota)
+function casaSummary() {
+  const rated = ALL.filter(x => (x.casa || []).length);
+  if (!rated.length) return `<section class="panel"><h2>Tu casa de apuestas</h2><div class="muted">Aún no has valorado ningún aviso. Cuando te llegue uno por Telegram, respóndele con la línea y la cuota de tu casa (o pulsa «No aparece en mi casa») y aquí verás cuántas veces la casa ofrece nuestras líneas y con qué valor.</div></section>`;
+  const none = rated.filter(x => x.casa.every(c => c.none)).length, offers = rated.flatMap(x => x.casa.filter(c => !c.none));
+  const val = offers.filter(c => c.odds > 100 / c.p).length;
+  return `<section class="panel"><h2>Tu casa de apuestas</h2><div class="kpis">
+    <div class="kpi"><div class="l">Avisos valorados</div><div class="v">${rated.length}</div></div>
+    <div class="kpi"><div class="l">No ofrecía nuestras líneas</div><div class="v">${nf(100 * none / rated.length, 0)} %</div><div class="s">${none} de ${rated.length}</div></div>
+    <div class="kpi"><div class="l">Ofertas con valor</div><div class="v ${val ? 'pos' : ''}">${offers.length ? nf(100 * val / offers.length, 0) + ' %' : '–'}</div><div class="s">${val} de ${offers.length} líneas que te ofrecía</div></div></div>
+    <div class="muted small">Sale de tus respuestas a los avisos en Telegram. Con valor = la cuota de tu casa supera la mínima para lo que acierta esa línea.</div></section>`;
 }
 function save() { try { localStorage.setItem('banco-ajustes', JSON.stringify({ odds, stake })); } catch (e) { /* sin memoria del navegador */ } }
 
