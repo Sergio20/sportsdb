@@ -120,8 +120,8 @@ def message(al, g, el, score):
     """Aviso completo: cabecera con el partido y el momento, y el cuerpo explícito de avisos.describe."""
     moment = (f"Final del {avisos.ORD[al['done']]} cuarto" if al["type"] == "cuarto"
               else f"Minuto {el:.0f} de partido ({avisos.ORD[min(4, int(el // 10) + 1)]} cuarto)")
-    return (f"🔔 {avisos.name_of(al).upper()} · {COMP[g['comp']]}\n{g['home']} {score} {g['away']}\n{moment} · detectado a las {local():%H:%M:%S}\n\n"
-            + avisos.describe(al, g["home"], g["away"]) + f"\n\nNinguna línea acierta siempre.\n{WEB}")
+    return (f"🔔 {avisos.name_of(al).upper()} · {COMP[g['comp']]}\n{g['home']} {score} {g['away']}\n{moment} · {local():%H:%M}\n\n"
+            + avisos.compact(al, g["home"], g["away"]))
 
 
 def agenda(con, log, log_path, hours, games, hist):
@@ -351,7 +351,8 @@ DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "doming
 
 
 NO_LINE = re.compile(r"\b(no\s*(aparece|sale|hay|esta|está|ofrece)|nada|ninguna)\b", re.I)
-BUTTON = {"inline_keyboard": [[{"text": "🚫 No aparece en mi casa", "callback_data": "noaparece"}]]}
+BUTTON = {"inline_keyboard": [[{"text": "🚫 No aparece en mi casa", "callback_data": "noaparece"},
+                                {"text": "📊 Detalle", "url": "https://sergio20.github.io/sportsdb/en-vivo.html"}]]}
 NUM = re.compile(r"[+-]?\d+(?:[.,]\d+)?")
 
 
@@ -713,7 +714,7 @@ def replay(base, season, code, el):
         print(f"En el minuto {el} no había ningún aviso ({A['pts']}-{B['pts']}).")
     for al in als:
         send("🧪 ENSAYO con un partido ya jugado (no es un aviso real)\n\n" + message(al, g, el, f"{A['pts']}-{B['pts']}")
-             + "\n\n🧪 Es una prueba: el botón y las respuestas solo funcionan con avisos reales.", buttons=BUTTON)
+             + "\n\n🧪 Prueba: el botón «No aparece» y las respuestas solo funcionan con avisos reales.", buttons=BUTTON)
     if als:
         send("ENSAYO\n" + result_message(g, [dict(alert=al, el=el, score=f"{A['pts']}-{B['pts']}") for al in als], int(h["ScoreA"]), int(h["ScoreB"])))
     return 0

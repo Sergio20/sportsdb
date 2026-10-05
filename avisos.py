@@ -362,6 +362,35 @@ def describe(al, home, away):
     return "\n".join(out)
 
 
+def compact(al, home, away):
+    """Versión corta para Telegram, para decidir en segundos: por qué, qué apostar, las tres líneas con su cuota mínima
+    y unas pocas líneas más por si la casa ofrece otra. El detalle completo (describe) queda en la web."""
+    b = bet_of(al, home, away)
+    hcap = b["market"].startswith("HÁNDICAP")
+    if al["type"] != "cuarto":
+        when = "partido entero"
+    elif al["target"] == "mitad":
+        when = "solo 2.ª parte"
+    else:
+        when = f"solo {ORD[int(al['target'])]} cuarto"
+    what = (f"Hándicap de {b['team']}" if hcap else
+            f"Puntos de {b['team']}: {b['way'].lower()}" if b["market"].startswith("PUNTOS DE") else f"Total: {b['way'].lower()}")
+    why = what_happens(al, home, away).split("\n")[0]
+    lab = lambda line: f"{b['team']} {fmt(line)}" if hcap else f"{b['way'].capitalize()} {num(line)}"  # noqa: E731
+    out = [why, "", f"👉 {what} · {when}"]
+    for p, label, _ in b["lines"]:
+        out.append(f"{ICON[p]} {label} · {p} % · cuota ≥ {num(100 / p, 2)}")
+    main = {round(float(v), 1) for v in al["lines"].values()}
+    others = [(line, pct) for line, pct in line_table(al) if round(line, 1) not in main]
+    if others:
+        pick = others[::max(1, len(others) // 4)][:4]
+        out.append("Otras: " + " · ".join(f"{fmt(line) if hcap else num(line)} {pct:.0f} % ({num(100 / pct, 2)})"
+                                          for line, pct in sorted(pick, key=lambda x: -x[1])))
+    out.append("↩️ Responde «línea cuota» (ej. " + (f"{fmt(others[0][0])} 1,12" if others and hcap
+                                                   else f"{num(others[0][0])} 1,12" if others else "+7,5 1,12") + ") y te digo si tiene valor")
+    return "\n".join(out)
+
+
 def result_lines(al, res, home, away):
     """Para el mensaje de resultado: cada línea con su marca y GANADA / PERDIDA."""
     labels = {p: label for p, label, _ in bet_of(al, home, away)["lines"]}

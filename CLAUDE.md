@@ -100,6 +100,9 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
 - Tabla de líneas (`avisos.line_table`): la casa casi nunca ofrece justo nuestras líneas, así que cada aviso trae
   «SI LA CASA TE OFRECE OTRA LÍNEA»: probabilidad y cuota mínima de cada línea entre el 80 y el 97 %, sacadas de la
   misma campana que las tres líneas del aviso (con dos de ellas se recupera centro y anchura).
+- Mensaje de Telegram corto (`avisos.compact`, ~10 líneas, para decidir en segundos): por qué, mercado y periodo, las tres
+  líneas con su cuota mínima, «Otras» (4 líneas de la tabla) y cómo responder. Botones «No aparece en mi casa» y
+  «📊 Detalle» (web). La explicación larga (`describe`) solo va a la web.
 - Respuestas en Telegram (`replies_step` / `answer_reply` en `vigilante.py`): Sergio contesta a un aviso con la línea y
   la cuota de su casa («+7,5 1,12») y el vigilante responde al momento con el % de acierto (`avisos.prob_of_line`, misma
   campana que `line_table`), la cuota mínima y si tiene valor. Cada aviso guarda el número de su mensaje (`msg`) y las
