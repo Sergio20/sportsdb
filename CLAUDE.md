@@ -100,6 +100,11 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
 - Tabla de líneas (`avisos.line_table`): la casa casi nunca ofrece justo nuestras líneas, así que cada aviso trae
   «SI LA CASA TE OFRECE OTRA LÍNEA»: probabilidad y cuota mínima de cada línea entre el 80 y el 97 %, sacadas de la
   misma campana que las tres líneas del aviso (con dos de ellas se recupera centro y anchura).
+- Respuestas en Telegram (`replies_step` / `answer_reply` en `vigilante.py`): Sergio contesta a un aviso con la línea y
+  la cuota de su casa («+7,5 1,12») y el vigilante responde al momento con el % de acierto (`avisos.prob_of_line`, misma
+  campana que `line_table`), la cuota mínima y si tiene valor. Cada aviso guarda el número de su mensaje (`msg`) y las
+  respuestas en `casa`; el banco de pruebas las enseña. Se leen con getUpdates (posición en la marca `tg_offset` de
+  `avisos.json`), en cada vuelta y en las esperas (`nap`). Solo se atiende al chat de `TELEGRAM_CHAT_ID`.
 - Banco a 5-10-2026 (22 avisos): líneas del 95 % 20/22, 90 % 16/22, 80 % 14/22. Los de cuarto, por debajo de lo
   prometido (57-64 % en 80/90); varios fallos juntos en un mismo partido desigual (Baskonia 118-78 Girona).
 - Partidos aplazados (`unstarted_step` en `vigilante.py`): si la ficha de acb.com dice aplazado (estado o fecha

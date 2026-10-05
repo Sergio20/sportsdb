@@ -227,23 +227,40 @@ def _scope(al):
     return f"el {o} CUARTO (solo ese cuarto)", f"contando solo los puntos del {o} cuarto"
 
 
+def _bell(al):
+    """Centro y anchura de la campana de un aviso, sacadas de sus líneas (línea = centro + paso × z). None si no se puede."""
+    ln = {int(k): float(v) for k, v in al["lines"].items()}
+    ps = sorted(ln)
+    z = {80: 0.8416, 85: 1.0364, 90: 1.2816, 95: 1.6449}
+    if len(ps) < 2:
+        return None
+    a, b = ps[0], ps[-1]
+    step = (ln[b] - ln[a]) / (z[b] - z[a])
+    if abs(step) < 1e-6:
+        return None
+    return ln[a] - step * z[a], step
+
+
+def prob_of_line(al, line):
+    """% de acierto de la apuesta del aviso con la línea que ofrezca la casa (la misma campana que las líneas del aviso)."""
+    bell = _bell(al)
+    if not bell:
+        return None
+    center, step = bell
+    return 100 * 0.5 * (1 + math.erf((line - center) / step / math.sqrt(2)))
+
+
 def line_table(al, lo=80, hi=97):
     """Probabilidad de acertar con CUALQUIER línea, no solo las tres del aviso: la casa mueve sus líneas y pocas veces
     ofrece justo la nuestra. Las tres líneas del aviso salen de una campana (línea = centro + paso × z), así que con dos
     de ellas se recupera la campana entera y se puede leer cualquier otra. Devuelve [(línea, % de acierto)] de lo, más
     seguro... hasta lo más ajustado, solo entre lo % y hi % (por encima del 97 % el histórico ya no da para fiarse)."""
-    ln = {int(k): float(v) for k, v in al["lines"].items()}
-    ps = sorted(ln)
-    if len(ps) < 2:
+    bell = _bell(al)
+    if not bell:
         return []
-    z = {80: 0.8416, 85: 1.0364, 90: 1.2816, 95: 1.6449}
-    a, b = ps[0], ps[-1]
-    step = (ln[b] - ln[a]) / (z[b] - z[a])            # puntos por cada unidad de z (con signo: + si subir la línea es más seguro)
-    if abs(step) < 1e-6:
-        return []
-    center = ln[a] - step * z[a]
+    center, step = bell                               # step con signo: + si subir la línea es más seguro
     phi = lambda x: 0.5 * (1 + math.erf(x / math.sqrt(2)))  # noqa: E731
-    out, line = [], ln[a]
+    out, line = [], float(al["lines"][min(al["lines"], key=lambda k: int(k))])
     sign = 1 if step > 0 else -1
     line -= sign * 4                                   # se empieza unos puntos por el lado arriesgado
     for _ in range(40):
@@ -336,6 +353,9 @@ def describe(al, home, away):
             txt = (f"{b['team']} {fmt(line)}" if hcap else f"{b['way'].capitalize()} {num(line)}")
             out.append(f"   {txt} → acierta {pct:.0f} % → cuota mínima {num(100 / pct, 2)}")
         out.append("   Si la cuota de la casa es MAYOR que la mínima, tiene valor; si es menor, no apuestes.")
+        out += ["", "↩️ RESPONDE A ESTE MENSAJE con la línea y la cuota de tu casa (por ejemplo: "
+                + (f"{fmt(tab[len(tab) // 2][0])} 1,12" if hcap else f"{num(tab[len(tab) // 2][0])} 1,12")
+                + ") y te digo al momento si tiene valor."]
     out += ["", "CÓMO SE GANA", b["win"]]
     return "\n".join(out)
 

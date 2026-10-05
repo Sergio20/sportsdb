@@ -18,6 +18,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -69,8 +70,8 @@ def get(url, **params):
     return r.json() if r.status_code == 200 and r.text.strip() else None
 
 
-def send(text):
-    """Manda un mensaje por Telegram. El token nunca se escribe en pantalla."""
+def send(text, reply_to=None):
+    """Manda un mensaje por Telegram y devuelve su número (o False). El token nunca se escribe en pantalla."""
     print("\n" + text + "\n", flush=True)
     token, chat = os.environ.get("TELEGRAM_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
     if not token or not chat:
@@ -79,10 +80,12 @@ def send(text):
     for wait in (0, 3, 10, 30):         # un corte momentáneo no puede costar un aviso: hasta 4 intentos
         time.sleep(wait)
         try:
-            r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage", timeout=30,
-                              json={"chat_id": chat, "text": text, "disable_web_page_preview": True})
+            body = {"chat_id": chat, "text": text, "disable_web_page_preview": True}
+            if reply_to:
+                body["reply_to_message_id"] = reply_to
+            r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage", timeout=30, json=body)
             if r.status_code == 200:
-                return True
+                return (r.json().get("result") or {}).get("message_id") or True
             print(f"  Telegram ha rechazado el mensaje (código {r.status_code})", flush=True)
             if r.status_code in (400, 401, 403):    # mensaje o credenciales no válidos: reintentar no sirve
                 return False
@@ -181,9 +184,9 @@ def quarter_step(g, st, base, rules, log, save):
         if k in g["sent"]:
             continue
         score = f"{st['hs']}-{st['as_']}"
-        send(message(al, g, done * 10, score))
+        mid = send(message(al, g, done * 10, score))
         entry = dict(ts=now().isoformat(timespec="seconds"), comp=g["comp"], year=g["year"], code=g["code"], home=g["home"], away=g["away"],
-                     key=k, el=done * 10, score=score, alert=al)
+                     key=k, el=done * 10, score=score, alert=al, msg=[mid] if isinstance(mid, int) else [])
         g["sent"][k] = entry
         log.append(entry)
         save()
@@ -345,6 +348,76 @@ def suspicious(g, st):
 DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 
 
+NUM = re.compile(r"[+-]?\d+(?:[.,]\d+)?")
+
+
+def replies_step(log, save):
+    """Respuestas a los avisos en Telegram: Sergio contesta a un aviso con la línea y la cuota que le ofrece su casa
+    («+7,5 1,12») y se le dice al momento si tiene valor. Cada respuesta queda anotada en el aviso (banco de pruebas)."""
+    token, chat = os.environ.get("TELEGRAM_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
+    if not token or not chat:
+        return
+    mark = next((e for e in log if "tg_offset" in e), None)
+    try:
+        r = requests.get(f"https://api.telegram.org/bot{token}/getUpdates", timeout=10,
+                         params={"offset": (mark or {}).get("tg_offset", 0), "timeout": 0, "allowed_updates": '["message"]'})
+        ups = r.json().get("result", []) if r.status_code == 200 else []
+    except (requests.RequestException, ValueError):
+        return
+    if not ups:
+        return
+    if not mark:
+        mark = {"tg_offset": 0}
+        log.append(mark)
+    for u in ups:
+        mark["tg_offset"] = u["update_id"] + 1
+        m = u.get("message") or {}
+        if str((m.get("chat") or {}).get("id")) != str(chat) or not m.get("text"):
+            continue                # solo se atiende a Sergio
+        try:
+            answer_reply(m, log)
+        except Exception as e:      # una respuesta rara no puede parar la vigilancia
+            print(f"  respuesta de Telegram no entendida: {e}", flush=True)
+    save()
+
+
+def answer_reply(m, log):
+    to = (m.get("reply_to_message") or {}).get("message_id")
+    e = next((x for x in log if "alert" in x and to in (x.get("msg") or [])), None) if to else None
+    if not e:
+        if to or NUM.search(m["text"]):
+            send("Para valorar una cuota, RESPONDE directamente al mensaje del aviso (mantén pulsado el aviso → Responder) "
+                 "con la línea y la cuota, por ejemplo: +7,5 1,12", reply_to=m["message_id"])
+        return
+    nums = [float(x.replace(",", ".")) for x in NUM.findall(m["text"])]
+    if len(nums) < 2:
+        send("Necesito la línea y la cuota, por ejemplo: +7,5 1,12", reply_to=m["message_id"])
+        return
+    line, odds = nums[0], nums[1]
+    al = (e.get("msg_alert") or {}).get(str(to)) or e["alert"]
+    p = avisos.prob_of_line(al, line)
+    if p is None or odds <= 1:
+        send("No he podido valorar esa línea. Escríbela así: +7,5 1,12", reply_to=m["message_id"])
+        return
+    p = max(1.0, min(99.0, p))
+    need, ev = 100 / p, (p / 100 * odds - 1) * 100
+    b = avisos.bet_of(al, e["home"], e["away"])
+    what = f"{b['team']} {avisos.fmt(line)}" if b["market"].startswith("HÁNDICAP") else f"{b['way'].capitalize()} {avisos.num(line)}"
+    verdict = (f"✅ CON VALOR: por cada 100 € apostados, a la larga +{ev:.0f} €" if odds > need
+               else f"❌ SIN VALOR: por cada 100 € apostados, a la larga {ev:.0f} €. No apuestes.")
+    warn = "\n⚠️ Ojo: por debajo del 80 % de acierto. Lo acordado es apostar solo líneas seguras." if p < 80 else ""
+    send(f"{what} a {avisos.num(odds, 2)}\nAcierta {p:.0f} % → cuota mínima {avisos.num(need, 2)}\n{verdict}{warn}", reply_to=m["message_id"])
+    e.setdefault("casa", []).append(dict(ts=now().isoformat(timespec="seconds"), line=line, odds=odds, p=round(p, 1)))
+
+
+def nap(seconds, log, save):
+    """Espera sin partidos, pero atendiendo las respuestas de Telegram cada 20 segundos."""
+    end = time.time() + seconds
+    while time.time() < end:
+        replies_step(log, save)
+        time.sleep(max(0, min(20, end - time.time())))
+
+
 def gap_step(gap, g, st, games):
     """Si la tanda anterior acabó hace más de 10 minutos y hay partidos en juego, ha habido un rato sin vigilar
     (GitHub lanzó tarde esta tanda, o la anterior se cayó). Se avisa por Telegram, una vez, para que se sepa."""
@@ -475,14 +548,15 @@ def watch(con, log_path, hours):
     while now() < deadline:
         pending = [g for g in games if not g["done"] and g["start"] < deadline]
         if not pending:     # nada que vigilar en esta tanda: espera a que acabe; la siguiente busca los partidos nuevos
-            time.sleep(max(1, min(300, (deadline - now()).total_seconds())))
+            nap(max(1, min(300, (deadline - now()).total_seconds())), log, save)
             continue
         soon = [g for g in pending if g["start"] <= now() + dt.timedelta(minutes=3)]
         if not soon:
-            time.sleep(min(300, max(30, (min(g["start"] for g in pending) - now()).total_seconds() - 120)))
+            nap(min(300, max(30, (min(g["start"] for g in pending) - now()).total_seconds() - 120)), log, save)
             continue
         t0 = time.time()
         loops += 1
+        replies_step(log, save)
         if loops % 30 == 0 and pace["extra"] > 0:     # tras un rato sin cortes, se vuelve a acelerar
             pace["extra"] -= 5
         n_acb = sum(g["comp"] == "A" for g in soon)
@@ -541,12 +615,15 @@ def watch(con, log_path, hours):
                     if old and not (old["alert"]["level"] == "moderado" and al["level"] == "fuerte" and not old.get("upgraded")):
                         continue
                     score = f"{A['pts']}-{B['pts']}"
-                    send(message(al, g, el, score))
+                    mid = send(message(al, g, el, score))
                     if old:                 # pasa de moderado a fuerte: se avisa otra vez, pero cuenta el primero
                         old["upgraded"] = True
+                        if isinstance(mid, int):        # su respuesta se valora con las líneas de ese mensaje
+                            old.setdefault("msg", []).append(mid)
+                            old.setdefault("msg_alert", {})[str(mid)] = al
                         continue
                     entry = dict(ts=now().isoformat(timespec="seconds"), comp=g["comp"], year=g["year"], code=g["code"], home=g["home"], away=g["away"],
-                                 key=k, el=round(el, 1), score=score, alert=al)
+                                 key=k, el=round(el, 1), score=score, alert=al, msg=[mid] if isinstance(mid, int) else [])
                     g["sent"][k] = entry
                     log.append(entry)
                     log_path.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")

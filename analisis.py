@@ -455,12 +455,13 @@ def sent_log(con, path):
             rows.append(dict(ts=e["ts"], comp=e["comp"], home=e["home"], away=e["away"], el=e["el"], score=e["score"],
                              type="racha" if al.get("sub") == "racha" else "cuarto", level=al["level"],
                              bet=bet, lines=al["lines"], hcap=al["market"] == "hcap", res=e.get("res"),
+                             casa=e.get("casa"),
                              mk=dict(market=al["market"], team=team, over=bool(al.get("over")),
                                      period="la 2.ª parte" if al["target"] == "mitad" else f"el {int(al['target'])}.º cuarto"),
                              final=str(e.get("value")) if e.get("res") else (f"{r[0]}-{r[1]}" if r and r[2] == "played" else None)))
             continue
         row = dict(ts=e["ts"], comp=e["comp"], home=e["home"], away=e["away"], el=e["el"], score=e["score"], type=al["type"], level=al["level"],
-                   upgraded=bool(e.get("upgraded")),
+                   upgraded=bool(e.get("upgraded")), casa=e.get("casa"),
                    bet=("menos de" if al.get("under") else "más de") if al["type"] == "total" else (e["home"] if al["side"] > 0 else e["away"]),
                    lines=al["lines"], hcap=al["type"] != "total", res=None, final=None,
                    mk=dict(market="total" if al["type"] == "total" else "hcap", over=not al.get("under"), period="el partido",

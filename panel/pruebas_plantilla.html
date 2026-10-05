@@ -98,10 +98,13 @@ function render() {
   const rows = ALL.slice().reverse().map(x => {
     const bets = `<div class="muted small">${esc(periodTxt(x))}</div>` + LINES.map(([p]) => `<div class="bet"><span class="sw" style="background:var(--c${p})"></span>${esc(shortBet(x, p))}${
       x.res ? ` <b class="${x.res[p] ? 'ok' : 'ko'}">${x.res[p] ? '✓' : '✗'}</b>` : ''}</div>`).join('');
+    // Lo que ofrecía la casa de Sergio cuando contestó al aviso en Telegram
+    const casa = (x.casa || []).map(c => { const need = 100 / c.p, val = c.odds > need;
+      return `<div class="small"><span class="${val ? 'ok' : 'ko'}">Tu casa: ${esc(c.line > 0 && x.hcap ? '+' : '')}${nf(c.line, 1)} a ${nf(c.odds, 2)} · acierta ${nf(c.p, 0)} % · ${val ? 'con valor' : 'sin valor'}</span></div>`; }).join('');
     const g = x.res ? LINES.reduce((s, [p]) => s + gain(!!x.res[p], p), 0) : null;
     return `<tr><td class="l">${esc(when(x.ts))}</td><td class="l w">${esc(x.home)} – ${esc(x.away)}<div class="muted small">${esc(COMP[x.comp] || x.comp)}</div></td>
       <td class="l">${esc(KIND[x.type] || x.type)}${x.level === 'fuerte' ? ' · fuerte' : ''}<div class="muted small">${(x.type === 'cuarto' || x.type === 'racha') ? 'al acabar el minuto ' + nf(x.el) : 'minuto ' + nf(x.el)} · ${esc(x.score)}</div></td>
-      <td class="l w">${bets}</td><td>${x.res ? esc(x.final || '') : '<span class="muted">pendiente</span>'}</td><td class="${g == null ? '' : sgn(g)}">${g == null ? '–' : eur(g)}</td></tr>`; }).join('');
+      <td class="l w">${bets}${casa}</td><td>${x.res ? esc(x.final || '') : '<span class="muted">pendiente</span>'}</td><td class="${g == null ? '' : sgn(g)}">${g == null ? '–' : eur(g)}</td></tr>`; }).join('');
 
   $('#view').innerHTML = `
   <section class="panel">
