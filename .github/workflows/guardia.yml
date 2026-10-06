@@ -1,0 +1,29 @@
+name: Guardia de la actualización diaria
+
+# Cada hora comprueba que la base de datos se ha guardado hoy; si no, desatasca y relanza «Actualizar datos»
+# (scripts/guardia_datos.sh).
+on:
+  schedule:
+    - cron: "41 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: guardia
+  cancel-in-progress: true
+
+jobs:
+  guardia:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Comprobar la actualización diaria
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: bash scripts/guardia_datos.sh

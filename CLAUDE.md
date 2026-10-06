@@ -12,6 +12,12 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   `data`, ejecuta `update_db.py`, comprueba (`scripts/check_db.py`), construye la web
   (`build_site.py` → `_site/`), la publica en Pages y guarda la base en `data`.
   Un push a `main` solo reconstruye y publica (no descarga datos ni toca `data`).
+  Dos colas (`concurrency`): la de datos (diaria o a mano) y la de publicaciones por push (la nueva sustituye a la
+  anterior). Si falla o falla alguna fuente, aviso por Telegram. **Guardia** (`guardia.yml`, cada hora, min. 41 →
+  `scripts/guardia_datos.sh`): cancela ejecuciones atascadas en cola >30 min sin ninguna en marcha y, si pasadas las
+  05:15 UTC la rama `data` no se ha guardado hoy, relanza la actualización (máx. 3 al día) y avisa por Telegram. Motivo:
+  el 5-10-2026 una publicación se quedó «en cola» toda la noche, bloqueó la cola única y el día 6 no hubo actualización.
+- En el PC de Sergio: `bash sincronizar.sh` (Git Bash) trae el código y la base del día a `data/deportes.db`.
 
 ## Piezas
 

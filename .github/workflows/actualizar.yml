@@ -12,9 +12,12 @@ permissions:
   pages: write
   id-token: write
 
+# Dos colas: la actualización de datos (diaria o a mano) nunca la cancela nada; las publicaciones por cambios de código
+# van aparte y la más nueva sustituye a la anterior. El 5-10-2026 una publicación atascada en cola bloqueó la
+# actualización del día siguiente; ahora además la guardia (guardia.yml) desatasca y relanza.
 concurrency:
-  group: sportsdb
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'push' && 'sportsdb-web' || 'sportsdb-datos' }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
   build:
@@ -47,7 +50,11 @@ jobs:
 
       - name: Actualizar datos
         if: github.event_name != 'push'
-        run: python update_db.py || echo "::warning::Alguna fuente ha fallado; se publica con los datos disponibles"
+        run: |
+          if ! python update_db.py; then
+            echo "::warning::Alguna fuente ha fallado; se publica con los datos disponibles"
+            echo "fuente=fallo" >> "$GITHUB_ENV"
+          fi
 
       - name: Comprobar la base de datos
         run: python scripts/check_db.py data/deportes.db --compare /tmp/antes.json
@@ -75,6 +82,22 @@ jobs:
           git commit -q -m "Base de datos $(date -u +%Y-%m-%d)"
           git push --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" data
 
+      # Aviso por Telegram en el momento: de esta base salen los porcentajes de los avisos
+      - name: Avisar por Telegram si algo ha fallado
+        if: always() && github.event_name != 'push' && (failure() || env.fuente == 'fallo')
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          [ -n "$TELEGRAM_TOKEN" ] || exit 0
+          if [ "${{ job.status }}" = "failure" ]; then
+            msg="⚠️ LA ACTUALIZACIÓN DIARIA DE LA BASE HA FALLADO. La guardia la reintentará en la próxima hora. Detalle: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          else
+            msg="⚠️ Actualización diaria hecha, pero alguna fuente ha fallado: puede faltar algún partido de ayer. Detalle: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi
+          curl -sS -o /dev/null -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" --data-urlencode "text=${msg}" || true
+
   deploy:
     needs: build
     runs-on: ubuntu-latest
@@ -84,3 +107,4 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
