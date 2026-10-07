@@ -1,0 +1,36 @@
+name: Informe semanal (Telegram)
+
+# Los lunes por la mañana: resumen del banco de pruebas por Telegram (scripts/informe_semanal.py).
+on:
+  schedule:
+    - cron: "37 7 * * 1"    # lunes 09:37 en Madrid en verano, 08:37 en invierno
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: informe
+  cancel-in-progress: true
+
+jobs:
+  informe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+      - name: Recuperar la base de datos y los avisos
+        run: |
+          mkdir -p data
+          git fetch --depth=1 origin data && git show FETCH_HEAD:deportes_db.zip > /tmp/db.zip && unzip -o -q /tmp/db.zip -d data
+          git fetch --depth=1 origin avisos && git show FETCH_HEAD:avisos.json > data/avisos.json
+      - name: Mandar el informe
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python scripts/informe_semanal.py --db data/deportes.db --log data/avisos.json

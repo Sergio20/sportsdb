@@ -142,6 +142,7 @@ function render() {
   </section>
   ${types.length ? `<section class="panel"><h2>Por tipo de aviso</h2><div class="scroll"><table><thead><tr><th class="l">Aviso</th><th>Apuestas</th>${LINES.map(([p]) => `<th>${p} %: ganadas</th><th>${p} %: balance</th>`).join('')}</tr></thead><tbody>${byType}</tbody></table></div></section>` : ''}
   ${casaSummary()}
+  ${speedSummary()}
   <section class="panel"><h2>Registro de apuestas simuladas</h2>
     <div class="scroll"><table><thead><tr><th class="l">Cuándo</th><th class="l">Partido</th><th class="l">Aviso</th><th class="l">Apuesta</th><th>Final</th><th>Balance</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
@@ -184,6 +185,20 @@ function casaSummary() {
       un poco más pesimista de lo que es). «Ventaja» (puntos de %) positiva: nuestro cálculo da más probable ganar que la casa, y es donde se le puede ganar a largo plazo.
       «Apostando solo las de valor»: una apuesta por aviso, la línea de tu casa con más valor, con el importe de arriba. Las líneas por debajo del 80 % se
       pierden a menudo: hacen falta muchas apuestas para que se note si de verdad se le gana a la casa.</div></section>`;
+}
+// Rapidez: cuánto tarda el aviso desde que el vigilante lee el dato y cuánto tarda Sergio en tocar el primer botón.
+// No mide el retraso de la propia fuente frente a la tele (eso solo se puede comparar a ojo).
+function speedSummary() {
+  const med = xs => { if (!xs.length) return null; const s = xs.slice().sort((a, b) => a - b), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
+  const read = ALL.filter(x => x.lat).map(x => x.lat.read), poll = ALL.filter(x => x.lat && x.lat.poll).map(x => x.lat.poll);
+  const react = ALL.filter(x => x.react != null).map(x => x.react);
+  if (!read.length && !react.length) return '';
+  const k = (l, v, s) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v == null ? '–' : nf(v, 0) + ' s'}</div><div class="s">${s}</div></div>`;
+  return `<section class="panel"><h2>Rapidez de los avisos</h2><div class="kpis">
+    ${k('Lectura → aviso', med(read), `mediana de ${read.length} avisos`)}
+    ${k('Cada cuánto se lee', med(poll), 'un cambio tarda de media la mitad en verse')}
+    ${k('Aviso → tu primer toque', med(react), `mediana de ${react.length} avisos valorados`)}</div>
+    <div class="muted small">Si la casa ya ha movido la línea cuando llega el aviso, llegamos tarde: compáralo alguna vez con la tele o la app de la casa.</div></section>`;
 }
 function save() { try { localStorage.setItem('banco-ajustes', JSON.stringify({ odds, stake })); } catch (e) { /* sin memoria del navegador */ } }
 

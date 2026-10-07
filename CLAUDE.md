@@ -174,11 +174,26 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
 
 - Revisión del sistema (7-10-2026): ver «Tareas programadas» abajo para no duplicar trabajo entre GitHub y las rutinas.
 
+- Rapidez (7-10-2026): cada aviso guarda `lat` = {read: s desde la lectura de la fuente hasta que Telegram lo aceptó,
+  poll: cada cuántos s se leía el partido} (`vigilante.lat_of`); `analisis._timing` añade `react` (s hasta el primer toque
+  de Sergio). El banco lo enseña en «Rapidez de los avisos». No mide el retraso de la fuente frente a la tele.
+- Freno automático (`analisis.rule_check`, `vigilante.freno_step`): por regla (tipo, o regla de cuarto), un aviso por
+  partido; con `FRENO_MIN` = 40 partidos o más, si el límite alto del intervalo del 90 % de la línea del 90 no llega al
+  `FRENO_TOPE` = 85 %, la regla se silencia (no manda avisos) y se avisa por Telegram; vuelve sola si mejora. Marcas
+  `{freno, off}` en `avisos.json`.
+- Informe semanal por Telegram los lunes (`informe.yml` → `scripts/informe_semanal.py`): 7 días y total, por línea,
+  con tope por partido, por tipo, casa, rapidez y freno.
+- Estudios descartados (7-10-2026): cansancio (equipo con partido hace ≤2 días frente a rival con 3+): Liga Endesa +0,7 a
+  +1,1 puntos frente a lo esperado (sin efecto, n≈240-280), Euroliga/EuroCup +0,3. Ausencia de la estrella (máximo
+  anotador con 22+ min en sus 10 partidos previos, `basket_player_stats`): −1,2 puntos frente a lo esperado (±0,8,
+  n=575; −1,6 en 2024+), demasiado poco y la casa ya lo sabe antes del partido. Ninguno se convierte en aviso.
+
 ## Tareas programadas (todas en GitHub salvo el informe)
 
 - `vigilante.yml`: cadena continua de tandas + respaldo cada hora (min. 23). Únicos avisos en directo.
 - `actualizar.yml`: base y web a las 04:10 UTC (GitHub la retrasa a veces horas) y en cada push (solo web).
 - `guardia.yml`: cada hora (min. 41). La ÚNICA que relanza la actualización si falta la base del día.
+- `informe.yml`: lunes 07:37 UTC, informe semanal por Telegram.
 - Rutina de Claude «Informe diario SportsDB» (08:00 Madrid): solo informa por correo; no relanza nada.
 - La rutina antigua «Actualización diaria SportsDB» (carpeta del PC) se borró el 7-10-2026: la sustituye `actualizar.yml`.
 

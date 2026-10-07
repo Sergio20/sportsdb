@@ -182,10 +182,17 @@ def quarter_step(g, st, base, rules, log, save):
         score = f"{st['hs']}-{st['as_']}"
         mid = send(message(al, g, done * 10, score), buttons=lines_kb(al))
         entry = dict(ts=now().isoformat(timespec="seconds"), comp=g["comp"], year=g["year"], code=g["code"], home=g["home"], away=g["away"],
-                     key=k, el=done * 10, score=score, alert=al, msg=[mid] if isinstance(mid, int) else [])
+                     key=k, el=done * 10, score=score, alert=al, msg=[mid] if isinstance(mid, int) else [], lat=lat_of(g, st))
         g["sent"][k] = entry
         log.append(entry)
         save()
+
+
+def lat_of(g, st):
+    """Rapidez del aviso: segundos desde la lectura de la fuente hasta que Telegram lo aceptó, y cada cuántos segundos se
+    leía el partido (de media, un cambio en la fuente tarda la mitad de eso en verse). No mide el retraso de la propia
+    fuente frente a la tele: eso solo se puede comparar a ojo."""
+    return dict(read=round(time.time() - st.get("read_at", time.time()), 1), poll=round(g.get("every") or 0))
 
 
 def result_message(g, entries, hs, as_):
@@ -618,6 +625,32 @@ def unstarted_step(g, st, log, save):
     return True
 
 
+def freno_step(log, save):
+    """Freno automático (analisis.rule_check): silencia las reglas que en directo aciertan claramente menos de lo
+    prometido y avisa por Telegram una vez al cambiar (también si una vuelve). Devuelve las silenciadas."""
+    try:
+        check = analisis.rule_check(log)
+    except Exception as e:
+        print(f"  freno automático no disponible: {e}", flush=True)
+        return set()
+    off = {r for r, v in check.items() if v["off"]}
+    before = {e["freno"]: e["off"] for e in log if "freno" in e}
+    for rule, v in sorted(check.items()):
+        if before.get(rule, False) == v["off"]:
+            continue
+        name = avisos.NAMES.get(rule) or f"{avisos.NAMES['cuarto']}: {analisis.Q_RULES.get(rule, {}).get('txt', rule)}"
+        send((f"🔇 SILENCIO LA REGLA «{name}»\nCon la línea del 90 % ha acertado {v['ok']} de {v['n']} partidos ({avisos.num(v['pct'], 0)} %); "
+              f"ni en el mejor caso creíble llega al {analisis.FRENO_TOPE} %. Dejo de mandar sus avisos hasta que mejore.")
+             if v["off"] else
+             (f"🔊 VUELVE LA REGLA «{name}»: ya acierta {v['ok']} de {v['n']} ({avisos.num(v['pct'], 0)} %). Vuelvo a mandar sus avisos."))
+        with LOCK:
+            log[:] = [e for e in log if e.get("freno") != rule] + [dict(freno=rule, off=v["off"], ts=now().isoformat(timespec="seconds"))]
+        save()
+    if off:
+        print("  reglas silenciadas por el freno: " + ", ".join(sorted(off)), flush=True)
+    return off
+
+
 def publish(snapshot):
     """Estado en directo de la Liga Endesa para la web (rama `vivo`, fichero vivo.json). El navegador no puede leer
     acb.com, así que lo lee de aquí. Solo dentro de GitHub (necesita su credencial); en local no hace nada."""
@@ -688,6 +721,8 @@ def watch(con, log_path, hours):
         agenda(con, log, save, hours, hist_games, hist)
     except Exception as e:      # ni el mensaje previo ni las reglas de cuartos deben impedir la vigilancia
         print(f"  no se ha podido preparar el mensaje previo o las reglas de cuartos: {e}", flush=True)
+    off = freno_step(log, save)
+    rules = {k: v for k, v in rules.items() if k not in off}
     print(f"{len(games)} partidos alrededor de esta hora; vigilando hasta las {deadline:%H:%M} UTC como muy tarde", flush=True)
     for g in sorted(games, key=lambda g: g["start"]):
         print(f"  {g['start']:%H:%M} UTC · {COMP[g['comp']]} · {g['home']} - {g['away']}" + (" (ya jugado)" if g["done"] else ""), flush=True)
@@ -717,9 +752,11 @@ def watch(con, log_path, hours):
             try:
                 if g.get("slow_until", 0) > time.time():
                     continue
+                read_at = time.time()
                 st = (state_acb if g["comp"] == "A" else state_euro)(g)
                 if not st:
                     continue
+                st["read_at"], g["every"] = read_at, every
                 if unstarted_step(g, st, log, save):
                     g["st"] = st
                     continue
@@ -760,7 +797,7 @@ def watch(con, log_path, hours):
                 if not st["live"] or el is None or not bA or not bB:
                     continue
                 A, B = st["A"], st["B"]
-                g["live_alerts"] = avisos.evaluate(el, A, B, bA, bB)
+                g["live_alerts"] = [al for al in avisos.evaluate(el, A, B, bA, bB) if al["type"] not in off]
                 for al in g["live_alerts"]:
                     k, old = avisos.key(al), g["sent"].get(avisos.key(al))
                     if old and not (old["alert"]["level"] == "moderado" and al["level"] == "fuerte" and not old.get("upgraded")):
@@ -774,7 +811,7 @@ def watch(con, log_path, hours):
                             old.setdefault("msg_alert", {})[str(mid)] = al
                         continue
                     entry = dict(ts=now().isoformat(timespec="seconds"), comp=g["comp"], year=g["year"], code=g["code"], home=g["home"], away=g["away"],
-                                 key=k, el=round(el, 1), score=score, alert=al, msg=[mid] if isinstance(mid, int) else [])
+                                 key=k, el=round(el, 1), score=score, alert=al, msg=[mid] if isinstance(mid, int) else [], lat=lat_of(g, st))
                     g["sent"][k] = entry
                     log.append(entry)
                     save()

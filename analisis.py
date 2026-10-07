@@ -433,6 +433,38 @@ def triples(con, games):
                 s80=round(100 * m("s80"), 1), s90=round(100 * m("s90"), 1), s95=round(100 * m("s95"), 1))
 
 
+def rule_of(al):
+    """Nombre de la regla de un aviso: el tipo, o la regla concreta en los de cuarto."""
+    return al.get("sub") if al["type"] == "cuarto" else al["type"]
+
+
+FRENO_MIN, FRENO_TOPE = 40, 85      # partidos mínimos y % máximo creíble de la línea del 90 para silenciar una regla
+
+
+def rule_check(log):
+    """Freno automático: acierto en directo de la línea del 90 % de cada regla, contando un solo aviso por partido (el
+    primero; los del mismo partido fallan juntos). Una regla se silencia si tiene FRENO_MIN partidos o más y, aun en el
+    mejor caso creíble (límite alto del intervalo del 90 %), acierta menos del FRENO_TOPE %: claramente por debajo de lo
+    prometido. Devuelve {regla: dict(n, ok, pct, top, off)}."""
+    first = {}
+    for e in log:
+        if "alert" not in e or e.get("anulado") or not e.get("res"):
+            continue
+        k = (rule_of(e["alert"]), e.get("comp"), e.get("year"), e.get("code"))
+        first.setdefault(k, e)
+    out = {}
+    for (rule, *_), e in first.items():
+        r = out.setdefault(rule, dict(n=0, ok=0))
+        r["n"] += 1
+        r["ok"] += bool(e["res"].get("90"))
+    z = 1.645
+    for r in out.values():
+        n, p = r["n"], r["ok"] / r["n"]
+        top = (p + z * z / (2 * n) + z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / (1 + z * z / n)
+        r.update(pct=round(100 * p, 1), top=round(100 * top, 1), off=n >= FRENO_MIN and 100 * top < FRENO_TOPE)
+    return out
+
+
 def _casa(al, casa, value):
     """Lo que Sergio anotó de su casa en un aviso, con lo que acertamos nosotros (p), lo que cree la casa (implied =
     100 / cuota, con su margen dentro), la ganancia esperada por euro (ev) y, si ya se sabe, si esa línea se ganó (hit)."""
@@ -446,6 +478,19 @@ def _casa(al, casa, value):
             c["hit"] = avisos.line_hits(al, c["line"], value)
         out.append(c)
     return out or None
+
+
+def _timing(row, e):
+    """Rapidez: segundos desde que el vigilante leyó el dato hasta que salió el aviso (lat.read), cada cuánto se leía
+    el partido (lat.poll) y cuánto tardó Sergio en tocar el primer botón del aviso (react)."""
+    row["lat"] = e.get("lat")
+    taps = [c["ts"] for c in e.get("casa") or [] if c.get("ts")]
+    if taps:
+        try:
+            t0 = dt.datetime.fromisoformat(e["ts"])
+            row["react"] = round((min(dt.datetime.fromisoformat(t) for t in taps) - t0).total_seconds())
+        except ValueError:
+            pass
 
 
 def sent_log(con, path):
@@ -482,6 +527,7 @@ def sent_log(con, path):
                                      period="la 2.ª parte" if al["target"] == "mitad" else f"el {int(al['target'])}.º cuarto"),
                              final=str(e.get("value")) if e.get("res") else (f"{r[0]}-{r[1]}" if r and r[2] == "played" else None)))
             rows[-1]["casa"] = _casa(al, e.get("casa"), e.get("value") if e.get("res") else None)
+            _timing(rows[-1], e)
             continue
         row = dict(ts=e["ts"], comp=e["comp"], home=e["home"], away=e["away"], el=e["el"], score=e["score"], type=al["type"], level=al["level"],
                    upgraded=bool(e.get("upgraded")), casa=e.get("casa"),
@@ -499,6 +545,7 @@ def sent_log(con, path):
             hs, as_ = (int(x) for x in row["final"].split("-"))
             value = avisos.bet_value(al, hs, as_, r[4] if r and r[2] == "played" else None)
         row["casa"] = _casa(al, e.get("casa"), value)
+        _timing(row, e)
         rows.append(row)
     done = [x for x in rows if x["res"]]
     by = {}
