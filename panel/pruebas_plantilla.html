@@ -99,9 +99,10 @@ function render() {
     const bets = `<div class="muted small">${esc(periodTxt(x))}</div>` + LINES.map(([p]) => `<div class="bet"><span class="sw" style="background:var(--c${p})"></span>${esc(shortBet(x, p))}${
       x.res ? ` <b class="${x.res[p] ? 'ok' : 'ko'}">${x.res[p] ? '✓' : '✗'}</b>` : ''}</div>`).join('');
     // Lo que ofrecía la casa de Sergio cuando contestó al aviso en Telegram
-    const casa = (x.casa || []).map(c => { if (c.none) return `<div class="small muted">Tu casa: no ofrecía ninguna de estas líneas</div>`;
-      const need = 100 / c.p, val = c.odds > need;
-      return `<div class="small"><span class="${val ? 'ok' : 'ko'}">Tu casa: ${esc(c.line > 0 && x.hcap ? '+' : '')}${nf(c.line, 1)} a ${nf(c.odds, 2)} · acierta ${nf(c.p, 0)} % · ${val ? 'con valor' : 'sin valor'}</span></div>`; }).join('');
+    const casa = (x.casa || []).map(c => { if (c.none) return `<div class="small muted">Tu casa: no ofrecía nada parecido</div>`;
+      const val = c.odds > 100 / c.p;
+      return `<div class="small"><span class="${val ? 'ok' : 'ko'}">Tu casa: ${esc(c.line > 0 && x.hcap ? '+' : '')}${nf(c.line, 1)} a ${nf(c.odds, 2)} · acierta ${nf(c.p, 0)} %${c.implied ? ` (la casa cree ${nf(c.implied, 0)} %)` : ''} · ${val ? 'con valor' : 'sin valor'}</span>${
+        c.hit == null ? '' : ` <b class="${c.hit ? 'ok' : 'ko'}">${c.hit ? '✓' : '✗'}</b>`}</div>`; }).join('');
     const g = x.res ? LINES.reduce((s, [p]) => s + gain(!!x.res[p], p), 0) : null;
     return `<tr><td class="l">${esc(when(x.ts))}</td><td class="l w">${esc(x.home)} – ${esc(x.away)}<div class="muted small">${esc(COMP[x.comp] || x.comp)}</div></td>
       <td class="l">${esc(KIND[x.type] || x.type)}${x.level === 'fuerte' ? ' · fuerte' : ''}<div class="muted small">${(x.type === 'cuarto' || x.type === 'racha') ? 'al acabar el minuto ' + nf(x.el) : 'minuto ' + nf(x.el)} · ${esc(x.score)}</div></td>
@@ -140,17 +141,36 @@ function render() {
   $('#stake').addEventListener('change', e => { const v = parseFloat(String(e.target.value).replace(',', '.')); if (v > 0) { stake = v; save(); render(); } });
   $('#reset').addEventListener('click', () => { odds = Object.assign({}, CFG.odds); stake = CFG.stake; save(); render(); });
 }
-// Lo que ofrecía la casa de Sergio en los avisos que valoró desde Telegram (botón «No aparece» o respuesta con línea y cuota)
+// Lo que ofrece de verdad la casa de Sergio, anotado con los botones de Telegram («No aparece» → línea y cuota que ve).
+// Sirve para dos cosas: saber dónde pone la casa sus líneas frente a las nuestras y si alguna de ellas se le puede ganar.
 function casaSummary() {
   const rated = ALL.filter(x => (x.casa || []).length);
-  if (!rated.length) return `<section class="panel"><h2>Tu casa de apuestas</h2><div class="muted">Aún no has valorado ningún aviso. Cuando te llegue uno por Telegram, respóndele con la línea y la cuota de tu casa (o pulsa «No aparece en mi casa») y aquí verás cuántas veces la casa ofrece nuestras líneas y con qué valor.</div></section>`;
-  const none = rated.filter(x => x.casa.every(c => c.none)).length, offers = rated.flatMap(x => x.casa.filter(c => !c.none));
-  const val = offers.filter(c => c.odds > 100 / c.p).length;
+  if (!rated.length) return `<section class="panel"><h2>Tu casa de apuestas</h2><div class="muted">Aún no has valorado ningún aviso. Cuando te llegue uno por Telegram, toca la línea que ofrece tu casa (o «No aparece» y elige la que ves) y su cuota: aquí verás dónde pone la casa sus líneas, qué cree ella que pasará y dónde se le puede ganar.</div></section>`;
+  const offersOf = x => x.casa.filter(c => c.line != null && c.odds);
+  const ours = rated.filter(x => offersOf(x).some(c => c.p >= 79.5)).length;
+  const offers = rated.flatMap(x => offersOf(x).map(c => Object.assign({ type: x.type }, c)));
+  const val = offers.filter(c => c.ev > 0).length;
+  // Banco real: en cada aviso, la oferta de tu casa con más valor (si la hay), una sola apuesta por aviso
+  const picks = rated.map(x => { const v = offersOf(x).filter(c => c.ev > 0).sort((a, b) => b.ev - a.ev)[0]; return v ? Object.assign({ type: x.type }, v) : null; }).filter(Boolean);
+  const settled = picks.filter(c => c.hit != null), won = settled.filter(c => c.hit).length;
+  const bal = settled.reduce((s, c) => s + (c.hit ? stake * (c.odds - 1) : -stake), 0);
+  const kinds = [...new Set(offers.map(c => c.type))];
+  const avg = (xs, f) => xs.length ? xs.reduce((s, c) => s + f(c), 0) / xs.length : null;
+  const byType = kinds.map(k => { const xs = offers.filter(c => c.type === k), ps = picks.filter(c => c.type === k && c.hit != null);
+    const b = ps.reduce((s, c) => s + (c.hit ? stake * (c.odds - 1) : -stake), 0), edge = avg(xs, c => c.p - c.implied);
+    return `<tr><td class="l">${esc(KIND[k] || k)}</td><td>${xs.length}</td><td>${nf(avg(xs, c => c.p), 0)} %</td><td>${nf(avg(xs, c => c.implied), 0)} %</td>
+      <td class="${edge > 0 ? 'pos' : 'neg'}">${edge > 0 ? '+' : ''}${nf(edge, 1)}</td><td>${xs.filter(c => c.ev > 0).length}</td>
+      <td>${ps.length ? `${ps.filter(c => c.hit).length}/${ps.length}` : '–'}</td><td class="${ps.length ? sgn(b) : ''}">${ps.length ? eur(b) : '–'}</td></tr>`; }).join('');
   return `<section class="panel"><h2>Tu casa de apuestas</h2><div class="kpis">
-    <div class="kpi"><div class="l">Avisos valorados</div><div class="v">${rated.length}</div></div>
-    <div class="kpi"><div class="l">No ofrecía nuestras líneas</div><div class="v">${nf(100 * none / rated.length, 0)} %</div><div class="s">${none} de ${rated.length}</div></div>
-    <div class="kpi"><div class="l">Ofertas con valor</div><div class="v ${val ? 'pos' : ''}">${offers.length ? nf(100 * val / offers.length, 0) + ' %' : '–'}</div><div class="s">${val} de ${offers.length} líneas que te ofrecía</div></div></div>
-    <div class="muted small">Sale de tus respuestas a los avisos en Telegram. Con valor = la cuota de tu casa supera la mínima para lo que acierta esa línea.</div></section>`;
+    <div class="kpi"><div class="l">Avisos valorados</div><div class="v">${rated.length}</div><div class="s">${offers.length} líneas anotadas</div></div>
+    <div class="kpi"><div class="l">Ofrecía nuestras líneas</div><div class="v">${nf(100 * ours / rated.length, 0)} %</div><div class="s">${ours} de ${rated.length} (del 80 % en adelante)</div></div>
+    <div class="kpi"><div class="l">Líneas con valor</div><div class="v ${val ? 'pos' : ''}">${offers.length ? nf(100 * val / offers.length, 0) + ' %' : '–'}</div><div class="s">${val} de ${offers.length}</div></div>
+    <div class="kpi"><div class="l">Apostando solo las de valor</div><div class="v ${settled.length ? sgn(bal) : ''}">${settled.length ? eur(bal) : '–'}</div><div class="s">${settled.length ? `${won} de ${settled.length} ganadas · ${nf(stake)} € cada una` : 'sin resultados aún'}${picks.length > settled.length ? ` · ${picks.length - settled.length} pendientes` : ''}</div></div></div>
+    ${kinds.length ? `<div class="scroll"><table><thead><tr><th class="l">Aviso</th><th>Líneas</th><th>Acierta</th><th>Cree la casa</th><th>Ventaja</th><th>Con valor</th><th>Ganadas</th><th>Balance</th></tr></thead><tbody>${byType}</tbody></table></div>` : ''}
+    <div class="muted small">Sale de lo que anotas con los botones de Telegram. «Acierta»: nuestro cálculo para esa línea. «Cree la casa» = 100 / cuota (lleva dentro su margen, así que la casa siempre parece
+      un poco más pesimista de lo que es). «Ventaja» (puntos de %) positiva: nuestro cálculo da más probable ganar que la casa, y es donde se le puede ganar a largo plazo.
+      «Apostando solo las de valor»: una apuesta por aviso, la línea de tu casa con más valor, con el importe de arriba. Las líneas por debajo del 80 % se
+      pierden a menudo: hacen falta muchas apuestas para que se note si de verdad se le gana a la casa.</div></section>`;
 }
 function save() { try { localStorage.setItem('banco-ajustes', JSON.stringify({ odds, stake })); } catch (e) { /* sin memoria del navegador */ } }
 

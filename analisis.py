@@ -433,6 +433,21 @@ def triples(con, games):
                 s80=round(100 * m("s80"), 1), s90=round(100 * m("s90"), 1), s95=round(100 * m("s95"), 1))
 
 
+def _casa(al, casa, value):
+    """Lo que Sergio anotó de su casa en un aviso, con lo que acertamos nosotros (p), lo que cree la casa (implied =
+    100 / cuota, con su margen dentro), la ganancia esperada por euro (ev) y, si ya se sabe, si esa línea se ganó (hit)."""
+    import avisos
+    out = []
+    for c in casa or []:
+        c = dict(c)
+        if c.get("line") is not None and c.get("odds"):
+            c["implied"] = round(100 / c["odds"], 1)
+            c["ev"] = round(c["p"] / 100 * c["odds"] - 1, 3)
+            c["hit"] = avisos.line_hits(al, c["line"], value)
+        out.append(c)
+    return out or None
+
+
 def sent_log(con, path):
     """Avisos que el vigilante envió de verdad por Telegram, con su resultado cuando el partido ya ha terminado."""
     path = Path(path)
@@ -466,6 +481,7 @@ def sent_log(con, path):
                              mk=dict(market=al["market"], team=team, over=bool(al.get("over")),
                                      period="la 2.ª parte" if al["target"] == "mitad" else f"el {int(al['target'])}.º cuarto"),
                              final=str(e.get("value")) if e.get("res") else (f"{r[0]}-{r[1]}" if r and r[2] == "played" else None)))
+            rows[-1]["casa"] = _casa(al, e.get("casa"), e.get("value") if e.get("res") else None)
             continue
         row = dict(ts=e["ts"], comp=e["comp"], home=e["home"], away=e["away"], el=e["el"], score=e["score"], type=al["type"], level=al["level"],
                    upgraded=bool(e.get("upgraded")), casa=e.get("casa"),
@@ -478,6 +494,11 @@ def sent_log(con, path):
             row["final"] = f"{r[0]}-{r[1]}"
         elif e.get("res"):      # la base aún no tiene el resultado: vale el que anotó el vigilante al acabar el partido
             row["res"], row["final"] = e["res"], e.get("final")
+        value = None
+        if row["final"]:
+            hs, as_ = (int(x) for x in row["final"].split("-"))
+            value = avisos.bet_value(al, hs, as_, r[4] if r and r[2] == "played" else None)
+        row["casa"] = _casa(al, e.get("casa"), value)
         rows.append(row)
     done = [x for x in rows if x["res"]]
     by = {}

@@ -359,14 +359,26 @@ def lines_kb(al):
     return {"inline_keyboard": rows + [[{"text": "🚫 No aparece", "callback_data": "noaparece"}, DETAIL]]}
 
 
+def casa_kb(al):
+    """Tras «No aparece»: las líneas más ajustadas que suele ofrecer la casa, con lo que acierta cada una según nuestro
+    cálculo. Sergio toca la que ve y su cuota: así sabemos qué ofrece de verdad la casa y si alguna tiene valor."""
+    keys = [{"text": f"{_label(al, line)} · {pct:.0f} %", "callback_data": f"L|{line}"} for line, pct in avisos.market_lines(al)]
+    rows = [keys[i:i + 2] for i in range(0, len(keys), 2)]
+    head = [{"text": "¿Qué línea ofrece tu casa? (lo que acierta)", "callback_data": "nada"}]
+    return {"inline_keyboard": [head] + rows + [[{"text": "↩️ Volver", "callback_data": "B"},
+                                                 {"text": "❌ Ninguna parecida", "callback_data": "ninguna"}]]}
+
+
 def odds_kb(al, line):
     """Tras tocar una línea: teclas de cuota alrededor de la mínima, ya marcadas con ✅ (tiene valor) o ❌ (no)."""
     p = max(1.0, min(99.0, avisos.prob_of_line(al, line) or 50))
     need = 100 / p
-    vals = sorted({round(need + d, 2) for d in (-0.06, -0.04, -0.02, 0.01, 0.03, 0.05, 0.08, 0.12, 0.18, 0.25, 0.35) if need + d > 1.0})
+    # en proporción a la mínima: sirve igual para 1,05 que para las cuotas de 1,80-2,50 de las líneas ajustadas
+    vals = sorted({round(need * (1 + r), 2) for r in (-0.10, -0.06, -0.03, -0.01, 0.01, 0.03, 0.06, 0.09, 0.13, 0.18, 0.25, 0.35)
+                   if need * (1 + r) > 1.0})
     keys = [{"text": f"{avisos.num(v, 2)} {'✅' if v > need else '❌'}", "callback_data": f"O|{line}|{v}"} for v in vals]
     rows = [keys[i:i + 4] for i in range(0, len(keys), 4)]
-    head = [{"text": f"{_label(al, line)}: acierta {p:.0f} % · mínima {avisos.num(need, 2)}", "callback_data": "nada"}]
+    head = [{"text": f"{'⚠️ ' if p < 79.5 else ''}{_label(al, line)}: acierta {p:.0f} % · mínima {avisos.num(need, 2)}", "callback_data": "nada"}]
     return {"inline_keyboard": [head] + rows + [[{"text": "↩️ Volver", "callback_data": "B"}, {"text": "🚫 No aparece", "callback_data": "noaparece"}]]}
 
 
@@ -477,7 +489,7 @@ def answer_reply(m, log):
     what = f"{b['team']} {avisos.fmt(line)}" if b["market"].startswith("HÁNDICAP") else f"{b['way'].capitalize()} {avisos.num(line)}"
     verdict = (f"✅ CON VALOR: por cada 100 € apostados, a la larga +{ev:.0f} €" if v["ok"]
                else f"❌ SIN VALOR: por cada 100 € apostados, a la larga {ev:.0f} €. No apuestes.")
-    warn = "\n⚠️ Ojo: por debajo del 80 % de acierto. Lo acordado es apostar solo líneas seguras." if p < 80 else ""
+    warn = "\n⚠️ Ojo: por debajo del 80 % de acierto. Lo acordado es apostar solo líneas seguras." if p < 79.5 else ""
     send(f"{what} a {avisos.num(odds, 2)}\nAcierta {p:.0f} % → cuota mínima {avisos.num(need, 2)}\n{verdict}{warn}", reply_to=m["message_id"])
     e.setdefault("casa", []).append(dict(ts=now().isoformat(timespec="seconds"), line=line, odds=odds, p=round(p, 1)))
 
@@ -505,8 +517,12 @@ def button_press(cq, chat, log, token):
             return
     if data == "nada":
         toast("Toca una cuota")
-    elif data == "noaparece":
-        toast("🚫 Anotado: no aparece en tu casa" if not e or note_none(e) else "Ya estaba anotado")
+    elif data == "noaparece":           # se pide qué línea ofrece la casa en su lugar
+        toast("¿Qué línea ofrece tu casa? Tócala y luego su cuota")
+        tg("editMessageReplyMarkup", chat_id=chat, message_id=mid, reply_markup=casa_kb(al))
+    elif data == "ninguna":
+        toast("🚫 Anotado: tu casa no ofrece nada parecido" if not e or note_none(e) else "Ya estaba anotado")
+        tg("editMessageReplyMarkup", chat_id=chat, message_id=mid, reply_markup=lines_kb(al))
     elif data == "B":
         toast("")
         tg("editMessageReplyMarkup", chat_id=chat, message_id=mid, reply_markup=lines_kb(al))
@@ -524,6 +540,7 @@ def button_press(cq, chat, log, token):
         p, ev = v["p"], v["ev"]
         toast((f"✅ {_label(al, line)} a {avisos.num(odds, 2)}: CON VALOR · +{ev:.0f} € por cada 100 € a la larga" if v["ok"]
                else f"❌ {_label(al, line)} a {avisos.num(odds, 2)}: SIN VALOR · {ev:.0f} € por cada 100 €. No apuestes.")
+              + f"\nAcierta {p:.0f} %" + (" (por debajo del 80 %: se pierde a menudo)" if p < 79.5 else "")
               + ("" if e else "\n(prueba: no se anota)"), big=True)
         if e:
             e.setdefault("casa", []).append(dict(ts=now().isoformat(timespec="seconds"), line=line, odds=odds, p=round(p, 1)))

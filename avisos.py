@@ -271,8 +271,8 @@ def line_table(al, lo=80, hi=97):
     phi = lambda x: 0.5 * (1 + math.erf(x / math.sqrt(2)))  # noqa: E731
     out, line = [], float(al["lines"][min(al["lines"], key=lambda k: int(k))])
     sign = 1 if step > 0 else -1
-    line -= sign * 4                                   # se empieza unos puntos por el lado arriesgado
-    for _ in range(40):
+    line -= sign * (4 if lo >= 80 else int(abs(step) * 2.5) + 4)    # se empieza por el lado arriesgado
+    for _ in range(80):
         pct = 100 * phi((line - center) / step)
         if lo <= pct <= hi:
             out.append((line, pct))
@@ -379,6 +379,35 @@ def describe(al, home, away):
     return "\n".join(out)
 
 
+def market_lines(al, n=8):
+    """Líneas más ajustadas que las nuestras (por debajo del 80 %), las que suele ofrecer la casa: para el botón «No
+    aparece», así Sergio anota qué línea y cuota hay de verdad. Devuelve [(línea, % de acierto)], de más segura a menos."""
+    rows = line_table(al, 30, 79.9)
+    if len(rows) > n:
+        k = (len(rows) - 1) / (n - 1)
+        rows = [rows[round(i * k)] for i in range(n)]
+    return sorted(rows, key=lambda x: -x[1])
+
+
+def bet_value(al, hs, as_, reg_total=None):
+    """Con el resultado final del partido, el número con el que se decide la apuesta de un aviso de partido entero:
+    diferencia a favor del equipo apostado (hándicap) o puntos totales."""
+    if al["type"] == "total":
+        return reg_total if reg_total is not None else hs + as_
+    return al["side"] * (hs - as_)
+
+
+def line_hits(al, line, value):
+    """¿Se gana la apuesta del aviso con ESTA línea? value: el de bet_value o el que anota el vigilante en los de cuarto."""
+    if value is None:
+        return None
+    if al["type"] == "cuarto" and al["market"] != "hcap":
+        return value > line if al["over"] else value < line
+    if al["type"] == "total":
+        return value < line if al.get("under") else value > line
+    return value + line > 0
+
+
 def offer_lines(al):
     """Las líneas que se ofrecen como botones: las tres del aviso y hasta cuatro más de la tabla, de más segura a más
     ajustada. Devuelve [(línea, % de acierto)]."""
@@ -413,7 +442,7 @@ def compact(al, home, away):
         pick = others[::max(1, len(others) // 4)][:4]
         out.append("Otras: " + " · ".join(f"{fmt(line) if hcap else num(line)} {pct:.0f} % ({num(100 / pct, 2)})"
                                           for line, pct in sorted(pick, key=lambda x: -x[1])))
-    out.append("👇 Toca la línea que te ofrece tu casa y verás qué cuotas tienen valor")
+    out.append("👇 Toca la línea que ofrece tu casa y su cuota. Si no está, «No aparece» y elige la que veas")
     return "\n".join(out)
 
 

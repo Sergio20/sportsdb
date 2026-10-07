@@ -111,7 +111,13 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   líneas con su cuota mínima, «Otras» (4 líneas de la tabla) y los botones. La explicación larga (`describe`) solo va a la web.
 - Botones del aviso (`lines_kb`, `odds_kb`, `button_press` en `vigilante.py`): una tecla por línea (`avisos.offer_lines`);
   al tocarla, teclas de cuota alrededor de la mínima ya marcadas ✅/❌; al tocar una cuota sale al instante en pantalla si
-  tiene valor y se anota en `casa`. «No aparece» anota `none` una sola vez por aviso (`note_none`). La cuenta del valor
+  tiene valor y se anota en `casa`. «No aparece» abre las líneas más ajustadas que suele dar la casa (`casa_kb`,
+  `avisos.market_lines`: del 30 al 80 % según nuestra campana) con su % al lado; Sergio toca la que ve y su cuota y queda
+  anotada como las demás (con p < 80 avisa de que es arriesgada). «Ninguna parecida» anota `none` una sola vez por aviso (`note_none`).
+  Teclas de cuota en proporción a la mínima (sirven de 1,05 a 3). `analisis._casa` añade a cada anotación lo que cree la
+  casa (`implied` = 100/cuota), el valor esperado (`ev`) y si esa línea se ganó (`hit`, con `avisos.line_hits`); el banco
+  enseña en «Tu casa de apuestas» si ofrecía nuestras líneas, dónde pone las suyas, la ventaja por tipo de aviso y el
+  balance apostando solo la oferta con más valor de cada aviso. Objetivo: ver dónde se le puede ganar a la casa. La cuenta del valor
   es la misma para botones y respuestas escritas (`value_of`). Un hilo (`listen`) escucha Telegram sin parar (espera
   larga de 25 s) para contestar al momento; `LOCK` protege el registro compartido. En el ensayo los botones responden
   (rehace la campana con `avisos_from_keyboard`) pero no anotan.
