@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Vigila los partidos en directo de Euroliga y EuroCup y envía los avisos por Telegram.
+"""Vigila los partidos en directo de Euroliga, EuroCup y Liga Endesa y envía los avisos por Telegram.
 
-Lo lanza cada tarde .github/workflows/vigilante.yml. Mientras haya partidos en juego lee las jugadas
-oficiales cada 10-20 segundos, aplica las reglas de avisos.py y manda un mensaje por cada aviso nuevo,
-con las líneas de seguridad (80, 90 y 95 %). Al acabar cada partido manda cómo quedó cada aviso.
+Lo lanza .github/workflows/vigilante.yml en tandas encadenadas. Mientras haya partidos en juego los lee cada
+10-20 segundos, aplica las reglas de avisos.py y manda un mensaje por cada aviso nuevo, con las líneas de
+seguridad (80, 90 y 95 %) y botones para valorar la cuota de la casa. Al acabar manda cómo quedó cada aviso.
 Todo queda anotado en un fichero (rama `avisos` de GitHub) para medir después cuánto aciertan.
 
     python vigilante.py [--db data/deportes.db] [--log avisos.json] [--horas 4.5]
@@ -96,14 +96,6 @@ def send(text, reply_to=None, buttons=None):
     return False
 
 
-def elapsed(h):
-    q = int(h.get("Quarter") or 0)
-    if not 1 <= q <= 4:
-        return None
-    m, s = (str(h.get("RemainingPartialTime") or "0:0").strip().split(":") + ["0"])[:2]
-    return (q - 1) * 10 + 10 - (int(m or 0) + int(s or 0) / 60)
-
-
 def read_plays(comp, year, code):
     d = get(LIVE + "PlaybyPlay", gamecode=code, seasoncode=f"{comp}{year}")
     if not d:
@@ -117,14 +109,14 @@ local = lambda t=None: (t or now()).astimezone(MADRID)  # noqa: E731
 
 
 def message(al, g, el, score):
-    """Aviso completo: cabecera con el partido y el momento, y el cuerpo explícito de avisos.describe."""
+    """Aviso: cabecera con el partido y el momento, y el cuerpo corto de avisos.compact (la explicación larga va a la web)."""
     moment = (f"Final del {avisos.ORD[al['done']]} cuarto" if al["type"] == "cuarto"
               else f"Minuto {el:.0f} de partido ({avisos.ORD[min(4, int(el // 10) + 1)]} cuarto)")
     return (f"🔔 {avisos.name_of(al).upper()} · {COMP[g['comp']]}\n{g['home']} {score} {g['away']}\n{moment} · {local():%H:%M}\n\n"
             + avisos.compact(al, g["home"], g["away"]))
 
 
-def agenda(con, log, log_path, hours, games, hist):
+def agenda(con, log, save, hours, games, hist):
     """Mensaje previo, una vez al día: los partidos que se van a vigilar, con lo que se espera de cada uno."""
     told = {i for e in log for i in e.get("agenda", [])}    # partidos ya anunciados en una tanda anterior
     rows = analisis.upcoming(con, hist, analisis.fit_pre(games), today=now().date())
@@ -153,9 +145,9 @@ def agenda(con, log, log_path, hours, games, hist):
     if not lines:
         return
     send("📋 Próximos partidos que vigilo (hora de España)\n\n" + "\n\n".join(lines)
-         + "\n\nTe aviso en el momento en que salte un desfase, un ritmo insostenible, unos triples anormales o un total desfasado.")
+         + "\n\nTe aviso en el momento en que salte cualquiera de los avisos (desfase, ritmo, triples, total, cuarto anormal o racha de cuartos).")
     log.append(dict(agenda=ids, ts=now().isoformat(timespec="seconds")))
-    log_path.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")
+    save()
 
 
 def quarter_step(g, st, base, rules, log, save):
@@ -352,7 +344,6 @@ DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "doming
 
 NO_LINE = re.compile(r"\b(no\s*(aparece|sale|hay|esta|está|ofrece)|nada|ninguna)\b", re.I)
 DETAIL = {"text": "📊 Detalle", "url": "https://sergio20.github.io/sportsdb/en-vivo.html"}
-BUTTON = {"inline_keyboard": [[{"text": "🚫 No aparece en mi casa", "callback_data": "noaparece"}, DETAIL]]}
 LOCK = threading.Lock()         # el hilo que escucha Telegram y la vigilancia tocan el mismo registro de avisos
 
 
@@ -442,6 +433,24 @@ def handle_updates(ups, mark, chat, log, token):
             print(f"  respuesta de Telegram no entendida: {e}", flush=True)
 
 
+def value_of(al, line, odds):
+    """Lo mismo para botones y respuestas escritas: % de acierto de la línea, cuota mínima y ganancia a la larga."""
+    p = avisos.prob_of_line(al, line)
+    if p is None or odds <= 1:
+        return None
+    p = max(1.0, min(99.0, p))
+    return dict(p=p, need=100 / p, ev=(p / 100 * odds - 1) * 100, ok=odds > 100 / p)
+
+
+def note_none(e):
+    """Anota «no aparece en mi casa» una sola vez por aviso (tocar el botón dos veces no cuenta doble).
+    Devuelve False si ya estaba anotado."""
+    if any(x.get("none") for x in e.get("casa") or []):
+        return False
+    e.setdefault("casa", []).append(dict(ts=now().isoformat(timespec="seconds"), none=True))
+    return True
+
+
 def answer_reply(m, log):
     to = (m.get("reply_to_message") or {}).get("message_id")
     e = next((x for x in log if "alert" in x and to in (x.get("msg") or [])), None) if to else None
@@ -459,15 +468,14 @@ def answer_reply(m, log):
         return
     line, odds = nums[0], nums[1]
     al = (e.get("msg_alert") or {}).get(str(to)) or e["alert"]
-    p = avisos.prob_of_line(al, line)
-    if p is None or odds <= 1:
+    v = value_of(al, line, odds)
+    if not v:
         send("No he podido valorar esa línea. Escríbela así: +7,5 1,12", reply_to=m["message_id"])
         return
-    p = max(1.0, min(99.0, p))
-    need, ev = 100 / p, (p / 100 * odds - 1) * 100
+    p, need, ev = v["p"], v["need"], v["ev"]
     b = avisos.bet_of(al, e["home"], e["away"])
     what = f"{b['team']} {avisos.fmt(line)}" if b["market"].startswith("HÁNDICAP") else f"{b['way'].capitalize()} {avisos.num(line)}"
-    verdict = (f"✅ CON VALOR: por cada 100 € apostados, a la larga +{ev:.0f} €" if odds > need
+    verdict = (f"✅ CON VALOR: por cada 100 € apostados, a la larga +{ev:.0f} €" if v["ok"]
                else f"❌ SIN VALOR: por cada 100 € apostados, a la larga {ev:.0f} €. No apuestes.")
     warn = "\n⚠️ Ojo: por debajo del 80 % de acierto. Lo acordado es apostar solo líneas seguras." if p < 80 else ""
     send(f"{what} a {avisos.num(odds, 2)}\nAcierta {p:.0f} % → cuota mínima {avisos.num(need, 2)}\n{verdict}{warn}", reply_to=m["message_id"])
@@ -476,9 +484,8 @@ def answer_reply(m, log):
 
 def no_line(e):
     """Anota que la casa no ofrecía ninguna de nuestras líneas y lo confirma."""
-    e.setdefault("casa", []).append(dict(ts=now().isoformat(timespec="seconds"), none=True))
-    n = sum(1 for x in e["casa"] if x.get("none"))
-    return ("📝 Anotado: tu casa no ofrecía ninguna de nuestras líneas" + (f" ({n}.ª vez en este aviso)" if n > 1 else "") + ".\n"
+    first = note_none(e)
+    return ("📝 Anotado: tu casa no ofrecía ninguna de nuestras líneas" + ("" if first else " (ya lo tenía anotado)") + ".\n"
             "Si ves otra línea (aunque sea más ajustada), respóndeme al aviso con ella y su cuota y te digo cuánto acierta.")
 
 
@@ -499,9 +506,7 @@ def button_press(cq, chat, log, token):
     if data == "nada":
         toast("Toca una cuota")
     elif data == "noaparece":
-        toast("🚫 Anotado: no aparece en tu casa")
-        if e:
-            e.setdefault("casa", []).append(dict(ts=now().isoformat(timespec="seconds"), none=True))
+        toast("🚫 Anotado: no aparece en tu casa" if not e or note_none(e) else "Ya estaba anotado")
     elif data == "B":
         toast("")
         tg("editMessageReplyMarkup", chat_id=chat, message_id=mid, reply_markup=lines_kb(al))
@@ -512,9 +517,12 @@ def button_press(cq, chat, log, token):
     elif data.startswith("O|"):
         _, line, odds = data.split("|")
         line, odds = float(line), float(odds)
-        p = max(1.0, min(99.0, avisos.prob_of_line(al, line)))
-        need, ev = 100 / p, (p / 100 * odds - 1) * 100
-        toast((f"✅ {_label(al, line)} a {avisos.num(odds, 2)}: CON VALOR · +{ev:.0f} € por cada 100 € a la larga" if odds > need
+        v = value_of(al, line, odds)
+        if not v:
+            toast("No he podido valorar esa línea")
+            return
+        p, ev = v["p"], v["ev"]
+        toast((f"✅ {_label(al, line)} a {avisos.num(odds, 2)}: CON VALOR · +{ev:.0f} € por cada 100 € a la larga" if v["ok"]
                else f"❌ {_label(al, line)} a {avisos.num(odds, 2)}: SIN VALOR · {ev:.0f} € por cada 100 €. No apuestes.")
               + ("" if e else "\n(prueba: no se anota)"), big=True)
         if e:
@@ -658,7 +666,7 @@ def watch(con, log_path, hours):
     try:
         hist_games, _, hist = analisis.walk(con)
         rules = analisis.quarter_rules(hist_games)       # líneas de los avisos de «cuarto anormal», con todo el histórico
-        agenda(con, log, log_path, hours, hist_games, hist)
+        agenda(con, log, save, hours, hist_games, hist)
     except Exception as e:      # ni el mensaje previo ni las reglas de cuartos deben impedir la vigilancia
         print(f"  no se ha podido preparar el mensaje previo o las reglas de cuartos: {e}", flush=True)
     print(f"{len(games)} partidos alrededor de esta hora; vigilando hasta las {deadline:%H:%M} UTC como muy tarde", flush=True)
@@ -820,7 +828,7 @@ def main():
     ap.add_argument("--repetir", nargs=3, metavar=("TEMPORADA", "PARTIDO", "MINUTO"))
     a = ap.parse_args()
     if a.prueba:
-        ok = send("✅ SportsDB: los avisos por Telegram funcionan. Aquí llegarán los desfases, ritmos insostenibles, triples y totales de los partidos en directo.")
+        ok = send("✅ SportsDB: los avisos por Telegram funcionan. Aquí llegarán los avisos de los partidos en directo de Euroliga, EuroCup y Liga Endesa.")
         return 0 if ok else 1
     con = sqlite3.connect(a.db)
     if a.repetir:

@@ -108,20 +108,19 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   «SI LA CASA TE OFRECE OTRA LÍNEA»: probabilidad y cuota mínima de cada línea entre el 80 y el 97 %, sacadas de la
   misma campana que las tres líneas del aviso (con dos de ellas se recupera centro y anchura).
 - Mensaje de Telegram corto (`avisos.compact`, ~10 líneas, para decidir en segundos): por qué, mercado y periodo, las tres
-  líneas con su cuota mínima, «Otras» (4 líneas de la tabla) y cómo responder. Botones «No aparece en mi casa» y
-  «📊 Detalle» (web). La explicación larga (`describe`) solo va a la web.
+  líneas con su cuota mínima, «Otras» (4 líneas de la tabla) y los botones. La explicación larga (`describe`) solo va a la web.
 - Botones del aviso (`lines_kb`, `odds_kb`, `button_press` en `vigilante.py`): una tecla por línea (`avisos.offer_lines`);
   al tocarla, teclas de cuota alrededor de la mínima ya marcadas ✅/❌; al tocar una cuota sale al instante en pantalla si
-  tiene valor y se anota en `casa`. «No aparece» anota `none`. Un hilo (`listen`) escucha Telegram sin parar (espera
+  tiene valor y se anota en `casa`. «No aparece» anota `none` una sola vez por aviso (`note_none`). La cuenta del valor
+  es la misma para botones y respuestas escritas (`value_of`). Un hilo (`listen`) escucha Telegram sin parar (espera
   larga de 25 s) para contestar al momento; `LOCK` protege el registro compartido. En el ensayo los botones responden
   (rehace la campana con `avisos_from_keyboard`) pero no anotan.
 - Respuestas en Telegram (`replies_step` / `answer_reply` en `vigilante.py`): Sergio contesta a un aviso con la línea y
   la cuota de su casa («+7,5 1,12») y el vigilante responde al momento con el % de acierto (`avisos.prob_of_line`, misma
   campana que `line_table`), la cuota mínima y si tiene valor. Cada aviso guarda el número de su mensaje (`msg`) y las
   respuestas en `casa`; el banco de pruebas las enseña. Se leen con getUpdates (posición en la marca `tg_offset` de
-  `avisos.json`), en cada vuelta y en las esperas (`nap`). Solo se atiende al chat de `TELEGRAM_CHAT_ID`.
-  Botón «🚫 No aparece en mi casa» bajo cada aviso (`BUTTON`, `button_press`) o respuesta «no aparece» (`NO_LINE`): se
-  anota `{"none": true}` en `casa`. El banco de pruebas resume en «Tu casa de apuestas» cuántas veces no ofrecía nuestras
+  `avisos.json`) desde el hilo `listen`. Solo se atiende al chat de `TELEGRAM_CHAT_ID`. Respuesta «no aparece»
+  (`NO_LINE`): igual que el botón. El banco de pruebas resume en «Tu casa de apuestas» cuántas veces no ofrecía nuestras
   líneas y cuántas ofertas tenían valor.
 - Banco a 5-10-2026 (22 avisos): líneas del 95 % 20/22, 90 % 16/22, 80 % 14/22. Los de cuarto, por debajo de lo
   prometido (57-64 % en 80/90); varios fallos juntos en un mismo partido desigual (Baskonia 118-78 Girona).
@@ -157,6 +156,16 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   equipos que suben de EuroCup a Euroliga (de ahí `EUROCUP_GAP` en `export_live.py`).
 - En local no hay `python` en el PATH: usar `%LOCALAPPDATA%\Programs\Python\Python312\python.exe`.
   La base se saca de la rama `data` a `data/deportes.db` (carpeta ignorada por git).
+
+- Revisión del sistema (7-10-2026): ver «Tareas programadas» abajo para no duplicar trabajo entre GitHub y las rutinas.
+
+## Tareas programadas (todas en GitHub salvo el informe)
+
+- `vigilante.yml`: cadena continua de tandas + respaldo cada hora (min. 23). Únicos avisos en directo.
+- `actualizar.yml`: base y web a las 04:10 UTC (GitHub la retrasa a veces horas) y en cada push (solo web).
+- `guardia.yml`: cada hora (min. 41). La ÚNICA que relanza la actualización si falta la base del día.
+- Rutina de Claude «Informe diario SportsDB» (08:00 Madrid): solo informa por correo; no relanza nada.
+- La rutina antigua «Actualización diaria SportsDB» (carpeta del PC) está desactivada: la sustituye `actualizar.yml`.
 
 ## Reglas
 
