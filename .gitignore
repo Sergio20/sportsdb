@@ -1,4 +1,5 @@
 _site/
 data/
 __pycache__/
-.claude/
+.claude/*
+!.claude/agents/

@@ -175,6 +175,9 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
 - Rutina de Claude «Informe diario SportsDB» (08:00 Madrid): solo informa por correo; no relanza nada.
 - La rutina antigua «Actualización diaria SportsDB» (carpeta del PC) se borró el 7-10-2026: la sustituye `actualizar.yml`.
 
+- Asistentes especializados en `.claude/agents/` (de VoltAgent/awesome-claude-code-subagents, licencia MIT, commit 721e973):
+  `quant-analyst`, `data-scientist` y `risk-manager`. Solo se usan si Sergio lo pide.
+
 ## Reglas
 
 - No hay cuotas de baloncesto (ninguna fuente gratuita). Solo LaLiga tiene cuotas.
