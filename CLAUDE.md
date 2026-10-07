@@ -122,8 +122,10 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   `avisos.json`) desde el hilo `listen`. Solo se atiende al chat de `TELEGRAM_CHAT_ID`. Respuesta «no aparece»
   (`NO_LINE`): igual que el botón. El banco de pruebas resume en «Tu casa de apuestas» cuántas veces no ofrecía nuestras
   líneas y cuántas ofertas tenían valor.
-- Banco a 5-10-2026 (22 avisos): líneas del 95 % 20/22, 90 % 16/22, 80 % 14/22. Los de cuarto, por debajo de lo
-  prometido (57-64 % en 80/90); varios fallos juntos en un mismo partido desigual (Baskonia 118-78 Girona).
+- Banco a 7-10-2026 (31 avisos, 3 días; 500 € a 1,175/1,275/1,40): línea 95 % 29/31 (+1.538 €), 90 % 24/31 (−200 €),
+  80 % 20/31 (−1.500 €). Equilibrio: 1,07 / 1,29 / 1,55. Los de cuarto, por debajo de lo prometido (90 % 13/18, 80 % 12/18);
+  fallos juntos en un mismo partido desigual (Baskonia 118-78 Girona). Muestra corta y muy agrupada por partidos.
+  Las dos veces que Sergio miró la casa (6-10) no ofrecía nuestras líneas.
 - Partidos aplazados (`unstarted_step` en `vigilante.py`): si la ficha de acb.com dice aplazado (estado o fecha
   cambiada) manda «PARTIDO APLAZADO» por Telegram y deja de vigilarlo; si cualquier partido sigue sin empezar 40 min
   después de su hora (`LATE`) manda «¿PARTIDO APLAZADO?», lo revisa cada 3 min y avisa si arranca; a las 2 h 30
@@ -165,7 +167,7 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
 - `actualizar.yml`: base y web a las 04:10 UTC (GitHub la retrasa a veces horas) y en cada push (solo web).
 - `guardia.yml`: cada hora (min. 41). La ÚNICA que relanza la actualización si falta la base del día.
 - Rutina de Claude «Informe diario SportsDB» (08:00 Madrid): solo informa por correo; no relanza nada.
-- La rutina antigua «Actualización diaria SportsDB» (carpeta del PC) está desactivada: la sustituye `actualizar.yml`.
+- La rutina antigua «Actualización diaria SportsDB» (carpeta del PC) se borró el 7-10-2026: la sustituye `actualizar.yml`.
 
 ## Reglas
 
