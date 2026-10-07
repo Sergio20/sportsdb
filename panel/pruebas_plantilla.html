@@ -88,6 +88,15 @@ function render() {
       <div class="v ${sgn(t.bal)}">${t.n ? eur(t.bal) : '–'}</div>
       <div class="s">${t.n ? `${t.ok} de ${t.n} ganadas (${nf(pct, 0)} %; prometido ${promised[p]} %) · rendimiento ${staked ? (t.bal >= 0 ? '+' : '−') + nf(Math.abs(100 * t.bal / staked), 1) + ' %' : '–'} sobre ${nf(staked)} € apostados` : 'sin apuestas resueltas'}</div></div>`; }).join('');
 
+  // Cartera con tope de un importe por partido: solo el primer aviso de cada partido (en directo no se sabe si vendrán
+  // más). Varios avisos del mismo partido suelen ganar o perder juntos; así se ve cuánto pesa eso.
+  const seen = new Set(), firsts = ALL.filter(x => { const k = x.comp + '|' + x.home + '|' + x.away + '|' + x.ts.slice(0, 10);
+    if (seen.has(k)) return false; seen.add(k); return true; }).filter(x => x.res);
+  const capKpis = LINES.map(([p, name]) => { const ok = firsts.filter(x => x.res[p]).length, n = firsts.length,
+      bal = firsts.reduce((s, x) => s + gain(!!x.res[p], p), 0);
+    return `<div class="kpi"><div class="l"><span class="sw" style="background:var(--c${p})"></span>${name}</div>
+      <div class="v ${sgn(bal)}">${n ? eur(bal) : '–'}</div><div class="s">${n ? `${ok} de ${n} partidos ganados (${nf(100 * ok / n, 0)} %)` : 'sin partidos resueltos'}</div></div>`; }).join('');
+
   // Por tipo de aviso
   const types = [...new Set(done.map(x => x.type))];
   const byType = types.map(k => { const xs = done.filter(x => x.type === k);
@@ -122,6 +131,10 @@ function render() {
       lo recuerda tu navegador. Como referencia, la cuota mínima para que cada línea salga a cuenta si acierta justo lo prometido es ${LINES.map(([p]) => odd(CFG.min_odds[p])).join(' / ')}.</div>
   </section>
   <div class="kpis">${kpis}</div>
+  <section class="panel"><h2>Con tope de ${nf(stake)} € por partido</h2>
+    <div class="kpis">${capKpis}</div>
+    <div class="muted small">Una sola apuesta por partido y línea: la del primer aviso que saltó en él (en directo no se sabe si vendrán más).
+      Los avisos de un mismo partido suelen ganar o perder juntos; esta cartera muestra el resultado sin ese efecto acumulado.</div></section>
   <section class="panel"><h2>Balance acumulado</h2>
     <div class="legend">${LINES.map(([p, name]) => `<span><span class="sw" style="background:var(--c${p})"></span>${name}</span>`).join('')}</div>
     ${done.length ? '<div class="chart" id="chart"></div>' : '<div class="empty">Aún no hay ninguna apuesta resuelta.</div>'}

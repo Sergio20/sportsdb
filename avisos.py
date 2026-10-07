@@ -173,7 +173,22 @@ def quarter_alerts(done, quarters, bA, bB, rules):
                 add("mitad_fria", 2 * usual_q, "mitad", pts=h1, usual=round(2 * usual_q, 1))
             if h1 >= 100:
                 add("mitad_caliente", 2 * usual_q, "mitad", pts=h1, usual=round(2 * usual_q, 1))
-    return out
+    return strongest(out, rules)
+
+
+def strongest(alerts, rules):
+    """Solo un aviso de cuarto por partido y cuarto: el de la regla que más acierta con temporadas que no intervienen en
+    su ajuste (línea del 90 %, luego 80 y 95; a igualdad, la de más casos). Varios avisos del mismo momento dependen del
+    mismo hecho y fallan juntos (Baskonia 118-78 Girona, 4-10-2026). Los descartados quedan anotados en `also`."""
+    if len(alerts) <= 1:
+        return alerts
+
+    def score(al):
+        t = {int(k): v for k, v in (rules.get(al["sub"]) or {}).get("test", {}).items()}
+        return (t.get(90, 0), t.get(80, 0), t.get(95, 0), al.get("n", 0))
+    best = max(alerts, key=score)
+    best["also"] = [al["sub"] for al in alerts if al is not best]
+    return [best]
 
 
 def settle_quarter(al, quarters):

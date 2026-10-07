@@ -132,6 +132,13 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   80 % 20/31 (−1.500 €). Equilibrio: 1,07 / 1,29 / 1,55. Los de cuarto, por debajo de lo prometido (90 % 13/18, 80 % 12/18);
   fallos juntos en un mismo partido desigual (Baskonia 118-78 Girona). Muestra corta y muy agrupada por partidos.
   Las dos veces que Sergio miró la casa (6-10) no ofrecía nuestras líneas.
+  Revisión cuantitativa (7-10): 31 avisos = 9 partidos; los del mismo partido fallan juntos. Desde entonces: solo un
+  aviso de cuarto por partido y cuarto (`avisos.strongest`: la regla con más acierto fuera del ajuste, línea del 90; los
+  descartados en `also`; el vigilante no manda otro si ya salió uno de ese cuarto) y cartera «Con tope de 500 € por
+  partido» en el banco (solo el primer aviso de cada partido: 9/9, 8/9, 7/9 a 7-10). Estudio «Paliza»/«Equipo caliente»
+  con el partido muy roto (2024+): con 15+ de diferencia la línea del 90 acierta 85-87 % frente a 88-91 % con menos;
+  diferencia pequeña y dentro del ruido (n≈180), no se cambia nada. Ojo: en el histórico las líneas «del 90» de cuarto
+  aciertan 87-93 % según la regla, no exactamente 90.
 - Partidos aplazados (`unstarted_step` en `vigilante.py`): si la ficha de acb.com dice aplazado (estado o fecha
   cambiada) manda «PARTIDO APLAZADO» por Telegram y deja de vigilarlo; si cualquier partido sigue sin empezar 40 min
   después de su hora (`LATE`) manda «¿PARTIDO APLAZADO?», lo revisa cada 3 min y avisa si arranca; a las 2 h 30

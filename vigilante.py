@@ -173,6 +173,8 @@ def quarter_step(g, st, base, rules, log, save):
     el, bA, bB = st.get("el"), base.get(g["hc"]), base.get(g["ac"])
     if not st["live"] or el is None or not bA or not bB or done not in (1, 2, 3) or el - done * 10 > 2.5:
         return                                         # 2) avisos nuevos: solo justo al acabar el cuarto
+    if any(e["alert"]["type"] == "cuarto" and e["alert"].get("done") == done for e in g["sent"].values()):
+        return                                         # ya salió el aviso de este cuarto (solo uno por cuarto)
     for al in avisos.quarter_alerts(done, quarters[:done], bA, bB, rules):
         k = avisos.key(al)
         if k in g["sent"]:
