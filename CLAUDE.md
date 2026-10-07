@@ -15,8 +15,9 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   Dos colas (`concurrency`): la de datos (diaria o a mano) y la de publicaciones por push (la nueva sustituye a la
   anterior). Si falla o falla alguna fuente, aviso por Telegram. **Guardia** (`guardia.yml`, cada hora, min. 41 →
   `scripts/guardia_datos.sh`): cancela ejecuciones atascadas en cola >30 min sin ninguna en marcha y, si pasadas las
-  05:15 UTC la rama `data` no se ha guardado hoy, relanza la actualización (máx. 3 al día) y avisa por Telegram. Motivo:
+  05:15 UTC la rama `data` no se ha guardado hoy después de las 03:00 UTC, relanza la actualización (máx. 3 al día) y avisa por Telegram. Motivo:
   el 5-10-2026 una publicación se quedó «en cola» toda la noche, bloqueó la cola única y el día 6 no hubo actualización.
+  GitHub retrasa a veces horas la de las 04:10 (el 7-10-2026 arrancó a las 10:59): la guardia la cubre.
 - En el PC de Sergio: `bash sincronizar.sh` (Git Bash) trae el código y la base del día a `data/deportes.db`.
 
 ## Piezas

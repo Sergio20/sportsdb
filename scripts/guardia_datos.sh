@@ -32,14 +32,16 @@ if [ "$running" -eq 0 ] && [ -n "$stuck" ]; then
   runs=$(gh run list --repo "$repo" --workflow actualizar.yml --limit 30 --json databaseId,status,event,createdAt,startedAt)
 fi
 
-# ¿Se ha guardado la base hoy? (la actualización empieza a las 04:10 UTC y tarda unos 20-40 min)
+# ¿Se ha guardado la base hoy? La actualización empieza a las 04:10 UTC (GitHub a veces la retrasa horas). Cuenta una
+# guardada después de las 03:00 UTC: antes no estarían todos los partidos de la noche. «UTC» explícito: sin él,
+# «00:00 -1 day» se lee como huso horario -1 y da mañana (fallo del 7-10-2026: relanzó a las 00:08 sin necesidad).
 last=$(gh api "repos/$repo/commits/data" --jq .commit.committer.date) || { echo "No puedo leer la rama data"; exit 0; }
 today=$(date -u +%Y-%m-%d)
-due=$(date -u -d "$today 05:15" +%s)
-if [ "$now" -lt "$due" ]; then           # aún no toca la de hoy: basta con que exista la de ayer
-  need=$(date -u -d "$today 00:00 -1 day" +%s)
+due=$(date -u -d "$today 05:15 UTC" +%s)
+if [ "$now" -lt "$due" ]; then           # aún no toca la de hoy: basta con la de ayer
+  need=$(date -u -d "$today 03:00 UTC -1 day" +%s)
 else
-  need=$(date -u -d "$today 00:00" +%s)
+  need=$(date -u -d "$today 03:00 UTC" +%s)
 fi
 if [ "$(date -u -d "$last" +%s)" -ge "$need" ]; then
   echo "Base al día (guardada $last)"
