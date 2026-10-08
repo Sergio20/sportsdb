@@ -132,10 +132,19 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   80 % 20/31 (−1.500 €). Equilibrio: 1,07 / 1,29 / 1,55. Los de cuarto, por debajo de lo prometido (90 % 13/18, 80 % 12/18);
   fallos juntos en un mismo partido desigual (Baskonia 118-78 Girona). Muestra corta y muy agrupada por partidos.
   Las dos veces que Sergio miró la casa (6-10) no ofrecía nuestras líneas.
-  UN SOLO AVISO POR PARTIDO (8-10-2026, Sergio: «calidad antes que cantidad», no solapar apuestas): el primero que salta,
-  sea del tipo que sea (directo o de cuarto). Los siguientes no se mandan: quedan en `avisos.json` con `callado` (una vez
-  cada uno, `vigilante.quiet_step`, `g["quiet"]`) para estudiar si habrían sido mejores; `analisis.sent_log` y el freno los
-  ignoran. Las mejoras de moderado a fuerte del mismo aviso sí se mandan. Ej.: Bayern-Virtus 8-10 dio 4 en 4 minutos.
+  CALIDAD ANTES QUE CANTIDAD (8-10-2026, decisión de Sergio). Por Telegram solo llega:
+  · UN aviso por partido, el primero que salta (Bayern-Virtus 8-10 dio 4 en 4 minutos: casi la misma apuesta).
+  · Solo reglas que en el histórico cumplen (línea 90 ≥ 90 % y 95 ≥ 94 %; las de cuarto con temporadas fuera del ajuste):
+    `avisos.sendable` / `SEND_Q` = racha, tot_frio, mitad_fria, eq_frio; desfase; ritmo solo desde el minuto 28
+    (`SEND_RITMO_MIN`). Fuera: paliza, eq_caliente, tot_caliente, mitad_caliente, ritmo antes del 28, y por rozar el
+    límite total (90/95) y triples (90/94). `avisos.strongest` prefiere las que se mandan.
+  · Solo las líneas del 95 y 90 (`avisos.SHOW`; la del 80 acertaba 70 % en directo); «Otras» y botones desde el 85 %
+    (`LINES_FROM`). La del 80 se sigue calculando y el banco la conserva.
+  Lo no enviado queda en `avisos.json` con `callado` = "partido" o "regla" (`vigilante.quiet_step`, `g["quiet"]`), se
+  resuelve igual sin mandar nada (también los de cuarto) y el banco lo enseña APARTE en «Avisos callados»
+  (`sent_log(...)["quiet"]`, `quietSummary` en la plantilla): no entra en las carteras ni en el freno. Con estas reglas,
+  el 8-10 habrían llegado 2 avisos de 10. Pendiente, por decisión de Sergio: NO implementar aún una regla fija para
+  sacar/recuperar reglas (se propuso: a los 30 partidos, 95 ≥ 93 % y 90 ≥ 87 %).
   Revisión cuantitativa (7-10): 31 avisos = 9 partidos; los del mismo partido fallan juntos. Desde entonces: solo un
   aviso de cuarto por partido y cuarto (`avisos.strongest`: la regla con más acierto fuera del ajuste, línea del 90; los
   descartados en `also`; el vigilante no manda otro si ya salió uno de ese cuarto) y cartera «Con tope de 500 € por

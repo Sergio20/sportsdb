@@ -170,6 +170,13 @@ def quarter_step(g, st, base, rules, log, save):
         send(f"🏁 RESULTADO · {avisos.name_of(al).upper()}\n{g['home']} – {g['away']}\n\nAPOSTABAS A\n{avisos.bet_of(al, g['home'], g['away'])['market']}"
              + f"\n\nLO QUE PASÓ\n{got[0].upper() + got[1:]}.\n\n" + "\n".join(avisos.result_lines(al, e["res"], g["home"], g["away"])))
         save()
+    for e in g["quiet"].values():                      # callados de cuarto: se resuelven igual, sin mensaje
+        al = e["alert"]
+        if al["type"] == "cuarto" and not e.get("closed"):
+            r = avisos.settle_quarter(al, quarters[:4 if st["final"] else done])
+            if r:
+                e.update(closed=True, res={str(p): bool(ok) for p, ok in r[0].items()}, value=r[1])
+                save()
     el, bA, bB = st.get("el"), base.get(g["hc"]), base.get(g["ac"])
     if not st["live"] or el is None or not bA or not bB or done not in (1, 2, 3) or el - done * 10 > 2.5:
         return                                         # 2) avisos nuevos: solo justo al acabar el cuarto
@@ -191,18 +198,21 @@ def quarter_step(g, st, base, rules, log, save):
 
 
 def quiet_step(g, al, k, el, score, log, save):
-    """Un solo aviso por partido (decisión de Sergio, 8-10-2026: calidad antes que cantidad; los avisos del mismo partido
-    son casi la misma apuesta y fallan juntos). Si el partido ya tuvo uno, este no se manda: se guarda callado en el
-    registro (`callado`), una vez, para estudiar después si habría sido mejor. Devuelve True si hay que callarlo."""
-    if not any(not e.get("anulado") for e in g["sent"].values()):
+    """Calidad antes que cantidad (decisión de Sergio, 8-10-2026). Un aviso no se manda si su regla no está entre las
+    que cumplen lo prometido (`avisos.sendable`: callado="regla") o si el partido ya tuvo uno (callado="partido": los
+    avisos del mismo partido son casi la misma apuesta y fallan juntos). Se guarda callado en el registro, una vez, y se
+    resuelve igual que los enviados: el banco de pruebas los lleva aparte. Devuelve True si hay que callarlo."""
+    why = ("regla" if not avisos.sendable(al, el) else
+           "partido" if any(not e.get("anulado") for e in g["sent"].values()) else None)
+    if not why:
         return False
     if k not in g["quiet"]:
         entry = dict(ts=now().isoformat(timespec="seconds"), comp=g["comp"], year=g["year"], code=g["code"], home=g["home"],
-                     away=g["away"], key=k, el=round(el, 1), score=score, alert=al, callado=True)
+                     away=g["away"], key=k, el=round(el, 1), score=score, alert=al, callado=why)
         g["quiet"][k] = entry
         log.append(entry)
         save()
-        print(f"  {g['home'][:14]}: aviso {avisos.name_of(al)} callado (ya hubo uno en este partido)", flush=True)
+        print(f"  {g['home'][:14]}: aviso {avisos.name_of(al)} callado ({'regla fuera de la lista' if why == 'regla' else 'ya hubo uno en este partido'})", flush=True)
     return True
 
 
@@ -856,6 +866,12 @@ def watch(con, log_path, hours):
                             e["closed"] = True
                             e["res"] = {str(k): ok for k, ok in avisos.settle(e["alert"], st["hs"], st["as_"]).items()}
                             e["final"] = f"{st['hs']}-{st['as_']}"
+                        save()
+                    quiet = [e for e in g["quiet"].values() if e["alert"]["type"] != "cuarto" and not e.get("closed")]
+                    for e in quiet:         # los callados en directo: mismo resultado, sin mensaje
+                        e.update(closed=True, final=f"{st['hs']}-{st['as_']}",
+                                 res={str(k): ok for k, ok in avisos.settle(e["alert"], st["hs"], st["as_"]).items()})
+                    if quiet:
                         save()
                     continue
                 base = bases[g["comp"]]

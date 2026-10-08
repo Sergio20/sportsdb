@@ -498,14 +498,31 @@ def sent_log(con, path):
     path = Path(path)
     if not path.exists():
         return None
-    import avisos
     try:
         log = json.loads(path.read_text(encoding="utf-8"))
     except ValueError:
         return None
+    rows = _rows(con, [e for e in log if not e.get("callado")])
+    done = [x for x in rows if x["res"]]
+    by = {}
+    for x in done:
+        b = by.setdefault(x["type"], dict(n=0, s80=0, s90=0, s95=0))
+        b["n"] += 1
+        for p in ("80", "90", "95"):
+            b["s" + p] += int(x["res"][p])
+    # Callados (8-10-2026): detectados pero no enviados, porque el partido ya tuvo uno o su regla no está entre las que
+    # se mandan. Se resuelven igual y el banco los enseña APARTE, sin mezclarlos con lo que de verdad llegó a Telegram.
+    quiet = _rows(con, [e for e in log if e.get("callado")], quiet=True)
+    return dict(rows=rows[::-1][:200], n=len(rows), done=len(done), by=by, bank=sorted(rows, key=lambda x: x["ts"]),
+                quiet=sorted(quiet, key=lambda x: x["ts"]))
+
+
+def _rows(con, log, quiet=False):
+    """Cada aviso del registro con su apuesta y, si ya se sabe, su resultado (enviados o callados)."""
+    import avisos
     rows = []
     for e in log:
-        if "alert" not in e or e.get("anulado") or e.get("callado"):    # marcas, avisos falsos y los no enviados (uno por partido)
+        if "alert" not in e or e.get("anulado"):    # marcas del mensaje previo y avisos falsos por un fallo de la fuente
             continue
         if e.get("score") == "0-0" and (e.get("el") or 0) >= 1:     # 0-0 pasado el minuto 1: lectura vacía de la fuente
             continue
@@ -528,6 +545,8 @@ def sent_log(con, path):
                              final=str(e.get("value")) if e.get("res") else (f"{r[0]}-{r[1]}" if r and r[2] == "played" else None)))
             rows[-1]["casa"] = _casa(al, e.get("casa"), e.get("value") if e.get("res") else None)
             _timing(rows[-1], e)
+            if quiet:
+                rows[-1]["why"] = e["callado"]      # «partido» o «regla»
             continue
         row = dict(ts=e["ts"], comp=e["comp"], home=e["home"], away=e["away"], el=e["el"], score=e["score"], type=al["type"], level=al["level"],
                    upgraded=bool(e.get("upgraded")), casa=e.get("casa"),
@@ -546,15 +565,10 @@ def sent_log(con, path):
             value = avisos.bet_value(al, hs, as_, r[4] if r and r[2] == "played" else None)
         row["casa"] = _casa(al, e.get("casa"), value)
         _timing(row, e)
+        if quiet:
+            row["why"] = e["callado"]
         rows.append(row)
-    done = [x for x in rows if x["res"]]
-    by = {}
-    for x in done:
-        b = by.setdefault(x["type"], dict(n=0, s80=0, s90=0, s95=0))
-        b["n"] += 1
-        for p in ("80", "90", "95"):
-            b["s" + p] += int(x["res"][p])
-    return dict(rows=rows[::-1][:200], n=len(rows), done=len(done), by=by, bank=sorted(rows, key=lambda x: x["ts"]))
+    return rows
 
 
 # Banco de pruebas: cada aviso enviado por Telegram cuenta como una apuesta simulada de STAKE € en cada una de sus

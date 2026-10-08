@@ -57,6 +57,8 @@ const COMP = { E: 'Euroliga', U: 'EuroCup', A: 'Liga Endesa' };
 const LINES = [['95', 'Línea del 95 %'], ['90', 'Línea del 90 %'], ['80', 'Línea del 80 %']];
 const CFG = D.bank_cfg || { stake: 500, odds: { 95: 1.175, 90: 1.275, 80: 1.4 }, min_odds: { 95: 1.05, 90: 1.11, 80: 1.25 } };
 const ALL = (D.sent && D.sent.bank) || [];
+const QUIET = (D.sent && D.sent.quiet) || [];       // detectados pero no enviados: se llevan aparte
+const WHY = { partido: 'ya hubo otro aviso en el partido', regla: 'su regla no está entre las que se mandan' };
 let odds = Object.assign({}, CFG.odds), stake = CFG.stake;
 try { const o = JSON.parse(localStorage.getItem('banco-ajustes') || 'null'); if (o) { odds = Object.assign(odds, o.odds); stake = o.stake || stake; } } catch (e) { /* sin memoria del navegador */ }
 
@@ -148,12 +150,38 @@ function render() {
       <tbody>${rows}</tbody></table></div>
     <div class="muted small">Cada aviso son tres apuestas, una por línea: <span class="sw" style="background:var(--c95)"></span>95 % · <span class="sw" style="background:var(--c90)"></span>90 % · <span class="sw" style="background:var(--c80)"></span>80 %. ✓ ganada · ✗ perdida.
       «Final»: marcador final o, en los de cuarto, el valor del periodo apostado (puntos, o diferencia en los de hándicap). «Balance»: lo que dejan las tres juntas.</div>
-  </section>`;
+  </section>
+  ${quietSummary()}`;
   if (done.length) chart(run, done);
   document.querySelectorAll('.odds input').forEach(i => i.addEventListener('change', () => {
     const v = parseFloat(String(i.value).replace(',', '.')); if (v > 1) { odds[i.dataset.p] = v; save(); render(); } }));
   $('#stake').addEventListener('change', e => { const v = parseFloat(String(e.target.value).replace(',', '.')); if (v > 0) { stake = v; save(); render(); } });
   $('#reset').addEventListener('click', () => { odds = Object.assign({}, CFG.odds); stake = CFG.stake; save(); render(); });
+}
+// Avisos callados: el vigilante los detectó pero no los mandó (un solo aviso por partido, y solo las reglas que cumplen
+// lo prometido). Se resuelven igual que los enviados y se enseñan APARTE: no entran en las carteras de arriba. Sirven
+// para decidir si una regla de fuera merece volver o si el segundo aviso de un partido habría sido mejor que el primero.
+function quietSummary() {
+  const head = '<section class="panel"><h2>Avisos callados (detectados, no enviados)</h2>';
+  if (!QUIET.length) return head + '<div class="muted">Aún no hay ninguno. Desde el 8 de octubre solo se manda un aviso por partido y solo de las reglas que cumplen lo prometido; el resto se guarda aquí, sin mezclarse con las apuestas de arriba.</div></section>';
+  const done = QUIET.filter(x => x.res);
+  const kpis = LINES.map(([p, name]) => { const ok = done.filter(x => x.res[p]).length, n = done.length, bal = done.reduce((s, x) => s + gain(!!x.res[p], p), 0);
+    return `<div class="kpi"><div class="l"><span class="sw" style="background:var(--c${p})"></span>${name}</div>
+      <div class="v ${sgn(bal)}">${n ? eur(bal) : '–'}</div><div class="s">${n ? `${ok} de ${n} ganadas (${nf(100 * ok / n, 0)} %)` : 'sin resolver aún'}</div></div>`; }).join('');
+  const groups = [...new Set(QUIET.map(x => x.type + '|' + x.why))];
+  const table = groups.map(g => { const [t, w] = g.split('|'), xs = done.filter(x => x.type === t && x.why === w), all = QUIET.filter(x => x.type === t && x.why === w);
+    return `<tr><td class="l">${esc(KIND[t] || t)}</td><td class="l">${esc(WHY[w] || w)}</td><td>${all.length}</td>${LINES.map(([p]) => { const ok = xs.filter(x => x.res[p]).length;
+      return `<td>${xs.length ? `${ok}/${xs.length}` : '–'}</td>`; }).join('')}</tr>`; }).join('');
+  const reg = QUIET.slice().reverse().slice(0, 40).map(x => `<tr><td class="l">${esc(when(x.ts))}</td><td class="l w">${esc(x.home)} – ${esc(x.away)}</td>
+    <td class="l">${esc(KIND[x.type] || x.type)}<div class="muted small">minuto ${nf(x.el)} · ${esc(x.score)} · ${esc(WHY[x.why] || x.why)}</div></td>
+    <td class="l w"><div class="muted small">${esc(periodTxt(x))}</div>${LINES.map(([p]) => `<div class="bet"><span class="sw" style="background:var(--c${p})"></span>${esc(shortBet(x, p))}${
+      x.res ? ` <b class="${x.res[p] ? 'ok' : 'ko'}">${x.res[p] ? '✓' : '✗'}</b>` : ''}</div>`).join('')}</td>
+    <td>${x.res ? esc(x.final || '') : '<span class="muted">pendiente</span>'}</td></tr>`).join('');
+  return head + `<div class="muted">Detectados pero NO enviados por Telegram. No cuentan en las carteras de arriba: aquí se ve, con las mismas cuotas, cómo habrían ido.
+      Sirve para decidir si alguna regla de fuera merece volver o si el segundo aviso de un partido habría sido mejor que el primero.</div>
+    <div class="kpis">${kpis}</div>
+    <div class="scroll"><table><thead><tr><th class="l">Aviso</th><th class="l">Por qué se calló</th><th>Detectados</th>${LINES.map(([p]) => `<th>${p} %: ganadas</th>`).join('')}</tr></thead><tbody>${table}</tbody></table></div>
+    <h3>Últimos callados</h3><div class="scroll"><table><thead><tr><th class="l">Cuándo</th><th class="l">Partido</th><th class="l">Aviso</th><th class="l">Apuesta</th><th>Final</th></tr></thead><tbody>${reg}</tbody></table></div></section>`;
 }
 // Lo que ofrece de verdad la casa de Sergio, anotado con los botones de Telegram («No aparece» → línea y cuota que ve).
 // Sirve para dos cosas: saber dónde pone la casa sus líneas frente a las nuestras y si alguna de ellas se le puede ganar.

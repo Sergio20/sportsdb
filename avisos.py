@@ -31,6 +31,24 @@ def racha(done, diffs):
     return (diffs[-1] < 0 and diffs[-2] < 0) or (done == 3 and max(diffs) <= 0 and min(diffs) < 0)
 
 
+# Avisos que se mandan por Telegram (8-10-2026, Sergio: «calidad antes que cantidad»). Solo los que en el histórico
+# cumplen lo prometido: línea del 90 % con 90 % o más y la del 95 % con 94 % o más (los de cuarto, con temporadas que no
+# intervienen en su ajuste). El resto se sigue calculando y queda callado en el registro, para estudiarlo.
+SEND_Q = {"racha", "tot_frio", "mitad_fria", "eq_frio"}     # fuera: paliza, eq_caliente, tot_caliente, mitad_caliente
+SEND_RITMO_MIN = 28     # «Ritmo insostenible» solo cumple al final del 3.er cuarto (93/96 %); antes, 87-89 % en la del 90
+SHOW = (95, 90)         # líneas que se enseñan en Telegram: la del 80 % ya no (en directo acertaba 70 %)
+LINES_FROM = 85         # «Otras» y botones: solo líneas del 85 % en adelante (criterio de Sergio)
+
+
+def sendable(al, el):
+    """¿Se manda este aviso por Telegram? Si no, queda callado (se guarda para estudiarlo, pero no llega)."""
+    if al["type"] == "cuarto":
+        return al.get("sub") in SEND_Q
+    if al["type"] == "ritmo":
+        return (el or 0) >= SEND_RITMO_MIN
+    return al["type"] == "desfase"          # fuera, por rozar el límite: total (90/95 %) y triples (90/94 %)
+
+
 def name_of(al):
     """Nombre del aviso para los mensajes: la racha de cuartos va con los de cuarto pero tiene nombre propio."""
     return NAMES["racha"] if al.get("sub") == "racha" else NAMES[al["type"]]
@@ -186,7 +204,7 @@ def strongest(alerts, rules):
     def score(al):
         t = {int(k): v for k, v in (rules.get(al["sub"]) or {}).get("test", {}).items()}
         return (t.get(90, 0), t.get(80, 0), t.get(95, 0), al.get("n", 0))
-    best = max(alerts, key=score)
+    best = max(alerts, key=lambda al: (al.get("sub") in SEND_Q, score(al)))    # primero, las que se mandan
     best["also"] = [al["sub"] for al in alerts if al is not best]
     return [best]
 
@@ -427,9 +445,9 @@ def offer_lines(al):
     """Las líneas que se ofrecen como botones: las tres del aviso y hasta cuatro más de la tabla, de más segura a más
     ajustada. Devuelve [(línea, % de acierto)]."""
     main = {round(float(v), 1): int(k) for k, v in al["lines"].items()}
-    others = [(line, pct) for line, pct in line_table(al) if round(line, 1) not in main]
+    others = [(line, pct) for line, pct in line_table(al, lo=LINES_FROM) if round(line, 1) not in main]
     pick = others[::max(1, len(others) // 4)][:4] if others else []
-    out = [(round(float(v), 1), float(k)) for v, k in ((v, k) for k, v in al["lines"].items())] + pick
+    out = [(round(float(v), 1), float(k)) for k, v in al["lines"].items() if int(k) in SHOW] + pick
     return sorted(out, key=lambda x: -x[1])
 
 
@@ -450,9 +468,11 @@ def compact(al, home, away):
     lab = lambda line: f"{b['team']} {fmt(line)}" if hcap else f"{b['way'].capitalize()} {num(line)}"  # noqa: E731
     out = [why, "", f"👉 {what} · {when}"]
     for p, label, _ in b["lines"]:
+        if p not in SHOW:
+            continue
         out.append(f"{ICON[p]} {label} · {p} % · cuota ≥ {num(100 / p, 2)}")
     main = {round(float(v), 1) for v in al["lines"].values()}
-    others = [(line, pct) for line, pct in line_table(al) if round(line, 1) not in main]
+    others = [(line, pct) for line, pct in line_table(al, lo=LINES_FROM) if round(line, 1) not in main]
     if others:
         pick = others[::max(1, len(others) // 4)][:4]
         out.append("Otras: " + " · ".join(f"{fmt(line) if hcap else num(line)} {pct:.0f} % ({num(100 / pct, 2)})"
@@ -465,4 +485,4 @@ def result_lines(al, res, home, away):
     """Para el mensaje de resultado: cada línea con su marca y GANADA / PERDIDA."""
     labels = {p: label for p, label, _ in bet_of(al, home, away)["lines"]}
     return [f"{'✅' if res[k] else '❌'} {labels[int(k)]} (la del {int(k)} %): {'GANADA' if res[k] else 'PERDIDA'}"
-            for k in sorted(res, key=lambda k: -int(k))]
+            for k in sorted(res, key=lambda k: -int(k)) if int(k) in SHOW]
