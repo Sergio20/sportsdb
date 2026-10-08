@@ -113,7 +113,7 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   al tocarla, teclas de cuota alrededor de la mínima ya marcadas ✅/❌; al tocar una cuota sale al instante en pantalla si
   tiene valor y se anota en `casa`. «No aparece» abre las líneas más ajustadas que suele dar la casa (`casa_kb`,
   `avisos.market_lines`: del 30 al 80 % según nuestra campana) con su % al lado; Sergio toca la que ve y su cuota y queda
-  anotada como las demás (con p < 80 avisa de que es arriesgada). «Ninguna parecida» anota `none` una sola vez por aviso (`note_none`).
+  anotada como las demás (con p < 80 avisa de que es arriesgada). Si la cuota de la casa no está entre las teclas, «✍️ Escribir la cuota de mi casa» pide el número (respuesta forzada; `ASK` y `ask`/`ask_of` en el aviso para que valga en la tanda siguiente) y contesta con nuestro % y cuota mínima frente a lo que cree la casa (100/cuota) (`verdict`, `answer_odds`). «Ninguna parecida» anota `none` una sola vez por aviso (`note_none`).
   Teclas de cuota en proporción a la mínima (sirven de 1,05 a 3). `analisis._casa` añade a cada anotación lo que cree la
   casa (`implied` = 100/cuota), el valor esperado (`ev`) y si esa línea se ganó (`hit`, con `avisos.line_hits`); el banco
   enseña en «Tu casa de apuestas» si ofrecía nuestras líneas, dónde pone las suyas, la ventaja por tipo de aviso y el

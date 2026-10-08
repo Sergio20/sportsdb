@@ -354,6 +354,7 @@ DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "doming
 NO_LINE = re.compile(r"\b(no\s*(aparece|sale|hay|esta|está|ofrece)|nada|ninguna)\b", re.I)
 DETAIL = {"text": "📊 Detalle", "url": "https://sergio20.github.io/sportsdb/en-vivo.html"}
 LOCK = threading.Lock()         # el hilo que escucha Telegram y la vigilancia tocan el mismo registro de avisos
+ASK = {}    # mensaje «escribe la cuota» → (aviso del registro o None en el ensayo, campana, línea)
 
 
 def _label(al, line):
@@ -388,7 +389,8 @@ def odds_kb(al, line):
     keys = [{"text": f"{avisos.num(v, 2)} {'✅' if v > need else '❌'}", "callback_data": f"O|{line}|{v}"} for v in vals]
     rows = [keys[i:i + 4] for i in range(0, len(keys), 4)]
     head = [{"text": f"{'⚠️ ' if p < 79.5 else ''}{_label(al, line)}: acierta {p:.0f} % · mínima {avisos.num(need, 2)}", "callback_data": "nada"}]
-    return {"inline_keyboard": [head] + rows + [[{"text": "↩️ Volver", "callback_data": "B"}, {"text": "🚫 No aparece", "callback_data": "noaparece"}]]}
+    write = [{"text": "✍️ Escribir la cuota de mi casa", "callback_data": f"W|{line}"}]
+    return {"inline_keyboard": [head] + rows + [write, [{"text": "↩️ Volver", "callback_data": "B"}, {"text": "🚫 No aparece", "callback_data": "noaparece"}]]}
 
 
 def tg(method, **body):
@@ -463,6 +465,15 @@ def value_of(al, line, odds):
     return dict(p=p, need=100 / p, ev=(p / 100 * odds - 1) * 100, ok=odds > 100 / p)
 
 
+def verdict(al, line, odds, v):
+    """Comparación de la cuota de la casa con la nuestra: lo que acierta según nosotros frente a lo que cree la casa."""
+    ok = (f"✅ CON VALOR: por cada 100 € apostados, a la larga +{v['ev']:.0f} €" if v["ok"]
+          else f"❌ SIN VALOR: por cada 100 € apostados, a la larga {v['ev']:.0f} €. No apuestes.")
+    warn = "\n⚠️ Ojo: por debajo del 80 % de acierto. Lo acordado es apostar solo líneas seguras." if v["p"] < 79.5 else ""
+    return (f"Según nosotros acierta {v['p']:.0f} % → cuota mínima {avisos.num(v['need'], 2)}\n"
+            f"Tu casa paga {avisos.num(odds, 2)} → cree que acierta {100 / odds:.0f} %\n{ok}{warn}")
+
+
 def note_none(e):
     """Anota «no aparece en mi casa» una sola vez por aviso (tocar el botón dos veces no cuenta doble).
     Devuelve False si ya estaba anotado."""
@@ -474,6 +485,8 @@ def note_none(e):
 
 def answer_reply(m, log):
     to = (m.get("reply_to_message") or {}).get("message_id")
+    if to and (to in ASK or any(str(to) in (x.get("ask") or {}) for x in log if "alert" in x)):
+        return answer_odds(m, to, log)
     e = next((x for x in log if "alert" in x and to in (x.get("msg") or [])), None) if to else None
     if not e:
         if to or NUM.search(m["text"]):
@@ -493,14 +506,36 @@ def answer_reply(m, log):
     if not v:
         send("No he podido valorar esa línea. Escríbela así: +7,5 1,12", reply_to=m["message_id"])
         return
-    p, need, ev = v["p"], v["need"], v["ev"]
+    send(f"{what_of(al, e, line)} a {avisos.num(odds, 2)}\n{verdict(al, line, odds, v)}", reply_to=m["message_id"])
+    e.setdefault("casa", []).append(dict(ts=now().isoformat(timespec="seconds"), line=line, odds=odds, p=round(v["p"], 1)))
+
+
+def what_of(al, e, line):
+    """«Hapoel +2,5» o «Más de 160,5» (sin el registro, en el ensayo, solo la línea)."""
+    if not e:
+        return _label(al, line)
     b = avisos.bet_of(al, e["home"], e["away"])
-    what = f"{b['team']} {avisos.fmt(line)}" if b["market"].startswith("HÁNDICAP") else f"{b['way'].capitalize()} {avisos.num(line)}"
-    verdict = (f"✅ CON VALOR: por cada 100 € apostados, a la larga +{ev:.0f} €" if v["ok"]
-               else f"❌ SIN VALOR: por cada 100 € apostados, a la larga {ev:.0f} €. No apuestes.")
-    warn = "\n⚠️ Ojo: por debajo del 80 % de acierto. Lo acordado es apostar solo líneas seguras." if p < 79.5 else ""
-    send(f"{what} a {avisos.num(odds, 2)}\nAcierta {p:.0f} % → cuota mínima {avisos.num(need, 2)}\n{verdict}{warn}", reply_to=m["message_id"])
-    e.setdefault("casa", []).append(dict(ts=now().isoformat(timespec="seconds"), line=line, odds=odds, p=round(p, 1)))
+    return f"{b['team']} {avisos.fmt(line)}" if b["market"].startswith("HÁNDICAP") else f"{b['way'].capitalize()} {avisos.num(line)}"
+
+
+def answer_odds(m, to, log):
+    """Respuesta al mensaje «escribe la cuota»: la línea ya se eligió con su botón, aquí solo llega la cuota de la casa."""
+    if to in ASK:
+        e, al, line = ASK[to]
+    else:
+        e = next(x for x in log if "alert" in x and str(to) in (x.get("ask") or {}))
+        line = e["ask"][str(to)]
+        al = (e.get("msg_alert") or {}).get(str(e.get("ask_of", {}).get(str(to)))) or e["alert"]
+    nums = [float(x.replace(",", ".")) for x in NUM.findall(m["text"])]
+    odds = nums[-1] if nums else 0
+    v = value_of(al, line, odds) if 1 < odds < 50 else None
+    if not v:
+        send("No he entendido la cuota. Escribe solo el número, por ejemplo: 1,31", reply_to=m["message_id"])
+        return
+    send(f"{what_of(al, e, line)} a {avisos.num(odds, 2)}\n{verdict(al, line, odds, v)}" + ("" if e else "\n(prueba: no se anota)"),
+         reply_to=m["message_id"])
+    if e:
+        e.setdefault("casa", []).append(dict(ts=now().isoformat(timespec="seconds"), line=line, odds=odds, p=round(v["p"], 1)))
 
 
 def no_line(e):
@@ -539,6 +574,17 @@ def button_press(cq, chat, log, token):
         line = float(data[2:])
         toast("")
         tg("editMessageReplyMarkup", chat_id=chat, message_id=mid, reply_markup=odds_kb(al, line))
+    elif data.startswith("W|"):         # cuota que no está entre las teclas: se escribe
+        line = float(data[2:])
+        toast("")
+        ask = send(f"✍️ ¿Qué cuota te da tu casa para {what_of(al, e, line)}? Escribe solo el número (por ejemplo 1,31)",
+                   reply_to=mid, buttons={"force_reply": True, "input_field_placeholder": "Cuota, por ejemplo 1,31"})
+        if isinstance(ask, int) and ask is not True:
+            ASK[ask] = (e, al, line)
+            if e:       # también en el registro: la respuesta vale aunque llegue en la tanda siguiente
+                e.setdefault("ask", {})[str(ask)] = line
+                e.setdefault("ask_of", {})[str(ask)] = mid
+        tg("editMessageReplyMarkup", chat_id=chat, message_id=mid, reply_markup=lines_kb(al))
     elif data.startswith("O|"):
         _, line, odds = data.split("|")
         line, odds = float(line), float(odds)
