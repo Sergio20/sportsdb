@@ -448,7 +448,7 @@ def rule_check(log):
     prometido. Devuelve {regla: dict(n, ok, pct, top, off)}."""
     first = {}
     for e in log:
-        if "alert" not in e or e.get("anulado") or not e.get("res"):
+        if "alert" not in e or e.get("anulado") or e.get("callado") or not e.get("res"):
             continue
         k = (rule_of(e["alert"]), e.get("comp"), e.get("year"), e.get("code"))
         first.setdefault(k, e)
@@ -505,7 +505,7 @@ def sent_log(con, path):
         return None
     rows = []
     for e in log:
-        if "alert" not in e or e.get("anulado"):    # marcas del mensaje previo y avisos falsos por un fallo de la fuente
+        if "alert" not in e or e.get("anulado") or e.get("callado"):    # marcas, avisos falsos y los no enviados (uno por partido)
             continue
         if e.get("score") == "0-0" and (e.get("el") or 0) >= 1:     # 0-0 pasado el minuto 1: lectura vacía de la fuente
             continue

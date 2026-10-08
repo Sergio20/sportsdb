@@ -132,6 +132,10 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   80 % 20/31 (−1.500 €). Equilibrio: 1,07 / 1,29 / 1,55. Los de cuarto, por debajo de lo prometido (90 % 13/18, 80 % 12/18);
   fallos juntos en un mismo partido desigual (Baskonia 118-78 Girona). Muestra corta y muy agrupada por partidos.
   Las dos veces que Sergio miró la casa (6-10) no ofrecía nuestras líneas.
+  UN SOLO AVISO POR PARTIDO (8-10-2026, Sergio: «calidad antes que cantidad», no solapar apuestas): el primero que salta,
+  sea del tipo que sea (directo o de cuarto). Los siguientes no se mandan: quedan en `avisos.json` con `callado` (una vez
+  cada uno, `vigilante.quiet_step`, `g["quiet"]`) para estudiar si habrían sido mejores; `analisis.sent_log` y el freno los
+  ignoran. Las mejoras de moderado a fuerte del mismo aviso sí se mandan. Ej.: Bayern-Virtus 8-10 dio 4 en 4 minutos.
   Revisión cuantitativa (7-10): 31 avisos = 9 partidos; los del mismo partido fallan juntos. Desde entonces: solo un
   aviso de cuarto por partido y cuarto (`avisos.strongest`: la regla con más acierto fuera del ajuste, línea del 90; los
   descartados en `also`; el vigilante no manda otro si ya salió uno de ese cuarto) y cartera «Con tope de 500 € por

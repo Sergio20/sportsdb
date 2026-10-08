@@ -180,12 +180,30 @@ def quarter_step(g, st, base, rules, log, save):
         if k in g["sent"]:
             continue
         score = f"{st['hs']}-{st['as_']}"
+        if quiet_step(g, al, k, done * 10, score, log, save):
+            continue
         mid = send(message(al, g, done * 10, score), buttons=lines_kb(al))
         entry = dict(ts=now().isoformat(timespec="seconds"), comp=g["comp"], year=g["year"], code=g["code"], home=g["home"], away=g["away"],
                      key=k, el=done * 10, score=score, alert=al, msg=[mid] if isinstance(mid, int) else [], lat=lat_of(g, st))
         g["sent"][k] = entry
         log.append(entry)
         save()
+
+
+def quiet_step(g, al, k, el, score, log, save):
+    """Un solo aviso por partido (decisión de Sergio, 8-10-2026: calidad antes que cantidad; los avisos del mismo partido
+    son casi la misma apuesta y fallan juntos). Si el partido ya tuvo uno, este no se manda: se guarda callado en el
+    registro (`callado`), una vez, para estudiar después si habría sido mejor. Devuelve True si hay que callarlo."""
+    if not any(not e.get("anulado") for e in g["sent"].values()):
+        return False
+    if k not in g["quiet"]:
+        entry = dict(ts=now().isoformat(timespec="seconds"), comp=g["comp"], year=g["year"], code=g["code"], home=g["home"],
+                     away=g["away"], key=k, el=round(el, 1), score=score, alert=al, callado=True)
+        g["quiet"][k] = entry
+        log.append(entry)
+        save()
+        print(f"  {g['home'][:14]}: aviso {avisos.name_of(al)} callado (ya hubo uno en este partido)", flush=True)
+    return True
 
 
 def lat_of(g, st):
@@ -751,7 +769,9 @@ def watch(con, log_path, hours):
     bases["U"] = bases["E"]
     games = todays_games(year) + acb_games(con, year)
     for g in games:   # lo ya avisado en una tanda anterior del mismo día no se repite
-        g["sent"] = {e["key"]: e for e in log if "alert" in e and (e["comp"], e["year"], e["code"]) == (g["comp"], g["year"], g["code"])}
+        mine = [e for e in log if "alert" in e and (e["comp"], e["year"], e["code"]) == (g["comp"], g["year"], g["code"])]
+        g["sent"] = {e["key"]: e for e in mine if not e.get("callado")}
+        g["quiet"] = {e["key"]: e for e in mine if e.get("callado")}
         g["told"] = {e["aplazado"] for e in log if "aplazado" in e}     # avisos de aplazamiento ya enviados
     def save():
         with LOCK:
@@ -849,6 +869,8 @@ def watch(con, log_path, hours):
                     if old and not (old["alert"]["level"] == "moderado" and al["level"] == "fuerte" and not old.get("upgraded")):
                         continue
                     score = f"{A['pts']}-{B['pts']}"
+                    if not old and quiet_step(g, al, k, el, score, log, save):
+                        continue
                     mid = send(message(al, g, el, score), buttons=lines_kb(al))
                     if old:                 # pasa de moderado a fuerte: se avisa otra vez, pero cuenta el primero
                         old["upgraded"] = True
