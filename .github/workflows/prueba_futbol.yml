@@ -1,0 +1,23 @@
+name: Prueba de la fuente de fútbol en directo
+
+# Solo a mano: comprueba la clave de API-Football (secreto FUTBOL_API_KEY) y qué da su plan (scripts/prueba_futbol_api.py).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prueba:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: Probar la fuente
+        env:
+          FUTBOL_API_KEY: ${{ secrets.FUTBOL_API_KEY }}
+        run: python scripts/prueba_futbol_api.py
