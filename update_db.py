@@ -17,11 +17,11 @@ import argparse
 import sys
 import time
 
-from sportsdb import acb, eurocup, euroleague, flashscore, laliga
+from sportsdb import acb, eurocup, euroleague, flashscore, futbol_hist, laliga
 from sportsdb.common import DEFAULT_DB, connect, current_season_start
 
 LEAGUES = {"laliga": laliga, "euroliga": euroleague, "acb": acb, "eurocup": eurocup,
-           "otras": flashscore}
+           "otras": flashscore, "futbol": futbol_hist}
 
 
 def main() -> int:

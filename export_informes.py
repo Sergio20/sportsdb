@@ -45,9 +45,27 @@ def export(db=DEFAULT_DB, out=None):
         a, b = html.index("/*DATA*/"), html.index("/*END*/")
         html = html[:a] + "/*DATA*/" + blob + html[b:]
         (out / page).write_text(html.replace("/*CSS*/", css, 1), encoding="utf-8")
+    export_futbol(db, out, css)
     t = data.get("timing") or {}
     print(f"Informes escritos en {out}: {len(data['games'])} partidos próximos, {t.get('n', 0)} partidos con jugadas")
     return out
+
+
+def export_futbol(db, out, css):
+    """Chuleta de fútbol en directo (futbol.py → futbol.html)."""
+    import datetime as dt
+    import futbol
+    con = sqlite3.connect(db)
+    try:
+        data = futbol.build(con) or {}
+    except sqlite3.OperationalError:     # aún no existe la tabla futbol_hist
+        data = {}
+    con.close()
+    data["updated"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+    html = (ROOT / "panel" / "futbol_plantilla.html").read_text(encoding="utf-8")
+    a, b = html.index("/*DATA*/"), html.index("/*END*/")
+    html = html[:a] + "/*DATA*/" + json.dumps(data, ensure_ascii=False, separators=(",", ":")) + html[b:]
+    (out / "futbol.html").write_text(html.replace("/*CSS*/", css, 1), encoding="utf-8")
 
 
 if __name__ == "__main__":

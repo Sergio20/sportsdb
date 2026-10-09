@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SportsDB · Fútbol en directo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>
+/*CSS*/
+.pick { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px }
+.pick button { font: 500 14px var(--body); padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--fg); cursor: pointer }
+.pick button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff }
+.lbl { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-3); margin-top: 8px }
+td .o { display: block; font: 700 17px/1.2 var(--display); font-variant-numeric: tabular-nums }
+td .p { display: block; font-size: 12px; color: var(--fg-3) }
+tr.hl td { background: color-mix(in srgb, var(--accent) 8%, transparent) }
+.na { color: var(--fg-3) }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><div class="nav"><a href="./">Panel</a><a href="en-vivo.html">En vivo</a><a href="jornada.html">Jornada</a><a href="funciona.html">¿Funciona?</a><a href="pruebas.html">Banco de pruebas</a><a href="futbol.html" aria-current="page">Fútbol</a></div>
+      <h1>Fútbol en directo: qué pasa según el marcador al descanso</h1><div class="muted small" id="status"></div></div>
+  </header>
+  <div id="view"></div>
+</div>
+<script>
+(function () {
+'use strict';
+const D = /*DATA*/{}/*END*/;
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const nf = (v, d) => v == null || !isFinite(v) ? '–' : Number(v).toLocaleString('es-ES', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
+// Apuestas habituales de Sergio, desde el punto de vista del equipo elegido
+const BETS = [['dc1x', 'No pierde (1X)'], ['dcx2', 'No gana (X2 para el rival)'], ['win', 'Gana'], ['score2', 'Marca en la 2.ª parte'],
+  ['ah15', 'Hándicap +1,5 (pierde como mucho por 1)'], ['ah25', 'Hándicap +2,5 (pierde como mucho por 2)']];
+let league = 'Solo LaLiga', group = 'muy favorito (70 % o más)';
+try { const o = JSON.parse(localStorage.getItem('futbol-eleccion') || 'null'); if (o) { league = o.league || league; group = o.group || group; } } catch (e) { /* sin memoria */ }
+
+function cell(s) {
+  if (!s) return '<td class="na">–</td>';
+  const fair = s.pct > 0 ? 100 / s.pct : null;
+  return `<td><span class="o">${fair ? nf(fair, 2) : '–'}</span><span class="p">${nf(s.pct, 0)} %${s.odds ? ' · prudente ' + nf(s.odds, 2) : ''}</span></td>`;
+}
+function render() {
+  if (!D.table) { $('#view').innerHTML = '<div class="panel"><div class="empty">Todavía no hay histórico de fútbol: se carga en la próxima actualización diaria.</div></div>'; return; }
+  if (!D.table[league + '|' + group]) group = D.groups[0];
+  const t = D.table[league + '|' + group], pill = (v, cur, k) => `<button data-${k}="${esc(v)}" aria-pressed="${v === cur}">${esc(v)}</button>`;
+  const rows = D.states.map((st, i) => { const s = t.by[i];
+    if (!s || !s.n) return `<tr><td class="l">${esc(st)}</td><td>0</td><td colspan="${3 + BETS.length}" class="na">sin casos</td></tr>`;
+    return `<tr class="${i <= 1 ? 'hl' : ''}"><td class="l">${esc(st)}</td><td>${nf(s.n)}</td>
+      <td>${nf(s.win.pct, 0)} %</td><td>${nf(s.draw.pct, 0)} %</td><td>${nf(s.lose.pct, 0)} %</td>${BETS.map(([k]) => cell(s[k])).join('')}</tr>`; }).join('');
+  const steady = D.states.map((st, i) => t.old[i] != null && t.new[i] != null ? `${esc(st)}: ${nf(t.old[i], 0)} % → ${nf(t.new[i], 0)} %` : null).filter(Boolean);
+  $('#view').innerHTML = `
+  <section class="panel">
+    <div class="muted">Solo se sabe el <strong>marcador al descanso</strong>, no el minuto de los goles: «perdiendo al descanso» no es lo mismo que
+      «perdiendo en el minuto 15» (con un gol tempranero queda más tiempo para remontar). El nivel del equipo sale de las cuotas antes del partido.</div>
+    <div class="lbl">Liga</div><div class="pick">${D.leagues.map(v => pill(v, league, 'league')).join('')}</div>
+    <div class="lbl">Equipo o nivel del equipo</div><div class="pick">${D.groups.map(v => pill(v, group, 'group')).join('')}</div>
+  </section>
+  <section class="panel"><h2>${esc(group)} · ${esc(league)}</h2>
+    <div class="muted small">${nf(t.all.n)} partidos en total. Cada casilla de apuesta: <strong>cuota mínima</strong> para que tenga valor
+      (por debajo, a la larga se pierde) y, debajo, cuántas veces se cumplió. «Prudente»: la cuota mínima si la realidad estuviera en el extremo malo
+      de lo que permiten los casos (con pocos casos se dispara: no es fiable).</div>
+    <div class="scroll"><table><thead><tr><th class="l">Al descanso va…</th><th>Casos</th><th>Gana</th><th>Empata</th><th>Pierde</th>
+      ${BETS.map(([, n]) => `<th>${esc(n)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
+    ${steady.length ? `<div class="muted small">¿Se repite con los años? «No pierde» antes de 2012 → desde 2012: ${steady.join(' · ')}.</div>` : ''}
+  </section>
+  <section class="panel"><h2>Cómo usarla</h2><div class="muted">Viendo el partido al descanso: busca el nivel del equipo y cómo va. Si la cuota de tu casa
+    está <strong>por encima</strong> de la cuota mínima de la casilla, esa apuesta tiene valor a la larga; si está por debajo, no. Ninguna apuesta es
+    segura: un 70 % falla 3 de cada 10 veces.</div>
+    <div class="muted small">Datos: football-data.co.uk, ${nf(D.matches)} partidos (${Object.entries(D.coverage).map(([lg, c]) => `${esc(lg)} ${c[0]}-${c[1] + 1}`).join(' · ')}).</div></section>`;
+  document.querySelectorAll('.pick button').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.league) league = b.dataset.league; else group = b.dataset.group;
+    try { localStorage.setItem('futbol-eleccion', JSON.stringify({ league, group })); } catch (e) { /* sin memoria */ }
+    render(); }));
+}
+$('#status').textContent = D.updated ? 'Actualizado ' + new Date(D.updated).toLocaleString('es-ES') + ' · se rehace cada día.' : '';
+render();
+})();
+</script>
+</body>
+</html>

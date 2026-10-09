@@ -201,6 +201,15 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   anotador con 22+ min en sus 10 partidos previos, `basket_player_stats`): −1,2 puntos frente a lo esperado (±0,8,
   n=575; −1,6 en 2024+), demasiado poco y la casa ya lo sabe antes del partido. Ninguno se convierte en aviso.
 
+- Fútbol en directo (9-10-2026, idea de Sergio: el grande que va perdiendo). `sportsdb/futbol_hist.py` carga de
+  football-data.co.uk (solo desde GitHub: aquí está bloqueado) LaLiga, Premier, Bundesliga, Serie A y Ligue 1 desde 1995-96
+  en la tabla `futbol_hist` (final, descanso y probabilidad 1X2 antes del partido sin margen; solo baja temporadas que
+  faltan + la actual y la anterior; liga `futbol` de update_db). `futbol.py` → `futbol.html` (chuleta, plantilla
+  `panel/futbol_plantilla.html`): por nivel del equipo (prob. de ganar) o equipo (Barça, Madrid, Atleti, Betis) y
+  marcador al descanso, % y cuota mínima de 1X, X2, gana, marca en la 2.ª parte, AH +1,5 y +2,5 (y «prudente» con el
+  extremo malo de la franja del 90 %). Solo hay descanso, no minuto de los goles. Primer estudio con 2021-26 (LaLiga):
+  los tres grandes perdiendo por 1 al descanso no pierden solo el 48 % (cuota justa 2,09): el 1X a 1,30-1,40 no tiene valor.
+
 ## Tareas programadas (todas en GitHub salvo el informe)
 
 - `vigilante.yml`: cadena continua de tandas + respaldo cada hora (min. 23). Únicos avisos en directo.
