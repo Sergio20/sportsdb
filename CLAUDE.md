@@ -209,6 +209,14 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   marcador al descanso, % y cuota mínima de 1X, X2, gana, marca en la 2.ª parte, AH +1,5 y +2,5 (y «prudente» con el
   extremo malo de la franja del 90 %). Solo hay descanso, no minuto de los goles. Primer estudio con 2021-26 (LaLiga):
   los tres grandes perdiendo por 1 al descanso no pierden solo el 48 % (cuota justa 2,09): el 1X a 1,30-1,40 no tiene valor.
+  Avisos de LaLiga en directo (`futbol_live.py`, hilo aparte que arranca `vigilante.watch`): partidos y favorito de
+  `futbol_prox` (fixtures.csv de football-data, cuotas antes del partido, se carga con la liga `futbol`); marcador de
+  API-Football (`v3.football.api-sports.io`, secreto `FUTBOL_API_KEY`; plan gratis: 100 consultas/día y SOLO el directo
+  `fixtures?live=all`, sin calendario ni resultados de la temporada actual). Se consulta cada `POLL` = 5 min solo mientras
+  hay en juego un partido de LaLiga con favorito (55 %+ o Barça/Madrid/Atleti/Betis), dejando `RESERVE` consultas.
+  Avisa una vez cuando el favorito empieza a perder en la 1.ª parte y otra si pierde al descanso, con la chuleta (equipo
+  y nivel). Marcas `{futbol: "<id>|1H|HT"}` en `avisos.json` (no entran en el banco). Prueba de la clave:
+  `prueba_futbol.yml` → `scripts/prueba_futbol_api.py`. Sin probar aún con un partido real de LaLiga.
 
 ## Tareas programadas (todas en GitHub salvo el informe)
 

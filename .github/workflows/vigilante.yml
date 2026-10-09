@@ -32,6 +32,7 @@ jobs:
     env:
       TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      FUTBOL_API_KEY: ${{ secrets.FUTBOL_API_KEY }}   # LaLiga en directo (API-Football, futbol_live.py)
       GITHUB_TOKEN: ${{ github.token }}   # para publicar el estado de la Liga Endesa en la rama vivo
     steps:
       - uses: actions/checkout@v4

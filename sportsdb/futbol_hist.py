@@ -27,7 +27,12 @@ CREATE TABLE IF NOT EXISTS futbol_hist (
     p_h REAL, p_d REAL, p_a REAL, odds_src TEXT
 );
 CREATE INDEX IF NOT EXISTS futbol_hist_league ON futbol_hist (league, season_start);
+CREATE TABLE IF NOT EXISTS futbol_prox (
+    league TEXT, date TEXT, time_uk TEXT, home TEXT, away TEXT, p_h REAL, p_d REAL, p_a REAL, odds_src TEXT,
+    PRIMARY KEY (league, date, home, away)
+);
 """
+FIXTURES = "https://www.football-data.co.uk/fixtures.csv"     # próximos partidos con sus cuotas (se renueva cada semana)
 
 
 def season_code(start: int) -> str:
@@ -91,3 +96,20 @@ def update(con, seasons=None, refresh: bool = False, log=print) -> None:
             con.commit()
             log(f"[fútbol] {league} {start}-{(start + 1) % 100:02d}: {len(rows)} partidos, "
                 f"{sum(r[8] is not None for r in rows)} con descanso, {sum(r[10] is not None for r in rows)} con cuotas")
+    try:        # próximos partidos con cuotas: el vigilante sabe así quién es favorito antes de empezar
+        r = http_get(FIXTURES, ok_404=True)
+        rows = []
+        for row in csv.DictReader(io.StringIO(r.content.decode("utf-8-sig", "replace"))) if r is not None else []:
+            row = {(k or "").strip(): (v or "").strip() for k, v in row.items() if k}
+            div, date = row.get("Div"), parse_date(row.get("Date") or "")
+            if div not in DIVS or not date or not row.get("HomeTeam"):
+                continue
+            ph, pd_, pa, src = probs(row)
+            rows.append((DIVS[div], date, row.get("Time") or None, row["HomeTeam"], row["AwayTeam"], ph, pd_, pa, src))
+        if rows:
+            con.execute("DELETE FROM futbol_prox")
+            con.executemany("INSERT OR REPLACE INTO futbol_prox VALUES (?,?,?,?,?,?,?,?,?)", rows)
+            con.commit()
+        log(f"[fútbol] próximos partidos con cuotas: {len(rows)}")
+    except Exception as e:      # sin próximos partidos el histórico sigue valiendo
+        log(f"[fútbol] no se han podido leer los próximos partidos: {e}")

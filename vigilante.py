@@ -790,6 +790,13 @@ def watch(con, log_path, hours):
         log.append({"tg_offset": 0})
     stop = threading.Event()
     threading.Thread(target=listen, args=(log, save, stop), daemon=True).start()
+    try:        # LaLiga en directo, en su propio hilo: el favorito que va perdiendo (futbol_live.py)
+        import futbol_live
+        fw = futbol_live.Watcher(con, send, log, save, LOCK)
+        threading.Thread(target=futbol_live.listen, args=(fw, stop), daemon=True).start()
+        print(f"  fútbol: {len(fw.games)} partidos de LaLiga con favorito por vigilar" + ("" if fw.key else " (sin clave FUTBOL_API_KEY)"), flush=True)
+    except Exception as e:
+        print(f"  fútbol: no se ha podido preparar ({e})", flush=True)
     rules = {}
     try:
         hist_games, _, hist = analisis.walk(con)
