@@ -134,12 +134,15 @@ class Watcher:
         hg, ag = f["goals"]["home"] or 0, f["goals"]["away"] or 0
         diff = g["side"] * (hg - ag)            # a favor del favorito
         gid = f"{f['fixture']['id']}"
-        if st in ("1H", "HT") and diff < 0:     # un aviso al empezar a perder y otro al descanso, nada más
-            key = f"{gid}|{'HT' if st == 'HT' else '1H'}"
+        # Un aviso cada vez que el marcador cambia y el favorito va por detrás (en cualquier momento del partido),
+        # y otro al descanso si llega perdiendo
+        if st in ("1H", "HT", "2H", "ET", "BT", "LIVE") and diff < 0:
+            key = f"{gid}|{'HT' if st == 'HT' else f'{hg}-{ag}'}"
             if key not in self.told:
-                self.tell(key, self.message(g, hg, ag, diff, el, st == "HT"))
+                self.tell(key, self.message(g, hg, ag, diff, el, st))
 
-    def message(self, g, hg, ag, diff, el, ht):
+    def message(self, g, hg, ag, diff, el, st):
+        ht = st == "HT"
         when = "AL DESCANSO" if ht else f"EN EL MINUTO {el}"
         state = 0 if diff <= -2 else 1          # fila de la chuleta: pierde por 2 o más / pierde por 1
         head = (f"⚽ {g['fav'].upper()} PIERDE {when} · LaLiga\n{g['home']} {hg}-{ag} {g['away']}\n"
@@ -157,7 +160,10 @@ class Watcher:
                 if v and v["pct"] > 0:
                     lines.append(f"· {label}: {v['pct']:.0f} % → vale a {100 / v['pct']:.2f} o más".replace(".", ","))
             break
-        note = "" if ht else "\n(El histórico es con el marcador al descanso; un gol pronto deja más tiempo para remontar.)"
+        note = ("" if ht else "\n(El histórico es con el marcador al descanso; un gol pronto deja más tiempo para remontar.)"
+                if st in ("1H", "HT") else
+                f"\n(OJO: es la 2.ª parte. El histórico es de quien perdía al descanso con 45 min por delante; en el minuto {el} "
+                "queda menos tiempo y remontar es MÁS difícil que esos %: pide más cuota de la que pone.)")
         return head + "\n".join(lines) + note + "\n\nSi la cuota de tu casa está por encima, tiene valor. Detalle: https://sergio20.github.io/sportsdb/futbol.html"
 
     def tell(self, keys, text):

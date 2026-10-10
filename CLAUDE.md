@@ -214,9 +214,10 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   API-Football (`v3.football.api-sports.io`, secreto `FUTBOL_API_KEY`; plan gratis: 100 consultas/día y SOLO el directo
   `fixtures?live=all`, sin calendario ni resultados de la temporada actual). Se consulta cada `POLL` = 5 min solo mientras
   hay en juego un partido de LaLiga con favorito (55 %+ o Barça/Madrid/Atleti/Betis), dejando `RESERVE` consultas.
-  Avisa una vez cuando el favorito empieza a perder en la 1.ª parte y otra si pierde al descanso, con la chuleta (equipo
-  y nivel). Mensaje previo «⚽ LaLiga: partidos que vigilo hoy» (`Watcher.agenda`), «👀 Ya sigo en directo…» al leer cada
-  partido por primera vez y «NO ENCUENTRO EN DIRECTO» si a los 20 min la fuente no lo da (nombres distintos). Marcas `{futbol: "<id>|1H|HT"}` (y `agenda|…`, `leo|…`, `noleo|…`) en `avisos.json` (no entran en el banco). Prueba de la clave:
+  Avisa cada vez que el marcador cambia con el favorito por detrás, en cualquier momento del partido (decisión de
+  Sergio, 10-10-2026), y otra vez si pierde al descanso, con la chuleta (equipo y nivel); en la 2.ª parte advierte de que
+  el histórico (del descanso) se queda corto: queda menos tiempo para remontar. Mensaje previo «⚽ LaLiga: partidos que vigilo hoy» (`Watcher.agenda`), «👀 Ya sigo en directo…» al leer cada
+  partido por primera vez y «NO ENCUENTRO EN DIRECTO» si a los 20 min la fuente no lo da (nombres distintos). Marcas `{futbol: "<id>|<marcador>|HT"}` (y `agenda|…`, `leo|…`, `noleo|…`) en `avisos.json` (no entran en el banco). Prueba de la clave:
   `prueba_futbol.yml` → `scripts/prueba_futbol_api.py`. Sin probar aún con un partido real de LaLiga.
 
 ## Tareas programadas (todas en GitHub salvo el informe)
