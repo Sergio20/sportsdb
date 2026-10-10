@@ -1,0 +1,2324 @@
+[
+ {
+  "agenda": [
+   "2026-10-03|Asisa Joventut|MoraBanc Andorra",
+   "2026-10-03|Unicaja|La Laguna Tenerife",
+   "2026-10-03|Kids&Us Manresa|Río Breogán"
+  ],
+  "ts": "2026-10-03T13:40:13+00:00"
+ },
+ {
+  "ts": "2026-10-03T17:45:41+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105385,
+  "home": "Unicaja",
+  "away": "La Laguna Tenerife",
+  "key": "total:o",
+  "el": 8.2,
+  "score": "18-12",
+  "alert": {
+   "type": "total",
+   "under": false,
+   "level": "moderado",
+   "pace": 147,
+   "usual": 177,
+   "lines": {
+    "80": 159.5,
+    "90": 153.5,
+    "95": 148.5
+   }
+  },
+  "upgraded": true,
+  "closed": true
+ },
+ {
+  "ts": "2026-10-03T19:15:14+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105386,
+  "home": "Kids&Us Manresa",
+  "away": "Río Breogán",
+  "key": "ritmo:-1",
+  "el": 6.4,
+  "score": "22-9",
+  "alert": {
+   "type": "ritmo",
+   "side": -1,
+   "level": "fuerte",
+   "deficit": 13,
+   "lines": {
+    "80": 20.5,
+    "90": 25.5,
+    "95": 29.5
+   },
+   "pace": 138,
+   "usual": 87
+  },
+  "closed": true
+ },
+ {
+  "ts": "2026-10-03T19:23:06+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105386,
+  "home": "Kids&Us Manresa",
+  "away": "Río Breogán",
+  "key": "total:u",
+  "el": 9.1,
+  "score": "25-24",
+  "alert": {
+   "type": "total",
+   "under": true,
+   "level": "moderado",
+   "pace": 215,
+   "usual": 183,
+   "lines": {
+    "80": 207.5,
+    "90": 213.5,
+    "95": 218.5
+   }
+  },
+  "closed": true
+ },
+ {
+  "ts": "2026-10-03T19:25:44+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105386,
+  "home": "Kids&Us Manresa",
+  "away": "Río Breogán",
+  "key": "total:o",
+  "el": 10.0,
+  "score": "0-0",
+  "alert": {
+   "type": "total",
+   "under": false,
+   "level": "fuerte",
+   "pace": 0,
+   "usual": 183,
+   "lines": {
+    "80": 117.5,
+    "90": 111.5,
+    "95": 106.5
+   }
+  },
+  "closed": true
+ },
+ {
+  "ts": "2026-10-03T19:53:27+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105386,
+  "home": "Kids&Us Manresa",
+  "away": "Río Breogán",
+  "key": "cuarto:paliza:2:1",
+  "el": 20,
+  "score": "40-51",
+  "alert": {
+   "type": "cuarto",
+   "sub": "paliza",
+   "market": "hcap",
+   "over": true,
+   "side": 1,
+   "done": 2,
+   "target": 3,
+   "level": "fuerte",
+   "lines": {
+    "80": 5.5,
+    "90": 8.5,
+    "95": 11.5
+   },
+   "fact": 79.1,
+   "n": 2403,
+   "pts": 14
+  },
+  "closed": true,
+  "res": {
+   "80": false,
+   "90": false,
+   "95": true
+  },
+  "value": -11
+ },
+ {
+  "ts": "2026-10-03T20:36:22+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105386,
+  "home": "Kids&Us Manresa",
+  "away": "Río Breogán",
+  "key": "ritmo:1",
+  "el": 29.1,
+  "score": "66-82",
+  "alert": {
+   "type": "ritmo",
+   "side": 1,
+   "level": "moderado",
+   "deficit": 16,
+   "lines": {
+    "80": 20.5,
+    "90": 23.5,
+    "95": 25.5
+   },
+   "pace": 113,
+   "usual": 93
+  },
+  "upgraded": true,
+  "closed": true
+ },
+ {
+  "ts": "2026-10-03T20:38:53+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105386,
+  "home": "Kids&Us Manresa",
+  "away": "Río Breogán",
+  "key": "cuarto:paliza:3:1",
+  "el": 30,
+  "score": "67-89",
+  "alert": {
+   "type": "cuarto",
+   "sub": "paliza",
+   "market": "hcap",
+   "over": true,
+   "side": 1,
+   "done": 3,
+   "target": 4,
+   "level": "fuerte",
+   "lines": {
+    "80": 5.5,
+    "90": 8.5,
+    "95": 11.5
+   },
+   "fact": 79.1,
+   "n": 2403,
+   "pts": 11
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 16
+ },
+ {
+  "ts": "2026-10-03T20:38:53+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105386,
+  "home": "Kids&Us Manresa",
+  "away": "Río Breogán",
+  "key": "cuarto:eq_caliente:3:-1",
+  "el": 30,
+  "score": "67-89",
+  "alert": {
+   "type": "cuarto",
+   "sub": "eq_caliente",
+   "market": "equipo",
+   "over": false,
+   "side": -1,
+   "done": 3,
+   "target": 4,
+   "level": "fuerte",
+   "lines": {
+    "80": 28.5,
+    "90": 31.5,
+    "95": 33.5
+   },
+   "fact": 95.1,
+   "n": 1150,
+   "pts": 38,
+   "usual": 23.1
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 12
+ },
+ {
+  "ts": "2026-10-03T20:38:54+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105386,
+  "home": "Kids&Us Manresa",
+  "away": "Río Breogán",
+  "key": "cuarto:tot_caliente:3:None",
+  "el": 30,
+  "score": "67-89",
+  "alert": {
+   "type": "cuarto",
+   "sub": "tot_caliente",
+   "market": "total",
+   "over": false,
+   "side": null,
+   "done": 3,
+   "target": 4,
+   "level": "fuerte",
+   "lines": {
+    "80": 54.5,
+    "90": 58.5,
+    "95": 61.5
+   },
+   "fact": 93.3,
+   "n": 655,
+   "pts": 65,
+   "usual": 45.7
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 40
+ },
+ {
+  "agenda": [
+   "2026-10-04|iLERNA Lleida|Recoletas Salud San Pablo Burgos",
+   "2026-10-04|Leyma Coruña|Surne Bilbao",
+   "2026-10-04|Monbus Obradoiro|Real Madrid"
+  ],
+  "ts": "2026-10-04T00:28:33+00:00"
+ },
+ {
+  "agenda": [
+   "2026-10-04|Casademont Zaragoza|Valencia Basket",
+   "2026-10-04|Kosner Baskonia|FIATC Girona",
+   "2026-10-04|UCAM Murcia|Barça"
+  ],
+  "ts": "2026-10-04T10:35:18+00:00"
+ },
+ {
+  "ts": "2026-10-04T11:23:06+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105387,
+  "home": "iLERNA Lleida",
+  "away": "Recoletas Salud San Pablo Burgos",
+  "key": "cuarto:tot_frio:3:None",
+  "el": 30,
+  "score": "54-56",
+  "alert": {
+   "type": "cuarto",
+   "sub": "tot_frio",
+   "market": "total",
+   "over": true,
+   "side": null,
+   "done": 3,
+   "target": 4,
+   "level": "fuerte",
+   "lines": {
+    "80": 37.5,
+    "90": 34.5,
+    "95": 32.5
+   },
+   "fact": 93.7,
+   "n": 887,
+   "pts": 30,
+   "usual": 45.0
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 65
+ },
+ {
+  "ts": "2026-10-04T11:23:52+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105389,
+  "home": "Monbus Obradoiro",
+  "away": "Real Madrid",
+  "key": "cuarto:paliza:2:1",
+  "el": 20,
+  "score": "43-54",
+  "alert": {
+   "type": "cuarto",
+   "sub": "paliza",
+   "market": "hcap",
+   "over": true,
+   "side": 1,
+   "done": 2,
+   "target": 3,
+   "level": "fuerte",
+   "lines": {
+    "80": 6.5,
+    "90": 10.5,
+    "95": 12.5
+   },
+   "fact": 79.1,
+   "n": 2405,
+   "pts": 11
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 5
+ },
+ {
+  "ts": "2026-10-04T11:23:53+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105389,
+  "home": "Monbus Obradoiro",
+  "away": "Real Madrid",
+  "key": "cuarto:eq_caliente:2:-1",
+  "el": 20,
+  "score": "43-54",
+  "alert": {
+   "type": "cuarto",
+   "sub": "eq_caliente",
+   "market": "equipo",
+   "over": false,
+   "side": -1,
+   "done": 2,
+   "target": 3,
+   "level": "fuerte",
+   "lines": {
+    "80": 29.5,
+    "90": 31.5,
+    "95": 33.5
+   },
+   "fact": 95.1,
+   "n": 1151,
+   "pts": 32,
+   "usual": 23.6
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 21
+ },
+ {
+  "ts": "2026-10-04T15:20:38+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105390,
+  "home": "Casademont Zaragoza",
+  "away": "Valencia Basket",
+  "key": "total:o",
+  "el": 8.8,
+  "score": "19-16",
+  "alert": {
+   "type": "total",
+   "under": false,
+   "level": "moderado",
+   "pace": 159,
+   "usual": 180,
+   "lines": {
+    "80": 164.5,
+    "90": 158.5,
+    "95": 153.5
+   }
+  },
+  "upgraded": true,
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "final": "82-97"
+ },
+ {
+  "ts": "2026-10-04T16:25:28+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105390,
+  "home": "Casademont Zaragoza",
+  "away": "Valencia Basket",
+  "key": "cuarto:eq_caliente:3:-1",
+  "el": 30,
+  "score": "67-66",
+  "alert": {
+   "type": "cuarto",
+   "sub": "eq_caliente",
+   "market": "equipo",
+   "over": false,
+   "side": -1,
+   "done": 3,
+   "target": 4,
+   "level": "fuerte",
+   "lines": {
+    "80": 29.5,
+    "90": 31.5,
+    "95": 34.5
+   },
+   "fact": 95.1,
+   "n": 1151,
+   "pts": 30,
+   "usual": 23.9
+  },
+  "closed": true,
+  "res": {
+   "80": false,
+   "90": true,
+   "95": true
+  },
+  "value": 31
+ },
+ {
+  "ts": "2026-10-04T16:25:28+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105390,
+  "home": "Casademont Zaragoza",
+  "away": "Valencia Basket",
+  "key": "cuarto:tot_caliente:3:None",
+  "el": 30,
+  "score": "67-66",
+  "alert": {
+   "type": "cuarto",
+   "sub": "tot_caliente",
+   "market": "total",
+   "over": false,
+   "side": null,
+   "done": 3,
+   "target": 4,
+   "level": "fuerte",
+   "lines": {
+    "80": 53.5,
+    "90": 57.5,
+    "95": 60.5
+   },
+   "fact": 93.3,
+   "n": 656,
+   "pts": 58,
+   "usual": 45.1
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 46
+ },
+ {
+  "ts": "2026-10-04T17:14:40+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105391,
+  "home": "Kosner Baskonia",
+  "away": "FIATC Girona",
+  "key": "desfase:1",
+  "el": 8.2,
+  "score": "17-20",
+  "alert": {
+   "type": "desfase",
+   "side": 1,
+   "level": "moderado",
+   "deficit": 3,
+   "lines": {
+    "80": 3.5,
+    "90": 8.5,
+    "95": 13.5
+   },
+   "gap": 10
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "final": "118-78"
+ },
+ {
+  "ts": "2026-10-04T17:18:41+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105392,
+  "home": "UCAM Murcia",
+  "away": "Barça",
+  "key": "total:o",
+  "el": 8.4,
+  "score": "18-14",
+  "alert": {
+   "type": "total",
+   "under": false,
+   "level": "moderado",
+   "pace": 152,
+   "usual": 178,
+   "lines": {
+    "80": 161.5,
+    "90": 155.5,
+    "95": 150.5
+   }
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "final": "100-94"
+ },
+ {
+  "ts": "2026-10-04T17:34:35+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105391,
+  "home": "Kosner Baskonia",
+  "away": "FIATC Girona",
+  "key": "triples:-1",
+  "el": 15.9,
+  "score": "46-38",
+  "alert": {
+   "type": "triples",
+   "side": -1,
+   "level": "moderado",
+   "deficit": 8,
+   "lines": {
+    "80": 22.5,
+    "90": 26.5,
+    "95": 30.5
+   },
+   "hot": {
+    "m": 9,
+    "a": 16,
+    "usual": 37.3
+   },
+   "cold": null
+  },
+  "closed": true,
+  "res": {
+   "80": false,
+   "90": false,
+   "95": false
+  },
+  "final": "118-78"
+ },
+ {
+  "ts": "2026-10-04T17:43:45+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105391,
+  "home": "Kosner Baskonia",
+  "away": "FIATC Girona",
+  "key": "cuarto:eq_caliente:2:1",
+  "el": 20,
+  "score": "54-42",
+  "alert": {
+   "type": "cuarto",
+   "sub": "eq_caliente",
+   "market": "equipo",
+   "over": false,
+   "side": 1,
+   "done": 2,
+   "target": 3,
+   "level": "fuerte",
+   "lines": {
+    "80": 28.5,
+    "90": 31.5,
+    "95": 33.5
+   },
+   "fact": 95.1,
+   "n": 1151,
+   "pts": 34,
+   "usual": 23.2
+  },
+  "closed": true,
+  "res": {
+   "80": false,
+   "90": false,
+   "95": true
+  },
+  "value": 32
+ },
+ {
+  "ts": "2026-10-04T17:43:45+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105391,
+  "home": "Kosner Baskonia",
+  "away": "FIATC Girona",
+  "key": "cuarto:paliza:2:-1",
+  "el": 20,
+  "score": "54-42",
+  "alert": {
+   "type": "cuarto",
+   "sub": "paliza",
+   "market": "hcap",
+   "over": true,
+   "side": -1,
+   "done": 2,
+   "target": 3,
+   "level": "fuerte",
+   "lines": {
+    "80": 8.5,
+    "90": 11.5,
+    "95": 14.5
+   },
+   "fact": 79.1,
+   "n": 2405,
+   "pts": 18
+  },
+  "closed": true,
+  "res": {
+   "80": false,
+   "90": false,
+   "95": true
+  },
+  "value": -13
+ },
+ {
+  "ts": "2026-10-04T17:55:35+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105392,
+  "home": "UCAM Murcia",
+  "away": "Barça",
+  "key": "cuarto:tot_caliente:2:None",
+  "el": 20,
+  "score": "46-46",
+  "alert": {
+   "type": "cuarto",
+   "sub": "tot_caliente",
+   "market": "total",
+   "over": false,
+   "side": null,
+   "done": 2,
+   "target": 3,
+   "level": "fuerte",
+   "lines": {
+    "80": 53.5,
+    "90": 57.5,
+    "95": 59.5
+   },
+   "fact": 93.3,
+   "n": 656,
+   "pts": 56,
+   "usual": 44.4
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 51
+ },
+ {
+  "ts": "2026-10-04T18:22:06+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105391,
+  "home": "Kosner Baskonia",
+  "away": "FIATC Girona",
+  "key": "cuarto:eq_caliente:3:1",
+  "el": 30,
+  "score": "86-61",
+  "alert": {
+   "type": "cuarto",
+   "sub": "eq_caliente",
+   "market": "equipo",
+   "over": false,
+   "side": 1,
+   "done": 3,
+   "target": 4,
+   "level": "fuerte",
+   "lines": {
+    "80": 28.5,
+    "90": 31.5,
+    "95": 33.5
+   },
+   "fact": 95.1,
+   "n": 1151,
+   "pts": 32,
+   "usual": 23.2
+  },
+  "closed": true,
+  "res": {
+   "80": false,
+   "90": false,
+   "95": true
+  },
+  "value": 32
+ },
+ {
+  "ts": "2026-10-04T18:22:06+00:00",
+  "comp": "A",
+  "year": 2026,
+  "code": 105391,
+  "home": "Kosner Baskonia",
+  "away": "FIATC Girona",
+  "key": "cuarto:paliza:3:-1",
+  "el": 30,
+  "score": "86-61",
+  "alert": {
+   "type": "cuarto",
+   "sub": "paliza",
+   "market": "hcap",
+   "over": true,
+   "side": -1,
+   "done": 3,
+   "target": 4,
+   "level": "fuerte",
+   "lines": {
+    "80": 8.5,
+    "90": 11.5,
+    "95": 14.5
+   },
+   "fact": 79.1,
+   "n": 2405,
+   "pts": 13
+  },
+  "closed": true,
+  "res": {
+   "80": false,
+   "90": false,
+   "95": false
+  },
+  "value": -15
+ },
+ {
+  "tg_offset": 921211539
+ },
+ {
+  "agenda": [
+   "2026-10-06|Turk Telekom Ankara|Maxima Roma",
+   "2026-10-06|Cedevita Olimpija Ljubljana|Hapoel Midtown Jerusalem",
+   "2026-10-06|Buducnost VOLI Podgorica|Napoli Basketball",
+   "2026-10-06|BOSNA BH Telecom Sarajevo|PAOK Thessaloniki",
+   "2026-10-06|Cosea JL Bourg-en-Bresse|Tofas Bursa",
+   "2026-10-06|Skyliners Frankfurt|Siauliai Basketball",
+   "2026-10-06|Dolomiti Energia Trento|Slask Wroclaw",
+   "2026-10-06|Rostock Seawolves|Riga Zelli",
+   "2026-10-06|London Lions|La Laguna Tenerife"
+  ],
+  "ts": "2026-10-06T05:16:24+00:00"
+ },
+ {
+  "ts": "2026-10-06T16:51:11+00:00",
+  "comp": "U",
+  "year": 2026,
+  "code": 20,
+  "home": "Cedevita Olimpija Ljubljana",
+  "away": "Hapoel Midtown Jerusalem",
+  "key": "total:o",
+  "el": 8.3,
+  "score": "13-14",
+  "alert": {
+   "type": "total",
+   "under": false,
+   "level": "fuerte",
+   "pace": 130,
+   "usual": 169,
+   "lines": {
+    "80": 148.5,
+    "90": 142.5,
+    "95": 137.5
+   }
+  },
+  "msg": [
+   68
+  ],
+  "casa": [
+   {
+    "ts": "2026-10-06T17:01:03+00:00",
+    "none": true
+   }
+  ],
+  "closed": true,
+  "res": {
+   "80": false,
+   "90": false,
+   "95": true
+  },
+  "final": "64-75"
+ },
+ {
+  "ts": "2026-10-06T17:29:03+00:00",
+  "comp": "U",
+  "year": 2026,
+  "code": 20,
+  "home": "Cedevita Olimpija Ljubljana",
+  "away": "Hapoel Midtown Jerusalem",
+  "key": "cuarto:eq_frio:2:1",
+  "el": 20,
+  "score": "27-37",
+  "alert": {
+   "type": "cuarto",
+   "sub": "eq_frio",
+   "market": "equipo",
+   "over": true,
+   "side": 1,
+   "done": 2,
+   "target": 3,
+   "level": "fuerte",
+   "lines": {
+    "80": 16.5,
+    "90": 14.5,
+    "95": 12.5
+   },
+   "fact": 98.9,
+   "n": 611,
+   "pts": 9,
+   "usual": 21.2
+  },
+  "msg": [
+   69
+  ],
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 20
+ },
+ {
+  "ts": "2026-10-06T17:29:04+00:00",
+  "comp": "U",
+  "year": 2026,
+  "code": 20,
+  "home": "Cedevita Olimpija Ljubljana",
+  "away": "Hapoel Midtown Jerusalem",
+  "key": "cuarto:paliza:2:1",
+  "el": 20,
+  "score": "27-37",
+  "alert": {
+   "type": "cuarto",
+   "sub": "paliza",
+   "market": "hcap",
+   "over": true,
+   "side": 1,
+   "done": 2,
+   "target": 3,
+   "level": "fuerte",
+   "lines": {
+    "80": 4.5,
+    "90": 8.5,
+    "95": 10.5
+   },
+   "fact": 79.0,
+   "n": 2408,
+   "pts": 10
+  },
+  "msg": [
+   70
+  ],
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 2
+ },
+ {
+  "ts": "2026-10-06T17:29:04+00:00",
+  "comp": "U",
+  "year": 2026,
+  "code": 20,
+  "home": "Cedevita Olimpija Ljubljana",
+  "away": "Hapoel Midtown Jerusalem",
+  "key": "cuarto:tot_frio:2:None",
+  "el": 20,
+  "score": "27-37",
+  "alert": {
+   "type": "cuarto",
+   "sub": "tot_frio",
+   "market": "total",
+   "over": true,
+   "side": null,
+   "done": 2,
+   "target": 3,
+   "level": "fuerte",
+   "lines": {
+    "80": 34.5,
+    "90": 31.5,
+    "95": 29.5
+   },
+   "fact": 93.7,
+   "n": 888,
+   "pts": 28,
+   "usual": 42.2
+  },
+  "msg": [
+   71
+  ],
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 38
+ },
+ {
+  "ts": "2026-10-06T17:29:05+00:00",
+  "comp": "U",
+  "year": 2026,
+  "code": 20,
+  "home": "Cedevita Olimpija Ljubljana",
+  "away": "Hapoel Midtown Jerusalem",
+  "key": "cuarto:mitad_fria:2:None",
+  "el": 20,
+  "score": "27-37",
+  "alert": {
+   "type": "cuarto",
+   "sub": "mitad_fria",
+   "market": "mitad",
+   "over": true,
+   "side": null,
+   "done": 2,
+   "target": "mitad",
+   "level": "fuerte",
+   "lines": {
+    "80": 73.5,
+    "90": 69.5,
+    "95": 65.5
+   },
+   "fact": 93.1,
+   "n": 305,
+   "pts": 64,
+   "usual": 84.5
+  },
+  "msg": [
+   72
+  ],
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 75
+ },
+ {
+  "ts": "2026-10-06T18:18:41+00:00",
+  "comp": "U",
+  "year": 2026,
+  "code": 25,
+  "home": "Dolomiti Energia Trento",
+  "away": "Slask Wroclaw",
+  "key": "total:u",
+  "el": 8.3,
+  "score": "20-22",
+  "alert": {
+   "type": "total",
+   "under": true,
+   "level": "moderado",
+   "pace": 202,
+   "usual": 170,
+   "lines": {
+    "80": 193.5,
+    "90": 199.5,
+    "95": 204.5
+   }
+  },
+  "msg": [
+   76
+  ],
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "final": "81-94"
+ },
+ {
+  "ts": "2026-10-06T18:29:48+00:00",
+  "comp": "U",
+  "year": 2026,
+  "code": 25,
+  "home": "Dolomiti Energia Trento",
+  "away": "Slask Wroclaw",
+  "key": "ritmo:1",
+  "el": 12.6,
+  "score": "22-34",
+  "alert": {
+   "type": "ritmo",
+   "side": 1,
+   "level": "moderado",
+   "deficit": 12,
+   "lines": {
+    "80": 11.5,
+    "90": 15.5,
+    "95": 19.5
+   },
+   "pace": 108,
+   "usual": 82
+  },
+  "msg": [
+   77,
+   80
+  ],
+  "upgraded": true,
+  "msg_alert": {
+   "80": {
+    "type": "ritmo",
+    "side": 1,
+    "level": "fuerte",
+    "deficit": 19,
+    "lines": {
+     "80": 17.5,
+     "90": 22.5,
+     "95": 25.5
+    },
+    "pace": 109,
+    "usual": 82
+   }
+  },
+  "closed": true,
+  "res": {
+   "80": false,
+   "90": true,
+   "95": true
+  },
+  "final": "81-94"
+ },
+ {
+  "ts": "2026-10-06T18:31:41+00:00",
+  "comp": "U",
+  "year": 2026,
+  "code": 25,
+  "home": "Dolomiti Energia Trento",
+  "away": "Slask Wroclaw",
+  "key": "desfase:1",
+  "el": 13.5,
+  "score": "22-36",
+  "alert": {
+   "type": "desfase",
+   "side": 1,
+   "level": "moderado",
+   "deficit": 14,
+   "lines": {
+    "80": 12.5,
+    "90": 17.5,
+    "95": 21.5
+   },
+   "gap": 14
+  },
+  "msg": [
+   78
+  ],
+  "casa": [
+   {
+    "ts": "2026-10-06T18:34:52+00:00",
+    "none": true
+   },
+   {
+    "ts": "2026-10-06T18:34:58+00:00",
+    "none": true
+   }
+  ],
+  "closed": true,
+  "res": {
+   "80": false,
+   "90": true,
+   "95": true
+  },
+  "final": "81-94"
+ },
+ {
+  "ts": "2026-10-06T18:51:21+00:00",
+  "comp": "U",
+  "year": 2026,
+  "code": 25,
+  "home": "Dolomiti Energia Trento",
+  "away": "Slask Wroclaw",
+  "key": "cuarto:racha:2:1",
+  "el": 20,
+  "score": "35-50",
+  "alert": {
+   "type": "cuarto",
+   "sub": "racha",
+   "market": "hcap",
+   "over": true,
+   "side": 1,
+   "done": 2,
+   "target": 3,
+   "level": "fuerte",
+   "lines": {
+    "80": 2.5,
+    "90": 4.5,
+    "95": 7.5
+   },
+   "fact": 61.8,
+   "n": 788,
+   "pts": 9,
+   "prev": 6,
+   "diffs": [
+    -6,
+    -9
+   ]
+  },
+  "msg": [
+   82
+  ],
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 7
+ },
+ {
+  "agenda": [
+   "2026-10-07|Balkan Botevgrad|Bahcesehir College Istanbul",
+   "2026-10-07|U-BT Cluj-Napoca|Umana Reyer Venice"
+  ],
+  "ts": "2026-10-07T03:18:21+00:00"
+ },
+ {
+  "agenda": [
+   "2026-10-07|NINERS Chemnitz|Neptunas Klaipeda",
+   "2026-10-07|Aris Thessaloniki|Recoletas Salud San Pablo Burgos",
+   "2026-10-07|Baglietto Derthona Tortona|Le Mans Sarthe Basket",
+   "2026-10-07|Roma Basketball|Lietkabelis Panevezys",
+   "2026-10-07|Kids&Us Manresa|ratiopharm ulm",
+   "2026-10-07|Paris Basketball|LDLC ASVEL Villeurbanne"
+  ],
+  "ts": "2026-10-07T07:42:38+00:00"
+ },
+ {
+  "ts": "2026-10-07T17:23:57+00:00",
+  "comp": "U",
+  "year": 2026,
+  "code": 23,
+  "home": "U-BT Cluj-Napoca",
+  "away": "Umana Reyer Venice",
+  "key": "cuarto:paliza:3:-1",
+  "el": 30,
+  "score": "69-69",
+  "alert": {
+   "type": "cuarto",
+   "sub": "paliza",
+   "market": "hcap",
+   "over": true,
+   "side": -1,
+   "done": 3,
+   "target": 4,
+   "level": "fuerte",
+   "lines": {
+    "80": 5.5,
+    "90": 9.5,
+    "95": 11.5
+   },
+   "fact": 79.0,
+   "n": 2409,
+   "pts": 10
+  },
+  "msg": [
+   95
+  ],
+  "lat": {
+   "read": 0.8,
+   "poll": 10
+  },
+  "closed": true,
+  "res": {
+   "80": false,
+   "90": true,
+   "95": true
+  },
+  "value": -6
+ },
+ {
+  "ts": "2026-10-07T17:53:57+00:00",
+  "comp": "U",
+  "year": 2026,
+  "code": 23,
+  "home": "U-BT Cluj-Napoca",
+  "away": "Umana Reyer Venice",
+  "key": "triples:-1",
+  "el": 39.4,
+  "score": "96-88",
+  "alert": {
+   "type": "triples",
+   "side": -1,
+   "level": "moderado",
+   "deficit": 8,
+   "lines": {
+    "80": 9.5,
+    "90": 10.5,
+    "95": 11.5
+   },
+   "hot": {
+    "m": 12,
+    "a": 23,
+    "usual": 35.7
+   },
+   "cold": null
+  },
+  "msg": [
+   96
+  ],
+  "lat": {
+   "read": 0.8,
+   "poll": 10
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "final": "98-92"
+ },
+ {
+  "ts": "2026-10-07T18:50:06+00:00",
+  "comp": "U",
+  "year": 2026,
+  "code": 31,
+  "home": "Kids&Us Manresa",
+  "away": "ratiopharm ulm",
+  "key": "total:u",
+  "el": 8.4,
+  "score": "27-19",
+  "alert": {
+   "type": "total",
+   "under": true,
+   "level": "fuerte",
+   "pace": 220,
+   "usual": 176,
+   "lines": {
+    "80": 202.5,
+    "90": 208.5,
+    "95": 214.5
+   }
+  },
+  "msg": [
+   99
+  ],
+  "lat": {
+   "read": 0.8,
+   "poll": 15
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "final": "101-89"
+ },
+ {
+  "ts": "2026-10-07T18:58:51+00:00",
+  "comp": "U",
+  "year": 2026,
+  "code": 31,
+  "home": "Kids&Us Manresa",
+  "away": "ratiopharm ulm",
+  "key": "triples:-1",
+  "el": 10.7,
+  "score": "37-24",
+  "alert": {
+   "type": "triples",
+   "side": -1,
+   "level": "fuerte",
+   "deficit": 13,
+   "lines": {
+    "80": 23.5,
+    "90": 28.5,
+    "95": 32.5
+   },
+   "hot": {
+    "m": 7,
+    "a": 8,
+    "usual": 32.4
+   },
+   "cold": null
+  },
+  "msg": [
+   100
+  ],
+  "lat": {
+   "read": 0.9,
+   "poll": 15
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "final": "101-89"
+ },
+ {
+  "ts": "2026-10-07T19:03:36+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 31,
+  "home": "Paris Basketball",
+  "away": "LDLC ASVEL Villeurbanne",
+  "key": "total:o",
+  "el": 8.7,
+  "score": "19-14",
+  "alert": {
+   "type": "total",
+   "under": false,
+   "level": "moderado",
+   "pace": 152,
+   "usual": 174,
+   "lines": {
+    "80": 158.5,
+    "90": 152.5,
+    "95": 147.5
+   }
+  },
+  "msg": [
+   101,
+   102
+  ],
+  "lat": {
+   "read": 0.9,
+   "poll": 15
+  },
+  "upgraded": true,
+  "msg_alert": {
+   "102": {
+    "type": "total",
+    "under": false,
+    "level": "fuerte",
+    "pace": 134,
+    "usual": 174,
+    "lines": {
+     "80": 152.5,
+     "90": 146.5,
+     "95": 141.5
+    }
+   }
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "final": "96-98"
+ },
+ {
+  "ts": "2026-10-07T19:23:48+00:00",
+  "comp": "U",
+  "year": 2026,
+  "code": 31,
+  "home": "Kids&Us Manresa",
+  "away": "ratiopharm ulm",
+  "key": "cuarto:paliza:2:-1",
+  "el": 20,
+  "score": "62-45",
+  "alert": {
+   "type": "cuarto",
+   "sub": "paliza",
+   "market": "hcap",
+   "over": true,
+   "side": -1,
+   "done": 2,
+   "target": 3,
+   "level": "fuerte",
+   "lines": {
+    "80": 7.5,
+    "90": 10.5,
+    "95": 12.5
+   },
+   "fact": 79.0,
+   "n": 2409,
+   "pts": 10,
+   "also": [
+    "eq_caliente",
+    "mitad_caliente"
+   ]
+  },
+  "msg": [
+   103
+  ],
+  "lat": {
+   "read": 0.8,
+   "poll": 12
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 4
+ },
+ {
+  "ts": "2026-10-07T19:29:38+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 31,
+  "home": "Paris Basketball",
+  "away": "LDLC ASVEL Villeurbanne",
+  "key": "desfase:1",
+  "el": 19.1,
+  "score": "42-42",
+  "alert": {
+   "type": "desfase",
+   "side": 1,
+   "level": "moderado",
+   "deficit": 0,
+   "lines": {
+    "80": 4.5,
+    "90": 8.5,
+    "95": 12.5
+   },
+   "gap": 15
+  },
+  "msg": [
+   104
+  ],
+  "lat": {
+   "read": 0.9,
+   "poll": 12
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "final": "96-98"
+ },
+ {
+  "ts": "2026-10-07T19:36:43+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 31,
+  "home": "Paris Basketball",
+  "away": "LDLC ASVEL Villeurbanne",
+  "key": "cuarto:paliza:2:1",
+  "el": 20,
+  "score": "43-46",
+  "alert": {
+   "type": "cuarto",
+   "sub": "paliza",
+   "market": "hcap",
+   "over": true,
+   "side": 1,
+   "done": 2,
+   "target": 3,
+   "level": "fuerte",
+   "lines": {
+    "80": 3.5,
+    "90": 6.5,
+    "95": 9.5
+   },
+   "fact": 79.0,
+   "n": 2409,
+   "pts": 10,
+   "also": [
+    "eq_caliente",
+    "tot_caliente"
+   ]
+  },
+  "msg": [
+   105
+  ],
+  "lat": {
+   "read": 0.9,
+   "poll": 12
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 6
+ },
+ {
+  "ts": "2026-10-07T20:14:41+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 31,
+  "home": "Paris Basketball",
+  "away": "LDLC ASVEL Villeurbanne",
+  "key": "cuarto:tot_caliente:3:None",
+  "el": 30,
+  "score": "77-74",
+  "alert": {
+   "type": "cuarto",
+   "sub": "tot_caliente",
+   "market": "total",
+   "over": false,
+   "side": null,
+   "done": 3,
+   "target": 4,
+   "level": "fuerte",
+   "lines": {
+    "80": 52.5,
+    "90": 56.5,
+    "95": 58.5
+   },
+   "fact": 93.3,
+   "n": 658,
+   "pts": 62,
+   "usual": 43.5,
+   "also": [
+    "eq_caliente"
+   ]
+  },
+  "msg": [
+   108
+  ],
+  "lat": {
+   "read": 1.3,
+   "poll": 10
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 43
+ },
+ {
+  "agenda": [
+   "2026-10-08|Dubai Basketball|Crvena Zvezda Meridianbet Belgrade",
+   "2026-10-08|Maccabi Rapyd Tel Aviv|Armani Olimpia Milan",
+   "2026-10-08|FC Bayern Munich|Virtus Bologna",
+   "2026-10-08|Panathinaikos AKTOR Athens|Fenerbahce Tarfin Istanbul",
+   "2026-10-08|Valencia Basket|Hapoel IBI Tel Aviv",
+   "2026-10-08|Real Madrid|Partizan Mozzart Bet Belgrade"
+  ],
+  "ts": "2026-10-08T05:44:20+00:00"
+ },
+ {
+  "ts": "2026-10-08T16:19:28+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 37,
+  "home": "Dubai Basketball",
+  "away": "Crvena Zvezda Meridianbet Belgrade",
+  "key": "total:o",
+  "el": 9.1,
+  "score": "18-16",
+  "alert": {
+   "type": "total",
+   "under": false,
+   "level": "moderado",
+   "pace": 150,
+   "usual": 175,
+   "lines": {
+    "80": 158.5,
+    "90": 152.5,
+    "95": 147.5
+   }
+  },
+  "msg": [
+   114
+  ],
+  "lat": {
+   "read": 1.0,
+   "poll": 10
+  },
+  "closed": true,
+  "res": {
+   "80": false,
+   "90": false,
+   "95": false
+  },
+  "final": "58-77"
+ },
+ {
+  "ts": "2026-10-08T16:44:48+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 37,
+  "home": "Dubai Basketball",
+  "away": "Crvena Zvezda Meridianbet Belgrade",
+  "key": "cuarto:eq_frio:2:1",
+  "el": 20,
+  "score": "31-37",
+  "alert": {
+   "type": "cuarto",
+   "sub": "eq_frio",
+   "market": "equipo",
+   "over": true,
+   "side": 1,
+   "done": 2,
+   "target": 3,
+   "level": "fuerte",
+   "lines": {
+    "80": 17.5,
+    "90": 14.5,
+    "95": 13.5
+   },
+   "fact": 98.9,
+   "n": 612,
+   "pts": 10,
+   "usual": 22.0,
+   "also": [
+    "paliza"
+   ]
+  },
+  "msg": [
+   115
+  ],
+  "lat": {
+   "read": 0.9,
+   "poll": 10
+  },
+  "closed": true,
+  "res": {
+   "80": false,
+   "90": true,
+   "95": true
+  },
+  "value": 15
+ },
+ {
+  "ts": "2026-10-08T17:23:48+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 37,
+  "home": "Dubai Basketball",
+  "away": "Crvena Zvezda Meridianbet Belgrade",
+  "key": "cuarto:racha:3:1",
+  "el": 30,
+  "score": "46-56",
+  "alert": {
+   "type": "cuarto",
+   "sub": "racha",
+   "market": "hcap",
+   "over": true,
+   "side": 1,
+   "done": 3,
+   "target": 4,
+   "level": "fuerte",
+   "lines": {
+    "80": 3.5,
+    "90": 6.5,
+    "95": 9.5
+   },
+   "fact": 61.9,
+   "n": 789,
+   "pts": 4,
+   "prev": 11,
+   "diffs": [
+    5,
+    -11,
+    -4
+   ]
+  },
+  "msg": [
+   117
+  ],
+  "lat": {
+   "read": 1.7,
+   "poll": 10
+  },
+  "closed": true,
+  "res": {
+   "80": false,
+   "90": false,
+   "95": true
+  },
+  "value": -9
+ },
+ {
+  "ts": "2026-10-08T18:17:08+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 33,
+  "home": "FC Bayern Munich",
+  "away": "Virtus Bologna",
+  "key": "ritmo:1",
+  "el": 6.8,
+  "score": "11-22",
+  "alert": {
+   "type": "ritmo",
+   "side": 1,
+   "level": "fuerte",
+   "deficit": 11,
+   "lines": {
+    "80": 13.5,
+    "90": 18.5,
+    "95": 23.5
+   },
+   "pace": 129,
+   "usual": 82
+  },
+  "msg": [
+   120
+  ],
+  "lat": {
+   "read": 0.8,
+   "poll": 10
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "final": "87-94"
+ },
+ {
+  "ts": "2026-10-08T18:19:18+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 33,
+  "home": "FC Bayern Munich",
+  "away": "Virtus Bologna",
+  "key": "desfase:1",
+  "el": 8.3,
+  "score": "18-28",
+  "alert": {
+   "type": "desfase",
+   "side": 1,
+   "level": "moderado",
+   "deficit": 10,
+   "lines": {
+    "80": 12.5,
+    "90": 18.5,
+    "95": 22.5
+   },
+   "gap": 11
+  },
+  "msg": [
+   121
+  ],
+  "lat": {
+   "read": 0.8,
+   "poll": 10
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "final": "87-94"
+ },
+ {
+  "ts": "2026-10-08T18:19:18+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 33,
+  "home": "FC Bayern Munich",
+  "away": "Virtus Bologna",
+  "key": "total:u",
+  "el": 8.3,
+  "score": "18-28",
+  "alert": {
+   "type": "total",
+   "under": true,
+   "level": "fuerte",
+   "pace": 220,
+   "usual": 168,
+   "lines": {
+    "80": 197.5,
+    "90": 203.5,
+    "95": 208.5
+   }
+  },
+  "msg": [
+   122
+  ],
+  "lat": {
+   "read": 1.1,
+   "poll": 10
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "final": "87-94"
+ },
+ {
+  "ts": "2026-10-08T18:26:48+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 33,
+  "home": "FC Bayern Munich",
+  "away": "Virtus Bologna",
+  "key": "triples:1",
+  "el": 11.0,
+  "score": "26-35",
+  "alert": {
+   "type": "triples",
+   "side": 1,
+   "level": "moderado",
+   "deficit": 9,
+   "lines": {
+    "80": 12.5,
+    "90": 17.5,
+    "95": 21.5
+   },
+   "hot": {
+    "m": 6,
+    "a": 10,
+    "usual": 33.6
+   },
+   "cold": null
+  },
+  "msg": [
+   123
+  ],
+  "lat": {
+   "read": 0.8,
+   "poll": 10
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "final": "87-94"
+ },
+ {
+  "ts": "2026-10-08T18:35:18+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 36,
+  "home": "Panathinaikos AKTOR Athens",
+  "away": "Fenerbahce Tarfin Istanbul",
+  "key": "total:u",
+  "el": 8.3,
+  "score": "21-22",
+  "alert": {
+   "type": "total",
+   "under": true,
+   "level": "moderado",
+   "pace": 208,
+   "usual": 167,
+   "lines": {
+    "80": 192.5,
+    "90": 198.5,
+    "95": 203.5
+   }
+  },
+  "msg": [
+   124,
+   125
+  ],
+  "lat": {
+   "read": 0.8,
+   "poll": 10
+  },
+  "upgraded": true,
+  "msg_alert": {
+   "125": {
+    "type": "total",
+    "under": true,
+    "level": "fuerte",
+    "pace": 210,
+    "usual": 167,
+    "lines": {
+     "80": 193.5,
+     "90": 199.5,
+     "95": 204.5
+    }
+   }
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "final": "92-74"
+ },
+ {
+  "ts": "2026-10-08T18:52:08+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 36,
+  "home": "Panathinaikos AKTOR Athens",
+  "away": "Fenerbahce Tarfin Istanbul",
+  "key": "triples:-1",
+  "el": 14.3,
+  "score": "39-31",
+  "alert": {
+   "type": "triples",
+   "side": -1,
+   "level": "moderado",
+   "deficit": 8,
+   "lines": {
+    "80": 18.5,
+    "90": 22.5,
+    "95": 26.5
+   },
+   "hot": {
+    "m": 5,
+    "a": 8,
+    "usual": 36.7
+   },
+   "cold": null
+  },
+  "msg": [
+   126
+  ],
+  "lat": {
+   "read": 0.8,
+   "poll": 10
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "final": "92-74"
+ },
+ {
+  "ts": "2026-10-08T18:53:38+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 34,
+  "home": "Valencia Basket",
+  "away": "Hapoel IBI Tel Aviv",
+  "key": "triples:-1",
+  "el": 10.3,
+  "score": "32-17",
+  "alert": {
+   "type": "triples",
+   "side": -1,
+   "level": "moderado",
+   "deficit": 15,
+   "lines": {
+    "80": 27.5,
+    "90": 32.5,
+    "95": 36.5
+   },
+   "hot": {
+    "m": 5,
+    "a": 8,
+    "usual": 36.2
+   },
+   "cold": null
+  },
+  "msg": [
+   127
+  ],
+  "lat": {
+   "read": 0.8,
+   "poll": 10
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "final": "93-82"
+ },
+ {
+  "ts": "2026-10-08T19:17:51+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 35,
+  "home": "Real Madrid",
+  "away": "Partizan Mozzart Bet Belgrade",
+  "key": "triples:-1",
+  "el": 13.9,
+  "score": "41-24",
+  "alert": {
+   "type": "triples",
+   "side": -1,
+   "level": "moderado",
+   "deficit": 17,
+   "lines": {
+    "80": 30.5,
+    "90": 34.5,
+    "95": 38.5
+   },
+   "hot": {
+    "m": 6,
+    "a": 9,
+    "usual": 39.4
+   },
+   "cold": null
+  },
+  "msg": [
+   128
+  ],
+  "lat": {
+   "read": 1.2,
+   "poll": 10
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "final": "86-76"
+ },
+ {
+  "ts": "2026-10-08T20:05:12+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 34,
+  "home": "Valencia Basket",
+  "away": "Hapoel IBI Tel Aviv",
+  "key": "cuarto:paliza:3:-1",
+  "el": 30,
+  "score": "74-57",
+  "alert": {
+   "type": "cuarto",
+   "sub": "paliza",
+   "market": "hcap",
+   "over": true,
+   "side": -1,
+   "done": 3,
+   "target": 4,
+   "level": "fuerte",
+   "lines": {
+    "80": 7.5,
+    "90": 10.5,
+    "95": 13.5
+   },
+   "fact": 79.0,
+   "n": 2413,
+   "pts": 10
+  },
+  "msg": [
+   129
+  ],
+  "lat": {
+   "read": 1.0,
+   "poll": 10
+  },
+  "casa": [
+   {
+    "ts": "2026-10-08T20:06:20+00:00",
+    "line": 2.5,
+    "odds": 1.58,
+    "p": 56.8
+   }
+  ],
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 5
+ },
+ {
+  "agenda": [
+   "2026-10-09|Olympiacos Piraeus|Anadolu Efes Istanbul",
+   "2026-10-09|FC Barcelona|Zalgiris Kaunas",
+   "2026-10-09|Kosner Baskonia Vitoria-Gasteiz|Besiktas Istanbul"
+  ],
+  "ts": "2026-10-09T08:10:19+00:00"
+ },
+ {
+  "ts": "2026-10-09T18:35:31+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 40,
+  "home": "Olympiacos Piraeus",
+  "away": "Anadolu Efes Istanbul",
+  "key": "cuarto:paliza:1:-1",
+  "el": 10,
+  "score": "26-16",
+  "alert": {
+   "type": "cuarto",
+   "sub": "paliza",
+   "market": "hcap",
+   "over": true,
+   "side": -1,
+   "done": 1,
+   "target": 2,
+   "level": "fuerte",
+   "lines": {
+    "80": 9.5,
+    "90": 12.5,
+    "95": 15.5
+   },
+   "fact": 79.1,
+   "n": 2417,
+   "pts": 10
+  },
+  "callado": "regla",
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 6
+ },
+ {
+  "ts": "2026-10-09T18:46:50+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 38,
+  "home": "Kosner Baskonia Vitoria-Gasteiz",
+  "away": "Besiktas Istanbul",
+  "key": "ritmo:1",
+  "el": 6.2,
+  "score": "9-20",
+  "alert": {
+   "type": "ritmo",
+   "side": 1,
+   "level": "fuerte",
+   "deficit": 11,
+   "lines": {
+    "80": 17.5,
+    "90": 22.5,
+    "95": 26.5
+   },
+   "pace": 128,
+   "usual": 90
+  },
+  "callado": "regla",
+  "closed": true,
+  "final": "84-92",
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  }
+ },
+ {
+  "ts": "2026-10-09T18:59:41+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 40,
+  "home": "Olympiacos Piraeus",
+  "away": "Anadolu Efes Istanbul",
+  "key": "total:o",
+  "el": 20,
+  "score": "35-31",
+  "alert": {
+   "type": "total",
+   "under": false,
+   "level": "moderado",
+   "pace": 132,
+   "usual": 169,
+   "lines": {
+    "80": 140.5,
+    "90": 136.5,
+    "95": 132.5
+   }
+  },
+  "callado": "regla",
+  "closed": true,
+  "final": "89-66",
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  }
+ },
+ {
+  "ts": "2026-10-09T19:00:11+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 40,
+  "home": "Olympiacos Piraeus",
+  "away": "Anadolu Efes Istanbul",
+  "key": "cuarto:tot_frio:2:None",
+  "el": 20,
+  "score": "35-31",
+  "alert": {
+   "type": "cuarto",
+   "sub": "tot_frio",
+   "market": "total",
+   "over": true,
+   "side": null,
+   "done": 2,
+   "target": 3,
+   "level": "fuerte",
+   "lines": {
+    "80": 34.5,
+    "90": 31.5,
+    "95": 29.5
+   },
+   "fact": 93.7,
+   "n": 889,
+   "pts": 24,
+   "usual": 42.3,
+   "also": [
+    "eq_frio",
+    "mitad_fria"
+   ]
+  },
+  "msg": [
+   137
+  ],
+  "lat": {
+   "read": 0.8,
+   "poll": 10
+  },
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 45
+ },
+ {
+  "ts": "2026-10-09T19:29:31+00:00",
+  "comp": "E",
+  "year": 2026,
+  "code": 38,
+  "home": "Kosner Baskonia Vitoria-Gasteiz",
+  "away": "Besiktas Istanbul",
+  "key": "cuarto:paliza:2:-1",
+  "el": 20,
+  "score": "51-49",
+  "alert": {
+   "type": "cuarto",
+   "sub": "paliza",
+   "market": "hcap",
+   "over": true,
+   "side": -1,
+   "done": 2,
+   "target": 3,
+   "level": "fuerte",
+   "lines": {
+    "80": 5.5,
+    "90": 9.5,
+    "95": 11.5
+   },
+   "fact": 79.1,
+   "n": 2417,
+   "pts": 10,
+   "also": [
+    "eq_caliente",
+    "mitad_caliente"
+   ]
+  },
+  "callado": "regla",
+  "closed": true,
+  "res": {
+   "80": true,
+   "90": true,
+   "95": true
+  },
+  "value": 4
+ },
+ {
+  "agenda": [
+   "2026-10-10|Leyma Coruña|Casademont Zaragoza",
+   "2026-10-10|Unicaja|MoraBanc Andorra",
+   "2026-10-10|Río Breogán|FIATC Girona"
+  ],
+  "ts": "2026-10-10T06:11:44+00:00"
+ },
+ {
+  "tanda_fin": "2026-10-10T15:00:03+00:00"
+ }
+]
