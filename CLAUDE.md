@@ -215,7 +215,8 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   `fixtures?live=all`, sin calendario ni resultados de la temporada actual). Se consulta cada `POLL` = 5 min solo mientras
   hay en juego un partido de LaLiga con favorito (55 %+ o Barça/Madrid/Atleti/Betis), dejando `RESERVE` consultas.
   Avisa una vez cuando el favorito empieza a perder en la 1.ª parte y otra si pierde al descanso, con la chuleta (equipo
-  y nivel). Marcas `{futbol: "<id>|1H|HT"}` en `avisos.json` (no entran en el banco). Prueba de la clave:
+  y nivel). Mensaje previo «⚽ LaLiga: partidos que vigilo hoy» (`Watcher.agenda`), «👀 Ya sigo en directo…» al leer cada
+  partido por primera vez y «NO ENCUENTRO EN DIRECTO» si a los 20 min la fuente no lo da (nombres distintos). Marcas `{futbol: "<id>|1H|HT"}` (y `agenda|…`, `leo|…`, `noleo|…`) en `avisos.json` (no entran en el banco). Prueba de la clave:
   `prueba_futbol.yml` → `scripts/prueba_futbol_api.py`. Sin probar aún con un partido real de LaLiga.
 
 ## Tareas programadas (todas en GitHub salvo el informe)

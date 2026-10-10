@@ -82,6 +82,22 @@ class Watcher:
                 self.games.append(dict(start=start, home=home, away=away, side=side, p=p, fav=fav, dog=away if side == 1 else home))
         self.told = {e["futbol"] for e in log if "futbol" in e}
 
+    def agenda(self, now, hours):
+        """Mensaje previo con los partidos de LaLiga que se vigilan (una vez por partido, como el de baloncesto)."""
+        lines = []
+        for g in sorted(self.games, key=lambda g: g["start"]):
+            key = f"agenda|{g['start']:%Y-%m-%d}|{g['home']}|{g['away']}"
+            if key in self.told or not now - dt.timedelta(minutes=30) <= g["start"] <= now + dt.timedelta(hours=hours + 9):
+                continue
+            lines.append((key, f"{local(g['start'])[-5:]} · {g['home']} – {g['away']}\n   Favorito {g['fav']} ({round(100 * g['p'])} %)"))
+        if not lines:
+            return
+        if not self.key:
+            lines.append((None, "⚠️ Falta la clave FUTBOL_API_KEY: no puedo leer el marcador."))
+        self.tell([k for k, _ in lines if k], "⚽ LaLiga: partidos que vigilo hoy (hora de España)\n\n" + "\n\n".join(t for _, t in lines)
+                  + "\n\nTe aviso si el favorito se pone por detrás en la 1.ª parte o pierde al descanso. Al empezar cada partido "
+                  "te confirmo que lo estoy leyendo en directo.")
+
     def active(self, now):
         return [g for g in self.games if g["start"] - dt.timedelta(minutes=5) <= now <= g["start"] + WINDOW]
 
@@ -99,10 +115,19 @@ class Watcher:
         except Exception as e:
             print(f"  fútbol: no se ha podido leer el directo ({type(e).__name__})", flush=True)
             return
+        print(f"  fútbol: {len(live)} partidos de LaLiga en directo · quedan {self.left} consultas hoy", flush=True)
         for g in self.active(now):
             f = next((f for f in live if same(g["home"], f["teams"]["home"]["name"]) and same(g["away"], f["teams"]["away"]["name"])), None)
+            gk = f"{g['start']:%Y-%m-%d}|{g['home']}|{g['away']}"
             if f:
+                if f"leo|{gk}" not in self.told:      # confirmación de que la fuente funciona, una vez por partido
+                    self.tell(f"leo|{gk}", f"👀 Ya sigo en directo {g['home']} {f['goals']['home'] or 0}-{f['goals']['away'] or 0} {g['away']} "
+                              f"(min. {f['fixture']['status'].get('elapsed') or 0}). Solo te escribo si {g['fav']} se pone por detrás.")
                 self.check(g, f)
+            elif now > g["start"] + dt.timedelta(minutes=20) and f"noleo|{gk}" not in self.told and f"leo|{gk}" not in self.told:
+                names = ", ".join(f"{x['teams']['home']['name']}-{x['teams']['away']['name']}" for x in live) or "ninguno"
+                self.tell(f"noleo|{gk}", f"⚠️ NO ENCUENTRO EN DIRECTO {g['home']} – {g['away']} (empezaba {local(g['start'])}). "
+                          f"La fuente da de LaLiga: {names}. Este partido queda sin aviso.")
 
     def check(self, g, f):
         st, el = f["fixture"]["status"]["short"], f["fixture"]["status"].get("elapsed") or 0
@@ -135,11 +160,13 @@ class Watcher:
         note = "" if ht else "\n(El histórico es con el marcador al descanso; un gol pronto deja más tiempo para remontar.)"
         return head + "\n".join(lines) + note + "\n\nSi la cuota de tu casa está por encima, tiene valor. Detalle: https://sergio20.github.io/sportsdb/futbol.html"
 
-    def tell(self, key, text):
+    def tell(self, keys, text):
         self.send(text)
+        keys = [keys] if isinstance(keys, str) else keys
         with self.lock:
-            self.told.add(key)
-            self.log.append(dict(futbol=key, ts=dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")))
+            for key in keys:
+                self.told.add(key)
+                self.log.append(dict(futbol=key, ts=dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")))
         self.save()
 
 
@@ -147,10 +174,11 @@ def local(t):
     return t.astimezone(MADRID).strftime("%d/%m %H:%M")
 
 
-def listen(watcher, stop):
+def listen(watcher, stop, hours=4.4):
     """Hilo del fútbol: una vuelta por minuto (la consulta real va limitada por POLL)."""
     while not stop.is_set():
         try:
+            watcher.agenda(dt.datetime.now(dt.timezone.utc), hours)
             watcher.step(dt.datetime.now(dt.timezone.utc))
         except Exception as e:      # el fútbol nunca puede tumbar al vigilante de baloncesto
             print(f"  fútbol: {type(e).__name__}: {e}", flush=True)
