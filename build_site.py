@@ -62,9 +62,11 @@ fetch("https://api.github.com/repos/"+R+"/actions/workflows/actualizar.yml/runs?
 if(busy){say("Ya hay una actualización en marcha. Espera a que termine (unos 2 minutos).");return}
 return fetch("https://api.github.com/repos/"+R+"/actions/workflows/actualizar.yml/dispatches",{method:"POST",
 headers:{Accept:"application/vnd.github+json",Authorization:"Bearer "+t,"Content-Type":"application/json"},body:JSON.stringify({ref:"main"})})
-.then(function(r){if(r.status===204)say("Actualización lanzada. Tarda unos 2 minutos; esta página se recargará sola cuando haya datos nuevos.");
-else if(r.status===401||r.status===403||r.status===404){put(null);say("GitHub no acepta la clave (caducada o sin permiso «Actions: Read and write» en sportsdb). La he olvidado: pulsa de nuevo para pegar otra.")}
-else say("GitHub ha respondido con el error "+r.status+". Inténtalo en un rato.")})})
+.then(function(r){if(r.status===204){say("Actualización lanzada. Tarda unos 2 minutos; esta página se recargará sola cuando haya datos nuevos.");return}
+return r.json().catch(function(){return{}}).then(function(j){var m=j.message||"";
+if(r.status===401){put(null);say("GitHub no reconoce la clave (error 401): está mal copiada, caducada o borrada. La he olvidado; pulsa de nuevo y pega otra. GitHub dice: "+m)}
+else if(r.status===403||r.status===404){say("GitHub rechaza la acción (error "+r.status+"): a la clave le falta el permiso «Actions: Read and write» o no está limitada al repositorio sportsdb. Corrígelo en GitHub (Settings > Developer settings > tus claves) o crea otra y pulsa el 🔑 para olvidar esta. GitHub dice: "+m)}
+else say("GitHub ha respondido con el error "+r.status+". "+m)})})})
 .catch(function(){say("No se ha podido contactar con GitHub. Revisa la conexión.")})
 .then(function(){go.disabled=false})};})();</script>
 """
