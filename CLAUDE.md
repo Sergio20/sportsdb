@@ -21,6 +21,8 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
 - Botón «Actualizar datos» (abajo a la derecha de todas las páginas, `ACTUALIZAR` en `build_site.py`): lanza `actualizar.yml` a mano
   con la API de GitHub. La clave (token de grano fino, solo este repo, «Actions: Read and write») la pega Sergio la primera vez y
   queda solo en su navegador (`localStorage`); nunca en el código. No lanza si ya hay una actualización en marcha.
+  Tras lanzar, el botón sigue la ejecución (`seguir`: «Actualizando… (en cola/en curso)») y avisa al terminar; con éxito recarga la
+  página sola, con fallo enseña el enlace al detalle.
 - En el PC de Sergio: `bash sincronizar.sh` (Git Bash) trae el código y la base del día a `data/deportes.db`.
 
 ## Piezas
