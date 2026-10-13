@@ -224,7 +224,9 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
 
 - `vigilante.yml`: cadena continua de tandas + respaldo cada hora (min. 23). Únicos avisos en directo.
 - `actualizar.yml`: base y web a las 04:10 UTC (GitHub la retrasa a veces horas) y en cada push (solo web).
-- `guardia.yml`: cada hora (min. 41). La ÚNICA que relanza la actualización si falta la base del día.
+- `guardia.yml`: cada hora (min. 41). Relanza la actualización si falta la base del día. Pero el programador de GitHub retrasa
+  6-8 h tanto la de las 04:10 como esta guardia (13-10-2026), así que además el vigilante (que arranca puntual, porque cada
+  tanda lanza la siguiente) ejecuta `scripts/guardia_datos.sh` cada 10 min (`datos_guardia` en `vigilante.py`).
 - `informe.yml`: lunes 07:37 UTC, informe semanal por Telegram.
 - Rutina de Claude «Informe diario SportsDB» (08:00 Madrid): solo informa por correo; no relanza nada.
 - La rutina antigua «Actualización diaria SportsDB» (carpeta del PC) se borró el 7-10-2026: la sustituye `actualizar.yml`.

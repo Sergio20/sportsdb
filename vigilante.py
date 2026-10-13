@@ -771,6 +771,25 @@ def vivo_data(games, bases):
     return dict(updated=now().isoformat(timespec="seconds"), games=out, cuartos=quarters)
 
 
+def datos_guardia(stop):
+    """Comprueba cada 10 min que la base del día está guardada y, si no, lanza la actualización (scripts/guardia_datos.sh).
+    El programador de GitHub retrasa 6-8 h la actualización de las 04:10 UTC (y también a la guardia horaria); el
+    vigilante, en cambio, arranca puntual porque cada tanda lanza la siguiente. Solo en GitHub Actions."""
+    token = os.environ.get("GITHUB_TOKEN")
+    if not (os.environ.get("GITHUB_ACTIONS") and token and os.environ.get("GITHUB_REPOSITORY")):
+        return
+    env = dict(os.environ, GH_TOKEN=token)
+    script = Path(__file__).parent / "scripts" / "guardia_datos.sh"
+    while not stop.wait(600):
+        try:
+            r = subprocess.run(["bash", str(script)], env=env, capture_output=True, text=True, timeout=240)
+            out = (r.stdout + r.stderr).strip().splitlines()
+            if out and not out[-1].startswith("Base al día"):
+                print("  [datos] " + " | ".join(out[-3:]), flush=True)
+        except Exception as e:      # esto nunca debe frenar la vigilancia
+            print(f"  [datos] no se ha podido comprobar la base: {e}", flush=True)
+
+
 def watch(con, log_path, hours):
     year = current_season_start()
     deadline = now() + dt.timedelta(hours=hours)
@@ -790,6 +809,7 @@ def watch(con, log_path, hours):
         log.append({"tg_offset": 0})
     stop = threading.Event()
     threading.Thread(target=listen, args=(log, save, stop), daemon=True).start()
+    threading.Thread(target=datos_guardia, args=(stop,), daemon=True).start()
     try:        # LaLiga en directo, en su propio hilo: el favorito que va perdiendo (futbol_live.py)
         import futbol_live
         fw = futbol_live.Watcher(con, send, log, save, LOCK)
