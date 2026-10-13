@@ -18,6 +18,9 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   05:15 UTC la rama `data` no se ha guardado hoy después de las 03:00 UTC, relanza la actualización (máx. 3 al día) y avisa por Telegram. Motivo:
   el 5-10-2026 una publicación se quedó «en cola» toda la noche, bloqueó la cola única y el día 6 no hubo actualización.
   GitHub retrasa a veces horas la de las 04:10 (el 7-10-2026 arrancó a las 10:59): la guardia la cubre.
+- Botón «Actualizar datos» (abajo a la derecha de todas las páginas, `ACTUALIZAR` en `build_site.py`): lanza `actualizar.yml` a mano
+  con la API de GitHub. La clave (token de grano fino, solo este repo, «Actions: Read and write») la pega Sergio la primera vez y
+  queda solo en su navegador (`localStorage`); nunca en el código. No lanza si ya hay una actualización en marcha.
 - En el PC de Sergio: `bash sincronizar.sh` (Git Bash) trae el código y la base del día a `data/deportes.db`.
 
 ## Piezas
