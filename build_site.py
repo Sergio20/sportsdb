@@ -48,21 +48,33 @@ ACTUALIZAR = """<style>#sdb-act{position:fixed;right:14px;bottom:14px;z-index:50
 <div id="sdb-act"><button id="sdb-go" type="button" title="Lanza la actualización de datos y de la web (tarda unos 2 minutos)">Actualizar datos</button>
 <button id="sdb-key" type="button" title="Olvidar la clave de GitHub guardada en este navegador" aria-label="Olvidar la clave de GitHub">&#128273;</button></div>
 <script>(function(){var R="Sergio20/sportsdb",K="sdb_gh_token",go=document.getElementById("sdb-go"),msg,tm;
-function say(t){if(!msg){msg=document.createElement("div");msg.id="sdb-msg";document.body.appendChild(msg)}msg.textContent=t;msg.hidden=false;clearTimeout(tm);tm=setTimeout(function(){msg.hidden=true},9000)}
+function say(t,keep){if(!msg){msg=document.createElement("div");msg.id="sdb-msg";document.body.appendChild(msg)}msg.textContent=t;msg.hidden=false;clearTimeout(tm);if(!keep)tm=setTimeout(function(){msg.hidden=true},9000)}
 function get(){try{return localStorage.getItem(K)}catch(e){return null}}
 function put(v){try{if(v)localStorage.setItem(K,v);else localStorage.removeItem(K)}catch(e){}}
+function seguir(t,t0){var n=0;go.disabled=true;go.textContent="Actualizando…";
+function fin(){go.disabled=false;go.textContent="Actualizar datos"}
+function paso(){n++;if(n>40){say("Sigue en marcha pasados 7 minutos. Mira el estado en GitHub > Actions.",1);fin();return}
+fetch("https://api.github.com/repos/"+R+"/actions/workflows/actualizar.yml/runs?event=workflow_dispatch&per_page=5",{headers:{Accept:"application/vnd.github+json",Authorization:"Bearer "+t},cache:"no-store"})
+.then(function(r){return r.json()}).then(function(d){var w=(d.workflow_runs||[]).filter(function(x){return Date.parse(x.created_at)>=t0})[0];
+if(!w){setTimeout(paso,10000);return}
+if(w.status!=="completed"){go.textContent="Actualizando… "+(w.status==="queued"?"(en cola)":"(en curso)");setTimeout(paso,10000);return}
+fin();
+if(w.conclusion==="success"){say("✔ Terminada con éxito. Recargando la página con los datos nuevos…");setTimeout(function(){var u=new URL(location.href);u.searchParams.set("v",String(Date.now()));location.replace(u)},2500)}
+else say("✖ La actualización ha terminado con fallo ("+w.conclusion+"). Mira el detalle: "+w.html_url,1)})
+.catch(function(){setTimeout(paso,10000)})}
+setTimeout(paso,8000)}
 document.getElementById("sdb-key").onclick=function(){put(null);say("Clave olvidada. La próxima vez te la pedirá de nuevo.")};
 go.onclick=function(){var t=get();
 if(!t){t=prompt("Pega tu clave de GitHub (la primera vez). Debe ser una clave de acceso personal de grano fino, solo para el repositorio sportsdb y con el permiso «Actions: Read and write». Se guarda únicamente en este navegador.");
 if(!t||!(t=t.trim()))return;put(t)}
-go.disabled=true;
+go.disabled=true;var t0=Date.now()-60000;
 fetch("https://api.github.com/repos/"+R+"/actions/workflows/actualizar.yml/runs?per_page=5",{headers:{Accept:"application/vnd.github+json"},cache:"no-store"})
 .then(function(r){return r.ok?r.json():{workflow_runs:[]}}).catch(function(){return{workflow_runs:[]}})
 .then(function(d){var busy=(d.workflow_runs||[]).some(function(w){return w.event!=="push"&&(w.status==="in_progress"||w.status==="queued")});
 if(busy){say("Ya hay una actualización en marcha. Espera a que termine (unos 2 minutos).");return}
 return fetch("https://api.github.com/repos/"+R+"/actions/workflows/actualizar.yml/dispatches",{method:"POST",
 headers:{Accept:"application/vnd.github+json",Authorization:"Bearer "+t,"Content-Type":"application/json"},body:JSON.stringify({ref:"main"})})
-.then(function(r){if(r.status===204){say("Actualización lanzada. Tarda unos 2 minutos; esta página se recargará sola cuando haya datos nuevos.");return}
+.then(function(r){if(r.status===204){say("Actualización lanzada. Voy mirando cómo va y te aviso aquí cuando termine (unos 2 minutos).");seguir(t,t0);return}
 return r.json().catch(function(){return{}}).then(function(j){var m=j.message||"";
 if(r.status===401){put(null);say("GitHub no reconoce la clave (error 401): está mal copiada, caducada o borrada. La he olvidado; pulsa de nuevo y pega otra. GitHub dice: "+m)}
 else if(r.status===403||r.status===404){say("GitHub rechaza la acción (error "+r.status+"): a la clave le falta el permiso «Actions: Read and write» o no está limitada al repositorio sportsdb. Corrígelo en GitHub (Settings > Developer settings > tus claves) o crea otra y pulsa el 🔑 para olvidar esta. GitHub dice: "+m)}
