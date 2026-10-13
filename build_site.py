@@ -54,8 +54,9 @@ function put(v){try{if(v)localStorage.setItem(K,v);else localStorage.removeItem(
 function seguir(t,t0){var n=0;go.disabled=true;go.textContent="Actualizando…";
 function fin(){go.disabled=false;go.textContent="Actualizar datos"}
 function paso(){n++;if(n>40){say("Sigue en marcha pasados 7 minutos. Mira el estado en GitHub > Actions.",1);fin();return}
-fetch("https://api.github.com/repos/"+R+"/actions/workflows/actualizar.yml/runs?event=workflow_dispatch&per_page=5",{headers:{Accept:"application/vnd.github+json",Authorization:"Bearer "+t},cache:"no-store"})
-.then(function(r){return r.json()}).then(function(d){var w=(d.workflow_runs||[]).filter(function(x){return Date.parse(x.created_at)>=t0})[0];
+var h={Accept:"application/vnd.github+json"};if(t)h.Authorization="Bearer "+t;
+fetch("https://api.github.com/repos/"+R+"/actions/workflows/actualizar.yml/runs?per_page=8",{headers:h,cache:"no-store"})
+.then(function(r){return r.json()}).then(function(d){var w=(d.workflow_runs||[]).filter(function(x){return x.event!=="push"&&Date.parse(x.created_at)>=t0})[0];
 if(!w){setTimeout(paso,10000);return}
 if(w.status!=="completed"){go.textContent="Actualizando… "+(w.status==="queued"?"(en cola)":"(en curso)");setTimeout(paso,10000);return}
 fin();
@@ -64,6 +65,9 @@ else say("✖ La actualización ha terminado con fallo ("+w.conclusion+"). Mira 
 .catch(function(){setTimeout(paso,10000)})}
 setTimeout(paso,8000)}
 document.getElementById("sdb-key").onclick=function(){put(null);say("Clave olvidada. La próxima vez te la pedirá de nuevo.")};
+(function(){fetch("https://api.github.com/repos/"+R+"/actions/workflows/actualizar.yml/runs?per_page=8",{headers:{Accept:"application/vnd.github+json"},cache:"no-store"})
+.then(function(r){return r.ok?r.json():{workflow_runs:[]}}).then(function(d){var w=(d.workflow_runs||[]).filter(function(x){return x.event!=="push"&&(x.status==="in_progress"||x.status==="queued")})[0];
+if(w){say("Hay una actualización de datos en marcha (la ha lanzado otra persona o aparato). Te aviso aquí cuando termine.");seguir(get(),Date.parse(w.created_at)-1000)}}).catch(function(){})})();
 go.onclick=function(){var t=get();
 if(!t){t=prompt("Pega tu clave de GitHub (la primera vez). Debe ser una clave de acceso personal de grano fino, solo para el repositorio sportsdb y con el permiso «Actions: Read and write». Se guarda únicamente en este navegador.");
 if(!t||!(t=t.trim()))return;put(t)}

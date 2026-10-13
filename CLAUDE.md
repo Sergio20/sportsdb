@@ -22,7 +22,8 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   con la API de GitHub. La clave (token de grano fino, solo este repo, «Actions: Read and write») la pega Sergio la primera vez y
   queda solo en su navegador (`localStorage`); nunca en el código. No lanza si ya hay una actualización en marcha.
   Tras lanzar, el botón sigue la ejecución (`seguir`: «Actualizando… (en cola/en curso)») y avisa al terminar; con éxito recarga la
-  página sola, con fallo enseña el enlace al detalle.
+  página sola, con fallo enseña el enlace al detalle. Al abrir la web en cualquier aparato (sin clave) comprueba si hay una actualización en marcha
+  y, si la hay, muestra «Actualizando…» y avisa/recarga al terminar.
 - En el PC de Sergio: `bash sincronizar.sh` (Git Bash) trae el código y la base del día a `data/deportes.db`.
 
 ## Piezas
