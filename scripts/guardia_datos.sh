@@ -5,7 +5,7 @@
 # El 5-10-2026 una ejecución de «Actualizar datos» se quedó atascada «en cola» toda la noche: como solo puede haber
 # una a la vez, bloqueó a las demás y la base no se actualizó el día 6. Esta guardia:
 #   1. Cancela las ejecuciones que llevan más de 30 min en cola sin que haya ninguna en marcha (atascadas).
-#   2. Si la base (rama data) no se ha guardado hoy pasadas las 05:15 UTC y no hay ninguna actualización en marcha,
+#   2. Si la base (rama data) no se ha guardado hoy pasadas las 04:25 UTC (15 min después de su hora: no se espera al programador de GitHub, que la retrasa horas) y no hay ninguna actualización en marcha,
 #      lanza una y avisa por Telegram. Como mucho 3 relanzamientos al día para no entrar en bucle si una fuente falla.
 # Necesita GH_TOKEN (permiso actions: write) y, para avisar, TELEGRAM_TOKEN y TELEGRAM_CHAT_ID.
 set -uo pipefail
@@ -38,7 +38,7 @@ fi
 # «00:00 -1 day» se lee como huso horario -1 y da mañana (fallo del 7-10-2026: relanzó a las 00:08 sin necesidad).
 last=$(gh api "repos/$repo/commits/data" --jq .commit.committer.date) || { echo "No puedo leer la rama data"; exit 0; }
 today=$(date -u +%Y-%m-%d)
-due=$(date -u -d "$today 05:15 UTC" +%s)
+due=$(date -u -d "$today 04:25 UTC" +%s)
 if [ "$now" -lt "$due" ]; then           # aún no toca la de hoy: basta con la de ayer
   need=$(date -u -d "$today 03:00 UTC -1 day" +%s)
 else
