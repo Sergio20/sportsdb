@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Guardia de la actualización diaria (la lanza .github/workflows/guardia.yml cada hora).
+# Guardia de la actualización diaria (la lanza .github/workflows/guardia.yml cada hora y el vigilante cada 30 min:
+# el programador de GitHub se salta muchas horas; el 13/14-10-2026 pasó de 02:09 a 08:01 UTC sin lanzarla).
 #
 # El 5-10-2026 una ejecución de «Actualizar datos» se quedó atascada «en cola» toda la noche: como solo puede haber
 # una a la vez, bloqueó a las demás y la base no se actualizó el día 6. Esta guardia:
@@ -55,10 +56,12 @@ if [ "$active" -gt 0 ]; then
   echo "Base sin guardar desde $last, pero ya hay una actualización en marcha"
   exit 0
 fi
-relaunched=$(jq --argjson now "$now" '[.[] | select(.event == "workflow_dispatch" and
-  ($now - (.createdAt | fromdateiso8601)) < 86400)] | length' <<<"$runs")
+# Solo cuentan los relanzamientos de hoy hechos por la guardia (los lanza github-actions[bot]); los del botón
+# «Actualizar datos» de Sergio no. Fallo del 14-10-2026: contaba las pulsaciones del botón del día anterior y no relanzó.
+relaunched=$(gh api "repos/$repo/actions/workflows/actualizar.yml/runs?event=workflow_dispatch&created=>=$today&per_page=50" \
+  --jq '[.workflow_runs[] | select(.triggering_actor.login == "github-actions[bot]")] | length') || relaunched=0
 if [ "$relaunched" -ge 3 ]; then
-  echo "Ya se ha relanzado $relaunched veces en 24 h; no insisto (cada fallo ya avisa por Telegram)"
+  echo "La guardia ya ha relanzado $relaunched veces hoy; no insisto (cada fallo ya avisa por Telegram)"
   exit 0
 fi
 echo "Base sin guardar desde $last: lanzo la actualización"

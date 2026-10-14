@@ -790,6 +790,23 @@ def datos_guardia(stop):
             print(f"  [datos] no se ha podido comprobar la base: {e}", flush=True)
 
 
+def guardia_loop(stop, every=1800):
+    """Guardia de la base cada 30 min (scripts/guardia_datos.sh). El vigilante corre sin parar en su cadena de tandas;
+    el programador de GitHub, no: la guardia de cada hora se saltaba hasta 6 horas y la base del día no se relanzaba."""
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts", "guardia_datos.sh")
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token or not os.environ.get("GITHUB_REPOSITORY") or not os.path.exists(script):
+        return
+    while not stop.is_set():
+        try:
+            out = subprocess.run(["bash", script], env={**os.environ, "GH_TOKEN": token}, capture_output=True, text=True, timeout=300)
+            print("  guardia: " + (out.stdout.strip().splitlines() or ["(sin salida)"])[-1], flush=True)
+        except Exception as e:      # la guardia nunca puede tumbar al vigilante
+            print(f"  guardia: {type(e).__name__}: {e}", flush=True)
+        if stop.wait(every):
+            return
+
+
 def watch(con, log_path, hours):
     year = current_season_start()
     deadline = now() + dt.timedelta(hours=hours)
@@ -810,6 +827,7 @@ def watch(con, log_path, hours):
     stop = threading.Event()
     threading.Thread(target=listen, args=(log, save, stop), daemon=True).start()
     threading.Thread(target=datos_guardia, args=(stop,), daemon=True).start()
+    threading.Thread(target=guardia_loop, args=(stop,), daemon=True).start()
     try:        # LaLiga en directo, en su propio hilo: el favorito que va perdiendo (futbol_live.py)
         import futbol_live
         fw = futbol_live.Watcher(con, send, log, save, LOCK)
