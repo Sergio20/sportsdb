@@ -50,7 +50,8 @@ La web se publica sola con GitHub Pages. El código vive en la rama `main` y la 
 comprimida, en la rama `data`. El workflow `.github/workflows/actualizar.yml` actualiza los datos
 y republica la web cada día; también se puede lanzar a mano desde la pestaña Actions.
 
-Para trabajar en local: descomprime `deportes_db.zip` (rama `data`) en una carpeta `data/`.
+Para trabajar en local: `bash sincronizar.sh` (saca `deportes_db.zip` de la rama `data` a `data/`).
+En `main` no hay copia de la base: la única buena es la de la rama `data`.
 
 ## Otras competiciones (para el cara a cara)
 
