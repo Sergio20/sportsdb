@@ -37,12 +37,12 @@ jobs:
         id: db
         run: |
           mkdir -p data
-          if git fetch --depth=1 origin data; then
-            git show FETCH_HEAD:deportes_db.zip > /tmp/deportes_db.zip
-          else
-            cp deportes_db.zip /tmp/deportes_db.zip
-            echo "bootstrap=1" >> "$GITHUB_OUTPUT"
+          # Solo la rama data: la copia vieja que había en main (3-10-2026) se ha quitado para que nadie la lea por error.
+          if ! git fetch --depth=1 origin data; then
+            echo "::error::No se ha podido leer la rama data: no hay base de datos que actualizar."
+            exit 1
           fi
+          git show FETCH_HEAD:deportes_db.zip > /tmp/deportes_db.zip
           unzip -o /tmp/deportes_db.zip -d data
           python scripts/check_db.py data/deportes.db --save /tmp/antes.json
           # avisos enviados por el vigilante de Telegram (para medir cuánto aciertan)
@@ -69,7 +69,7 @@ jobs:
           path: _site
 
       - name: Guardar la base de datos (rama data, un solo commit)
-        if: github.event_name != 'push' || steps.db.outputs.bootstrap == '1'
+        if: github.event_name != 'push'
         run: |
           python scripts/check_db.py data/deportes.db --checkpoint
           tmp=$(mktemp -d)
