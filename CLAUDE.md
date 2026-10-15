@@ -16,7 +16,7 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   anterior). Si falla o falla alguna fuente, aviso por Telegram. **Guardia** (`guardia.yml`, cada hora, min. 41 →
   `scripts/guardia_datos.sh`): cancela ejecuciones atascadas en cola >30 min sin ninguna en marcha y, si pasadas las
   04:25 UTC (desde el 14-10; antes 05:15) la rama `data` no se ha guardado hoy después de las 03:00 UTC, relanza la actualización (máx. 3 al día, solo cuentan los suyos, no los del botón «Actualizar datos») y avisa por Telegram.
-  El vigilante también la ejecuta cada 30 min (`vigilante.guardia_loop`): el 13/14-10-2026 el programador de GitHub dejó
+  El vigilante también la ejecuta cada 10 min (`vigilante.datos_guardia`): el 13/14-10-2026 el programador de GitHub dejó
   la guardia de cada hora 6 h sin lanzar y, además, contaba las pulsaciones del botón como relanzamientos y no relanzó. Motivo:
   el 5-10-2026 una publicación se quedó «en cola» toda la noche, bloqueó la cola única y el día 6 no hubo actualización.
   GitHub retrasa a veces horas la de las 04:10 (el 7-10-2026 arrancó a las 10:59): la guardia la cubre.
