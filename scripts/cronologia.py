@@ -16,6 +16,9 @@ import time
 
 import requests
 
+sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]))
+from build_timeline import minute  # noqa: E402  (misma lectura del reloj que el vigilante)
+
 API = "https://live.euroleague.net/api/"
 GAMES = "https://api-live.euroleague.net/v2/competitions/{c}/seasons/{s}/games?limit=1000"
 PERIODS = ["FirstQuarter", "SecondQuarter", "ThirdQuarter", "ForthQuarter", "ExtraTime"]
@@ -32,12 +35,6 @@ def get(url, tries=4):
     raise RuntimeError("la fuente sigue limitando peticiones")
 
 
-def minute(p):
-    """Minuto de juego transcurrido al producirse la jugada."""
-    m, s = (str(p.get("MARKERTIME") or "0:0").split(":") + ["0"])[:2]
-    mi = int(p.get("MINUTE") or 1)
-    end = -(-mi // 10) * 10 if mi <= 40 else 40 + -(-(mi - 40) // 5) * 5
-    return end - (int(m or 0) + int(s or 0) / 60)
 
 
 def timeline(season, code):

@@ -108,6 +108,10 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   cero al cambiar de cuarto o una copia vieja (marcador/reloj/tiros hacia atrás). Esas lecturas se descartan y no
   generan avisos (el 3-10-2026 salieron dos «Total desfasado» con 0-0 por esto). Una bajada repetida 4 veces se acepta
   (corrección del acta). `analisis.sent_log` ignora avisos con `anulado` o con 0-0 pasado el minuto 1.
+- Reloj de las jugadas (`build_timeline.clock_left`, `clockLeft` en la plantilla en vivo): desde el 4-11-2026 la fuente de
+  Euroliga/EuroCup da el último minuto de cada cuarto como «23.4» y, si no sabe la cifra, «23.?» o «??.?» (antes siempre «MM:SS»).
+  Leerlo como número entero tumbaba la lectura del partido entero: «NO PUEDO LEER» en todos los partidos y ningún aviso.
+  Ahora se entienden los dos formatos y lo ilegible cuenta como la mitad del minuto que marca MINUTE.
 - Vigilancia de la vigilancia (todo por Telegram, para enterarse al momento): «HE ESTADO SIN VIGILAR» si una tanda
   arranca más de 10 min después de acabar la anterior con partidos en juego (`gap_step`, marca `tanda_fin` en
   `avisos.json`); «NO PUEDO LEER» si un partido falla 12 lecturas seguidas (y «Vuelvo a leer bien»); aviso si una tanda
