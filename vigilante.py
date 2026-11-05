@@ -653,7 +653,9 @@ def gap_step(gap, g, st, games):
     gap["told"] = True          # se decide con la primera lectura en juego de la tanda, y ya no se vuelve a mirar
     if now() - gap["since"] < dt.timedelta(minutes=10) or g["start"] > now() - dt.timedelta(minutes=5):
         return
-    live = [x for x in games if (x.get("good") or {}).get("live")]
+    # Todos los que ya han empezado y no han acabado, no solo los leídos hasta ahora: esto se decide con la PRIMERA
+    # lectura de la tanda y el resto de partidos se leen justo después (el 5-11-2026 solo salió el Milán – Valencia).
+    live = [x for x in games if not x.get("done") and x["start"] <= now()]
     send(f"⚠️ HE ESTADO SIN VIGILAR de las {local(gap['since']):%H:%M} a las {local():%H:%M}\n"
          "GitHub no lanzó a tiempo la tanda del vigilante (o la anterior se cayó). Ya estoy vigilando otra vez.\n"
          "Partidos en juego ahora: " + ", ".join(f"{x['home']} – {x['away']}" for x in live)
