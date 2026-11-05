@@ -212,7 +212,7 @@ function periodTxt(h) { const q = +h.Quarter || 0; if (!q) return played(h) ? 'D
 const played = h => [1, 2, 3, 4].filter(i => +h['ScoreQuarter' + i + 'A'] + +h['ScoreQuarter' + i + 'B'] > 0).length;
 function elapsed(h) {
   const q = +h.Quarter || 0; if (!q) return played(h) * 10;
-  const [m, s] = String(h.RemainingPartialTime || '0:0').trim().split(':').map(Number), rem = (m || 0) + (s || 0) / 60;
+  const left = clockLeft(h.RemainingPartialTime), rem = left == null ? 0.5 : left / 60;   // «23.?» en el último minuto
   return q <= 4 ? (q - 1) * 10 + (10 - rem) : 40 + (q - 5) * 5 + (5 - rem);
 }
 // Rótulo de la tira: de qué día son los partidos que se enseñan (hoy, o la próxima jornada de esa competición).
@@ -484,7 +484,11 @@ function renderAlerts() {
     <div class="muted small">Cuatro tipos de aviso. <strong>Desfase</strong>: un favorito claro va peor de lo previsto y al menos ${GAP} puntos del marcador se explican por un acierto anormal. <strong>Ritmo insostenible</strong>: un equipo gana de ${LEAD} o más anotando a un ritmo de ${PACE_EXTRA}+ puntos por encima de su media, ante un rival de su nivel o mejor. <strong>Triples insostenibles</strong>: el que gana de ${T3_LEAD} o más lo hace con un acierto de triple disparado, o el que pierde lleva el triple hundido (con ${T3_ATT} intentos o más). <strong>Total desfasado</strong>: el marcador va camino de un total ${TOTAL_GAP}+ puntos distinto del esperable. Cada partido en directo se revisa cada 45-60 segundos. Cada aviso da las líneas que aciertan el 80, 90 y 95 %: solo compensan si la cuota que te ofrecen supera la mínima. El aviso no ve lesiones ni rotaciones. Cuánto aciertan: <a href="funciona.html">¿Funciona?</a></div></section>`;
 }
 // Repetición de un partido ya jugado: lo deja como estaba en el minuto DEMO.
-const playMin = p => { const [m, s] = String(p.MARKERTIME || '0:0').split(':').map(Number), mi = +p.MINUTE || 1; return (mi <= 40 ? Math.ceil(mi / 10) * 10 : 40 + Math.ceil((mi - 40) / 5) * 5) - ((m || 0) + (s || 0) / 60); };
+// Segundos que quedan según MARKERTIME: «MM:SS» o, desde el 4-11-2026, «23.4» / «23.?» / «??.?» en el último minuto.
+// Vacío = 0 (final del periodo); ilegible = null. Misma lectura que clock_left en build_timeline.py.
+const clockLeft = v => { const t = String(v == null ? '' : v).trim(); if (!t) return 0; const m = t.match(/^(?:(\d{1,2}):)?(\d{1,2}|\?\?)(?:\.([\d?]+))?$/); if (!m || m[2] === '??') return null; const d = (m[3] || '')[0]; return (+m[1] || 0) * 60 + +m[2] + (/\d/.test(d || '') ? +d / 10 : 0); };
+const clockMin = (marker, minute) => { const mi = +minute || 1, end = mi <= 40 ? Math.ceil(mi / 10) * 10 : 40 + Math.ceil((mi - 40) / 5) * 5, left = clockLeft(marker); return left == null ? Math.min(end, Math.max(end - (mi <= 40 ? 10 : 5), mi - 0.5)) : end - left / 60; };
+const playMin = p => clockMin(p.MARKERTIME, p.MINUTE);
 function demoCut(h, pbp) {
   if (!DEMO || !pbp) return [h, pbp];   // se recorta siempre, también en las revisiones posteriores (la cabecera ya viene recortada)
   const cut = {}; PERIODS.forEach(k => { cut[k] = (pbp[k] || []).filter(p => playMin(p) <= DEMO); });
@@ -535,7 +539,7 @@ function playersTable(s) {
 function niceStep(raw) { const p = Math.pow(10, Math.floor(Math.log10(raw || 1))), f = raw / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p; }
 function leadChart(el, h, rows) {
   const pts = [{ x: 0, y: 0, a: 0, b: 0 }];
-  rows.forEach(r => { if (r.POINTS_A == null) return; const [m, s] = String(r.MARKERTIME || '0:0').split(':').map(Number); const q = Math.ceil(r.MINUTE / 10) || 1, base = r.MINUTE <= 40 ? (q - 1) * 10 + 10 : 40 + Math.ceil((r.MINUTE - 40) / 5) * 5; pts.push({ x: Math.max(0, base - ((m || 0) + (s || 0) / 60)), y: r.POINTS_A - r.POINTS_B, a: r.POINTS_A, b: r.POINTS_B }); });
+  rows.forEach(r => { if (r.POINTS_A == null) return; pts.push({ x: Math.max(0, clockMin(r.MARKERTIME, r.MINUTE)), y: r.POINTS_A - r.POINTS_B, a: r.POINTS_A, b: r.POINTS_B }); });
   if (pts.length < 3) { el.innerHTML = '<div class="empty">Todavía no hay canastas.</div>'; return; }
   const W = Math.max(300, el.clientWidth || 600), H = 220, m = { l: 40, r: 14, t: 12, b: 24 }, xmax = Math.max(40, Math.ceil(pts[pts.length - 1].x / 5) * 5);
   let lo = Math.min(0, ...pts.map(p => p.y)), hi = Math.max(0, ...pts.map(p => p.y)); const step = niceStep((hi - lo || 1) / 4); lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step; if (hi === lo) hi = lo + step;

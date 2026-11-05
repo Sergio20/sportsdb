@@ -9,6 +9,7 @@ si se le piden muchas cosas seguidas.
 """
 import argparse
 import json
+import re
 import sqlite3
 import time
 
@@ -23,12 +24,35 @@ SCHEMA = """CREATE TABLE IF NOT EXISTS basket_timeline (
   events TEXT NOT NULL)      -- JSON: [[minuto, puntos local, puntos visitante], ...]; '[]' si la fuente no tiene jugadas"""
 
 
+CLOCK = re.compile(r"(?:(\d{1,2}):)?(\d{1,2}|\?\?)(?:\.([\d?]+))?")
+
+
+def clock_left(v):
+    """Segundos que quedan en el reloj según MARKERTIME, o None si está vacío o no se entiende.
+    Formato habitual «MM:SS». Desde el 4-11-2026 la fuente da el último minuto de cada cuarto con décimas y sin
+    minutos («23.4», «20.0») y, si no sabe la décima o el segundo, pone «?» («23.?», «??.?»). Antes eso tumbaba la
+    lectura entera del partido (int('23.?')) y el vigilante mandaba «NO PUEDO LEER»."""
+    s = str(v or "").strip()
+    m = CLOCK.fullmatch(s)
+    if not m or m.group(2) == "??":
+        return None
+    tenth = (m.group(3) or "")[:1]
+    return int(m.group(1) or 0) * 60 + int(m.group(2)) + (int(tenth) / 10 if tenth.isdigit() else 0)
+
+
 def minute(p):
-    """Minuto de juego transcurrido al producirse la jugada."""
-    m, s = (str(p.get("MARKERTIME") or "0:0").split(":") + ["0"])[:2]
-    mi = int(p.get("MINUTE") or 1)
+    """Minuto de juego transcurrido al producirse la jugada. Sin reloj (vacío) cuenta como final del periodo, como
+    siempre; con un reloj ilegible se toma la mitad del minuto que marca MINUTE."""
+    try:
+        mi = int(float(p.get("MINUTE") or 1))
+    except (TypeError, ValueError):
+        mi = 1
     end = -(-mi // 10) * 10 if mi <= 40 else 40 + -(-(mi - 40) // 5) * 5
-    return round(end - (int(m or 0) + int(s or 0) / 60), 2)
+    raw = str(p.get("MARKERTIME") or "").strip()
+    left = clock_left(raw) if raw else 0
+    if left is None:
+        return round(min(end, max(end - (10 if mi <= 40 else 5), mi - 0.5)), 2)
+    return round(end - left / 60, 2)
 
 
 def fetch(ses, year, code, comp):

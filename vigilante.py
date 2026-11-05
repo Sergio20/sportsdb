@@ -33,7 +33,7 @@ import requests
 import analisis
 import avisos
 import export_live
-from build_timeline import PERIODS, minute
+from build_timeline import PERIODS, clock_left, minute
 from sportsdb import acb
 from sportsdb.common import DEFAULT_DB, UA, current_season_start, http_get
 
@@ -274,7 +274,7 @@ def state_euro(g):
     if not d:
         return None
     raw = [p for k in PERIODS for p in (d.get(k) or [])]
-    plays = [dict(t=minute(p), team=(p.get("CODETEAM") or "").strip(), type=(p.get("PLAYTYPE") or "").strip(), clock=bool(str(p.get("MARKERTIME") or "").strip()))
+    plays = [dict(t=minute(p), team=(p.get("CODETEAM") or "").strip(), type=(p.get("PLAYTYPE") or "").strip(), clock=clock_left(p.get("MARKERTIME")) is not None)
              for p in raw]
     A, B = avisos.totals(plays, g["hc"])
     hs, as_ = A["pts"], B["pts"]
