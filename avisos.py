@@ -269,6 +269,18 @@ def _scope(al):
     return f"el {o} CUARTO (solo ese cuarto)", f"contando solo los puntos del {o} cuarto"
 
 
+def period_of(al):
+    """El periodo de la apuesta en pocas palabras: «partido entero», «3.er cuarto» o «2.ª parte»."""
+    if al["type"] != "cuarto":
+        return "partido entero"
+    return "2.ª parte" if al["target"] == "mitad" else f"{ORD[int(al['target'])]} cuarto"
+
+
+def the_period(al):
+    """Con artículo: «el partido entero», «el 3.er cuarto», «la 2.ª parte»."""
+    return ("la " if al.get("target") == "mitad" and al["type"] == "cuarto" else "el ") + period_of(al)
+
+
 def _bell(al):
     """Centro y anchura de la campana de un aviso, sacadas de sus líneas (línea = centro + paso × z). None si no se puede."""
     ln = {int(k): float(v) for k, v in al["lines"].items()}
@@ -456,17 +468,15 @@ def compact(al, home, away):
     y unas pocas líneas más por si la casa ofrece otra. El detalle completo (describe) queda en la web."""
     b = bet_of(al, home, away)
     hcap = b["market"].startswith("HÁNDICAP")
-    if al["type"] != "cuarto":
-        when = "partido entero"
-    elif al["target"] == "mitad":
-        when = "solo 2.ª parte"
-    else:
-        when = f"solo {ORD[int(al['target'])]} cuarto"
+    when = "partido entero" if al["type"] != "cuarto" else f"solo {period_of(al)}"
     what = (f"Hándicap de {b['team']}" if hcap else
             f"Puntos de {b['team']}: {b['way'].lower()}" if b["market"].startswith("PUNTOS DE") else f"Total: {b['way'].lower()}")
     why = what_happens(al, home, away).split("\n")[0]
     lab = lambda line: f"{b['team']} {fmt(line)}" if hcap else f"{b['way'].capitalize()} {num(line)}"  # noqa: E731
-    out = [why, "", f"👉 {what} · {when}"]
+    out = [why, ""]
+    if al["type"] == "cuarto":      # el 8-11-2026 Sergio buscó el hándicap del partido entero y no el del 3.er cuarto
+        out += [f"⚠️ APUESTA SOLO PARA {the_period(al).upper().replace('.ER', '.er')}, NO PARA EL PARTIDO ENTERO", f"En tu casa, búscala en el apartado «{period_of(al)}»", ""]
+    out.append(f"👉 {what} · {when}")
     for p, label, _ in b["lines"]:
         if p not in SHOW:
             continue
@@ -477,7 +487,7 @@ def compact(al, home, away):
         pick = others[::max(1, len(others) // 4)][:4]
         out.append("Otras: " + " · ".join(f"{fmt(line) if hcap else num(line)} {pct:.0f} % ({num(100 / pct, 2)})"
                                           for line, pct in sorted(pick, key=lambda x: -x[1])))
-    out.append("👇 Toca la línea que ofrece tu casa y su cuota. Si no está, «No aparece» y elige la que veas")
+    out.append(f"👇 Toca la línea que ofrece tu casa para {the_period(al)} y su cuota. Si no está, «No aparece» y elige la que veas")
     return "\n".join(out)
 
 

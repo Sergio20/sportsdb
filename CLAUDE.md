@@ -130,7 +130,12 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   Teclas de cuota en proporción a la mínima (sirven de 1,05 a 3). `analisis._casa` añade a cada anotación lo que cree la
   casa (`implied` = 100/cuota), el valor esperado (`ev`) y si esa línea se ganó (`hit`, con `avisos.line_hits`); el banco
   enseña en «Tu casa de apuestas» si ofrecía nuestras líneas, dónde pone las suyas, la ventaja por tipo de aviso y el
-  balance apostando solo la oferta con más valor de cada aviso. Objetivo: ver dónde se le puede ganar a la casa. La cuenta del valor
+  balance apostando solo la oferta con más valor de cada aviso.
+  Vale la última respuesta (8-11-2026): si tras «No aparece» Sergio da una línea con su cuota, el «no aparece» queda
+  `anulado` (`note_line` en `vigilante.py`) y `analisis._casa` lo ignora (también los antiguos sin la marca). Motivo: buscó el
+  hándicap del partido entero en un aviso del 3.er cuarto. Desde entonces los avisos de cuarto/2.ª parte llevan arriba
+  «⚠️ APUESTA SOLO PARA EL 3.er CUARTO, NO PARA EL PARTIDO ENTERO» (`avisos.period_of`/`the_period`), y el periodo sale
+  también en las teclas. Objetivo: ver dónde se le puede ganar a la casa. La cuenta del valor
   es la misma para botones y respuestas escritas (`value_of`). Un hilo (`listen`) escucha Telegram sin parar (espera
   larga de 25 s) para contestar al momento; `LOCK` protege el registro compartido. En el ensayo los botones responden
   (rehace la campana con `avisos_from_keyboard`) pero no anotan.

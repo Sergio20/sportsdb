@@ -402,7 +402,7 @@ def casa_kb(al):
     cálculo. Sergio toca la que ve y su cuota: así sabemos qué ofrece de verdad la casa y si alguna tiene valor."""
     keys = [{"text": f"{_label(al, line)} · {pct:.0f} %", "callback_data": f"L|{line}"} for line, pct in avisos.market_lines(al)]
     rows = [keys[i:i + 2] for i in range(0, len(keys), 2)]
-    head = [{"text": "¿Qué línea ofrece tu casa? (lo que acierta)", "callback_data": "nada"}]
+    head = [{"text": f"¿Qué línea ofrece tu casa para {avisos.the_period(al)}? (lo que acierta)", "callback_data": "nada"}]
     return {"inline_keyboard": [head] + rows + [[{"text": "↩️ Volver", "callback_data": "B"},
                                                  {"text": "❌ Ninguna parecida", "callback_data": "ninguna"}]]}
 
@@ -416,7 +416,8 @@ def odds_kb(al, line):
                    if need * (1 + r) > 1.0})
     keys = [{"text": f"{avisos.num(v, 2)} {'✅' if v > need else '❌'}", "callback_data": f"O|{line}|{v}"} for v in vals]
     rows = [keys[i:i + 4] for i in range(0, len(keys), 4)]
-    head = [{"text": f"{'⚠️ ' if p < 79.5 else ''}{_label(al, line)}: acierta {p:.0f} % · mínima {avisos.num(need, 2)}", "callback_data": "nada"}]
+    head = [{"text": f"{'⚠️ ' if p < 79.5 else ''}{_label(al, line)} ({avisos.period_of(al)}): acierta {p:.0f} % · mínima {avisos.num(need, 2)}",
+             "callback_data": "nada"}]
     write = [{"text": "✍️ Escribir la cuota de mi casa", "callback_data": f"W|{line}"}]
     return {"inline_keyboard": [head] + rows + [write, [{"text": "↩️ Volver", "callback_data": "B"}, {"text": "🚫 No aparece", "callback_data": "noaparece"}]]}
 
@@ -505,10 +506,27 @@ def verdict(al, line, odds, v):
 def note_none(e):
     """Anota «no aparece en mi casa» una sola vez por aviso (tocar el botón dos veces no cuenta doble).
     Devuelve False si ya estaba anotado."""
-    if any(x.get("none") for x in e.get("casa") or []):
+    if any(x.get("none") and not x.get("anulado") for x in e.get("casa") or []):
         return False
     e.setdefault("casa", []).append(dict(ts=now().isoformat(timespec="seconds"), none=True))
     return True
+
+
+def note_line(e, line, odds, p):
+    """Anota la línea y la cuota que da la casa. Si antes se había anotado «no aparece», queda anulado: si la casa
+    ofrece una línea, «no aparece» era un error (el 8-11-2026 Sergio buscó el hándicap del partido entero en un aviso
+    del 3.er cuarto, contestó «No aparece» y luego dio la línea buena). Devuelve True si se anuló un «no aparece»."""
+    casa = e.setdefault("casa", [])
+    fixed = False
+    for x in casa:
+        if x.get("none") and not x.get("anulado"):
+            x["anulado"] = True
+            fixed = True
+    casa.append(dict(ts=now().isoformat(timespec="seconds"), line=line, odds=odds, p=round(p, 1)))
+    return fixed
+
+
+FIXED = "\n📝 Cambio tu «No aparece» de antes por esta línea: vale la última respuesta."
 
 
 def answer_reply(m, log):
@@ -534,8 +552,8 @@ def answer_reply(m, log):
     if not v:
         send("No he podido valorar esa línea. Escríbela así: +7,5 1,12", reply_to=m["message_id"])
         return
-    send(f"{what_of(al, e, line)} a {avisos.num(odds, 2)}\n{verdict(al, line, odds, v)}", reply_to=m["message_id"])
-    e.setdefault("casa", []).append(dict(ts=now().isoformat(timespec="seconds"), line=line, odds=odds, p=round(v["p"], 1)))
+    fixed = note_line(e, line, odds, v["p"])
+    send(f"{what_of(al, e, line)} a {avisos.num(odds, 2)}\n{verdict(al, line, odds, v)}" + (FIXED if fixed else ""), reply_to=m["message_id"])
 
 
 def what_of(al, e, line):
@@ -560,10 +578,9 @@ def answer_odds(m, to, log):
     if not v:
         send("No he entendido la cuota. Escribe solo el número, por ejemplo: 1,31", reply_to=m["message_id"])
         return
-    send(f"{what_of(al, e, line)} a {avisos.num(odds, 2)}\n{verdict(al, line, odds, v)}" + ("" if e else "\n(prueba: no se anota)"),
-         reply_to=m["message_id"])
-    if e:
-        e.setdefault("casa", []).append(dict(ts=now().isoformat(timespec="seconds"), line=line, odds=odds, p=round(v["p"], 1)))
+    fixed = note_line(e, line, odds, v["p"]) if e else False
+    send(f"{what_of(al, e, line)} a {avisos.num(odds, 2)}\n{verdict(al, line, odds, v)}" + ("" if e else "\n(prueba: no se anota)")
+         + (FIXED if fixed else ""), reply_to=m["message_id"])
 
 
 def no_line(e):
@@ -621,12 +638,11 @@ def button_press(cq, chat, log, token):
             toast("No he podido valorar esa línea")
             return
         p, ev = v["p"], v["ev"]
+        fixed = note_line(e, line, odds, p) if e else False
         toast((f"✅ {_label(al, line)} a {avisos.num(odds, 2)}: CON VALOR · +{ev:.0f} € por cada 100 € a la larga" if v["ok"]
                else f"❌ {_label(al, line)} a {avisos.num(odds, 2)}: SIN VALOR · {ev:.0f} € por cada 100 €. No apuestes.")
               + f"\nAcierta {p:.0f} %" + (" (por debajo del 80 %: se pierde a menudo)" if p < 79.5 else "")
-              + ("" if e else "\n(prueba: no se anota)"), big=True)
-        if e:
-            e.setdefault("casa", []).append(dict(ts=now().isoformat(timespec="seconds"), line=line, odds=odds, p=round(p, 1)))
+              + ("" if e else "\n(prueba: no se anota)") + ("\n📝 Cambio tu «No aparece» de antes por esta línea" if fixed else ""), big=True)
         tg("editMessageReplyMarkup", chat_id=chat, message_id=mid, reply_markup=lines_kb(al))
 
 
