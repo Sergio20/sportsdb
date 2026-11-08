@@ -95,6 +95,45 @@ def _z3(t, b):
     return (t["m3"] - t["a3"] * p) / math.sqrt(t["a3"] * p * (1 - p)) if t["a3"] >= T3_ATT and 0 < p < 1 else 0.0
 
 
+def _pct(m, a):
+    return f"{m}/{a} = {round(100 * m / a)} %"
+
+
+def shooting_why(al, A, B, bA, bB, home, away):
+    """¿Por qué va así el partido? (idea de Sergio, 8-11-2026: desde la calle no se ve en qué se basa el aviso).
+    Para cada equipo, los puntos de más o de menos que lleva por acierto frente a lo suyo (mismos tiros a su porcentaje
+    habitual, `_xp`) y el tiro que más se aparta. Lo de suerte en el tiro tiende a volver a lo normal; si ninguno tira
+    raro, se dice: entonces el aviso solo se apoya en lo que suele pasar en el histórico. Líneas cortas para Telegram."""
+    if not (A and B and bA and bB):
+        return []
+    teams = [(home, A, bA), (away, B, bB)]
+    if al.get("side") == -1:
+        teams.reverse()             # primero el equipo al que se apuesta
+    out, odd = [], False
+    for name, t, b in teams:
+        if t["a2"] + t["a3"] < 10:
+            return []
+        luck = t["pts"] - _xp(t, b)
+        sd = math.sqrt(max(_luck_var(t, b), 1e-9))
+        parts = sorted([(2 * (t["m2"] - t["a2"] * b["p2"] / 100), f"de 2 {_pct(t['m2'], t['a2'])} (suele {b['p2']:.0f} %)", t["a2"]),
+                        (3 * (t["m3"] - t["a3"] * b["p3"] / 100), f"triples {_pct(t['m3'], t['a3'])} (suele {b['p3']:.0f} %)", t["a3"]),
+                        (t["mf"] - t["af"] * b["ft"] / 100, f"tiros libres {_pct(t['mf'], t['af'])} (suele {b['ft']:.0f} %)", t["af"])],
+                       key=lambda x: -abs(x[0]))
+        shown = [txt for d, txt, n in parts if n and abs(d) >= 2 and (d < 0) == (luck < 0)][:2]
+        n_pts = round(abs(luck))
+        pts = f"{n_pts} punto{'' if n_pts == 1 else 's'} {'de menos' if luck < 0 else 'de más'}"
+        if abs(luck) >= 4 and abs(luck) >= sd:
+            odd = True
+            out.append(f"• {name} {'tira muy por DEBAJO' if luck < 0 else 'acierta muy por ENCIMA'} de lo suyo"
+                       + (f": {', '.join(shown)}" if shown else "") + f". Por eso lleva {pts} de lo esperable. "
+                       + ("Lo normal es que mejore." if luck < 0 else "Es difícil de mantener: lo normal es que baje."))
+        else:
+            out.append(f"• {name}: acierto dentro de lo normal ({pts} de lo esperable)." if n_pts >= 2 else f"• {name}: tira como siempre.")
+    if not odd:
+        out.append("Ninguno tira fuera de lo normal: no es mala suerte que se vaya a corregir. El aviso se apoya solo en lo que suele pasar en el histórico.")
+    return ["🎯 ¿Por qué? (tiro en lo que va de partido)"] + out
+
+
 def evaluate(el, A, B, bA, bB):
     """Avisos activos en el minuto `el` (A = local). Cada aviso lleva `side` (1 = apostar al local con hándicap
     positivo, -1 = al visitante) y `lines` {80: hándicap, 90: ..., 95: ...}; los de total, `under` y líneas de total."""
@@ -463,7 +502,7 @@ def offer_lines(al):
     return sorted(out, key=lambda x: -x[1])
 
 
-def compact(al, home, away):
+def compact(al, home, away, shot=None):
     """Versión corta para Telegram, para decidir en segundos: por qué, qué apostar, las tres líneas con su cuota mínima
     y unas pocas líneas más por si la casa ofrece otra. El detalle completo (describe) queda en la web."""
     b = bet_of(al, home, away)
@@ -474,6 +513,9 @@ def compact(al, home, away):
     why = what_happens(al, home, away).split("\n")[0]
     lab = lambda line: f"{b['team']} {fmt(line)}" if hcap else f"{b['way'].capitalize()} {num(line)}"  # noqa: E731
     out = [why, ""]
+    if shot:                        # (A, B, bA, bB): de dónde sale lo que pasa, en dos o tres líneas
+        why_lines = shooting_why(al, *shot, home, away)
+        out += why_lines + ([""] if why_lines else [])
     if al["type"] == "cuarto":      # el 8-11-2026 Sergio buscó el hándicap del partido entero y no el del 3.er cuarto
         out += [f"⚠️ APUESTA SOLO PARA {the_period(al).upper().replace('.ER', '.er')}, NO PARA EL PARTIDO ENTERO", f"En tu casa, búscala en el apartado «{period_of(al)}»", ""]
     out.append(f"👉 {what} · {when}")

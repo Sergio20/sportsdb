@@ -122,6 +122,9 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   misma campana que las tres líneas del aviso (con dos de ellas se recupera centro y anchura).
 - Mensaje de Telegram corto (`avisos.compact`, ~10 líneas, para decidir en segundos): por qué, mercado y periodo, las tres
   líneas con su cuota mínima, «Otras» (4 líneas de la tabla) y los botones. La explicación larga (`describe`) solo va a la web.
+  Desde el 8-11-2026 (Sergio: «desde la calle no sé en qué te basas») lleva «🎯 ¿Por qué?» (`avisos.shooting_why`): para cada
+  equipo, puntos de más o de menos por acierto en lo que va de partido frente a su % habitual (`_xp`, base de `export_live.baseline`)
+  y los tiros que más se apartan; anormal si ≥4 puntos y ≥1 desviación. Si ninguno tira raro, lo dice: el aviso se apoya solo en el histórico.
 - Botones del aviso (`lines_kb`, `odds_kb`, `button_press` en `vigilante.py`): una tecla por línea (`avisos.offer_lines`);
   al tocarla, teclas de cuota alrededor de la mínima ya marcadas ✅/❌; al tocar una cuota sale al instante en pantalla si
   tiene valor y se anota en `casa`. «No aparece» abre las líneas más ajustadas que suele dar la casa (`casa_kb`,

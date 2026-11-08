@@ -108,12 +108,12 @@ MADRID = ZoneInfo("Europe/Madrid")
 local = lambda t=None: (t or now()).astimezone(MADRID)  # noqa: E731
 
 
-def message(al, g, el, score):
+def message(al, g, el, score, shot=None):
     """Aviso: cabecera con el partido y el momento, y el cuerpo corto de avisos.compact (la explicación larga va a la web)."""
     moment = (f"Final del {avisos.ORD[al['done']]} cuarto" if al["type"] == "cuarto"
               else f"Minuto {el:.0f} de partido ({avisos.ORD[min(4, int(el // 10) + 1)]} cuarto)")
     return (f"🔔 {avisos.name_of(al).upper()} · {COMP[g['comp']]}\n{g['home']} {score} {g['away']}\n{moment} · {local():%H:%M}\n\n"
-            + avisos.compact(al, g["home"], g["away"]))
+            + avisos.compact(al, g["home"], g["away"], shot))
 
 
 def agenda(con, log, save, hours, games, hist):
@@ -189,7 +189,7 @@ def quarter_step(g, st, base, rules, log, save):
         score = f"{st['hs']}-{st['as_']}"
         if quiet_step(g, al, k, done * 10, score, log, save):
             continue
-        mid = send(message(al, g, done * 10, score), buttons=lines_kb(al))
+        mid = send(message(al, g, done * 10, score, (st.get("A"), st.get("B"), bA, bB)), buttons=lines_kb(al))
         entry = dict(ts=now().isoformat(timespec="seconds"), comp=g["comp"], year=g["year"], code=g["code"], home=g["home"], away=g["away"],
                      key=k, el=done * 10, score=score, alert=al, msg=[mid] if isinstance(mid, int) else [], lat=lat_of(g, st))
         g["sent"][k] = entry
@@ -932,7 +932,7 @@ def watch(con, log_path, hours):
                     score = f"{A['pts']}-{B['pts']}"
                     if not old and quiet_step(g, al, k, el, score, log, save):
                         continue
-                    mid = send(message(al, g, el, score), buttons=lines_kb(al))
+                    mid = send(message(al, g, el, score, (A, B, bA, bB)), buttons=lines_kb(al))
                     if old:                 # pasa de moderado a fuerte: se avisa otra vez, pero cuenta el primero
                         old["upgraded"] = True
                         if isinstance(mid, int):        # su respuesta se valora con las líneas de ese mensaje
@@ -997,7 +997,7 @@ def replay(base, season, code, el):
     if not als:
         print(f"En el minuto {el} no había ningún aviso ({A['pts']}-{B['pts']}).")
     for al in als:
-        send("🧪 ENSAYO con un partido ya jugado (no es un aviso real)\n\n" + message(al, g, el, f"{A['pts']}-{B['pts']}")
+        send("🧪 ENSAYO con un partido ya jugado (no es un aviso real)\n\n" + message(al, g, el, f"{A['pts']}-{B['pts']}", (A, B, base[hc], base[ac]))
              + "\n\n🧪 Prueba: los botones solo anotan con avisos reales; aquí puedes ver cómo responden.", buttons=lines_kb(al))
     if als:
         send("ENSAYO\n" + result_message(g, [dict(alert=al, el=el, score=f"{A['pts']}-{B['pts']}") for al in als], int(h["ScoreA"]), int(h["ScoreB"])))
