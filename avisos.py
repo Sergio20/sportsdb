@@ -564,12 +564,7 @@ def compact(al, home, away, shot=None):
             out.append(f"{ICON[p]} {label} · {q} % · cuota ≥ {num(100 / q, 2)} · 🧪 REBAJADA (experimento)")
             continue
         out.append(f"{ICON[p]} {label} · {p} % · cuota ≥ {num(100 / p, 2)}")
-    main = {round(float(v), 1) for v in al["lines"].values()}
-    others = [(line, pct) for line, pct in line_table(al, lo=LINES_FROM) if round(line, 1) not in main]
-    if others:
-        pick = others[::max(1, len(others) // 4)][:4]
-        out.append("Otras: " + " · ".join(f"{fmt(line) if hcap else num(line)} {pct:.0f} % ({num(100 / pct, 2)})"
-                                          for line, pct in sorted(pick, key=lambda x: -x[1])))
+    # Sin «Otras» en el texto (Sergio, 9-11-2026): las demás líneas solo en los botones
     out.append(f"👇 Toca la línea que ofrece tu casa para {the_period(al)} y su cuota. Si no está, «No aparece» y elige la que veas")
     return "\n".join(out)
 
