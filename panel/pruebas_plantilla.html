@@ -12,6 +12,10 @@
 :root { --c95: #2a78d6; --c90: #eb6834; --c80: #1baf7a; --c82: #8b4fd8 }
 @media (prefers-color-scheme: dark) { :root { --c95: #3987e5; --c90: #d95926; --c80: #199e70; --c82: #a175ea } }
 .exp { border: 2px dashed var(--c82) }
+/* v2 (desde el 9-11-2026): avisos con línea rebajada en directo, resaltados en todas las tablas */
+tr.v2 td { background: color-mix(in srgb, var(--c82) 12%, transparent) }
+tr.v2 td:first-child { box-shadow: inset 4px 0 0 var(--c82) }
+.v2tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 4px; background: var(--c82); color: #fff; font: 600 11px/18px var(--body); vertical-align: 1px }
 .exp h2 { color: var(--c82) }
 .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: baseline }
 .kpi .v { font: 700 30px/1.1 var(--display); font-variant-numeric: tabular-nums }
@@ -65,6 +69,9 @@ const WHY = { partido: 'ya hubo otro aviso en el partido', regla: 'su regla no e
 let odds = Object.assign({}, CFG.odds), stake = CFG.stake;
 try { const o = JSON.parse(localStorage.getItem('banco-ajustes') || 'null'); if (o) { odds = Object.assign(odds, o.odds); stake = o.stake || stake; } } catch (e) { /* sin memoria del navegador */ }
 
+const isV2 = x => !!(x.rb && x.rb.live);
+const v2tr = x => isV2(x) ? '<tr class="v2">' : '<tr>';
+const v2tag = x => isV2(x) ? '<span class="v2tag" title="Aviso de la v2: con línea rebajada (desde el 9-11-2026)">v2</span>' : '';
 const when = ts => new Date(ts).toLocaleString('es-ES', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
 // La apuesta, corta: «Río Breogán hándicap +29,5», «Manresa menos de 28,5 puntos», «Menos de 218,5 puntos».
 function shortBet(x, p) {
@@ -120,7 +127,7 @@ function render() {
       return `<div class="small"><span class="${val ? 'ok' : 'ko'}">Tu casa: ${esc(c.line > 0 && x.hcap ? '+' : '')}${nf(c.line, 1)} a ${nf(c.odds, 2)} · acierta ${nf(c.p, 0)} %${c.implied ? ` (la casa cree ${nf(c.implied, 0)} %)` : ''} · ${val ? 'con valor' : 'sin valor'}</span>${
         c.hit == null ? '' : ` <b class="${c.hit ? 'ok' : 'ko'}">${c.hit ? '✓' : '✗'}</b>`}</div>`; }).join('');
     const g = x.res ? LINES.reduce((s, [p]) => s + gain(!!x.res[p], p), 0) : null;
-    return `<tr><td class="l">${esc(when(x.ts))}</td><td class="l w">${esc(x.home)} – ${esc(x.away)}<div class="muted small">${esc(COMP[x.comp] || x.comp)}</div></td>
+    return `${v2tr(x)}<td class="l">${esc(when(x.ts))}${v2tag(x)}</td><td class="l w">${esc(x.home)} – ${esc(x.away)}<div class="muted small">${esc(COMP[x.comp] || x.comp)}</div></td>
       <td class="l">${esc(KIND[x.type] || x.type)}${x.level === 'fuerte' ? ' · fuerte' : ''}<div class="muted small">${(x.type === 'cuarto' || x.type === 'racha') ? 'al acabar el minuto ' + nf(x.el) : 'minuto ' + nf(x.el)} · ${esc(x.score)}</div></td>
       <td class="l w">${bets}${casa}</td><td>${x.res ? esc(x.final || '') : '<span class="muted">pendiente</span>'}</td><td class="${g == null ? '' : sgn(g)}">${g == null ? '–' : eur(g)}</td></tr>`; }).join('');
 
@@ -130,6 +137,7 @@ function render() {
       <strong>${nf(stake)} €</strong> en cada una de sus tres líneas. Sale una cartera por línea, para ver cuál de las tres habría funcionado mejor.
       Los avisos falsos por fallos de la fuente (el 0-0 del 3 de octubre) no cuentan.
       Si un aviso pasa de moderado a fuerte, cuenta una sola vez, con las líneas del primer mensaje.</div>
+    <div class="small" style="margin-top:6px"><span class="v2tag" style="margin-left:0">v2</span> Las filas con fondo morado son avisos de la <strong>v2</strong> (desde el 9-11-2026): ya sin los tipos que acertaban menos del 85 % y con la línea 🔵 rebajada.</div>
     <div class="odds"><label><span class="strong">Importe por apuesta:</span><input type="number" step="10" min="1" inputmode="decimal" id="stake" value="${stake}"> €</label>
       <span class="strong">Cuota supuesta:</span>${LINES.map(([p, name]) => `<label><span class="sw" style="background:var(--c${p})"></span>${name.replace('Línea del ', '')}
       <input type="number" step="0.005" min="1.01" inputmode="decimal" data-p="${p}" value="${odds[p]}"></label>`).join('')}
@@ -220,7 +228,7 @@ function rbTable() {
   const mark = v => v == null ? '<span class="muted">·</span>' : `<b class="${v ? 'ok' : 'ko'}">${v ? '✓' : '✗'}</b>`;
   const rb = x => shortBet(Object.assign({}, x, { lines: { r: x.rb.line } }), 'r');
   const spare = x => x.rb.spare == null ? '' : x.rb.spare > 0 ? `<span class="ok">le sobraron ${nf(x.rb.spare, 1)}</span>` : `<span class="ko">le faltaron ${nf(-x.rb.spare, 1)}</span>`;
-  const rows = xs.slice(0, rbMax).map(x => `<tr><td class="l">${esc(when(x.ts))}</td>
+  const rows = xs.slice(0, rbMax).map(x => `${v2tr(x)}<td class="l">${esc(when(x.ts))}${v2tag(x)}</td>
     <td class="l w">${esc(x.home)} – ${esc(x.away)}<div class="muted small">${esc(COMP[x.comp] || x.comp)}</div></td>
     <td class="l">${esc(rbKind(x))}<div class="muted small">${x.type === 'cuarto' || x.type === 'racha' ? 'al acabar el minuto ' : 'minuto '}${nf(x.el)} · ${esc(x.score)} · ${esc(periodTxt(x).toLowerCase())}</div></td>
     <td class="l"><b style="color:var(--c82)">${esc(rb(x))}</b> ${mark(x.rb.hit)}<div class="muted small">prometía ${x.rb.p == null ? '–' : nf(x.rb.p, 0) + ' %'} · ${x.rb.live ? 'en directo' : 'simulada'}${x.why ? ' · callado' : ''}${x.rb.now ? '' : ' · regla apagada hoy'}</div></td>
@@ -251,7 +259,7 @@ function quietSummary() {
   const table = groups.map(g => { const [t, w] = g.split('|'), xs = done.filter(x => x.type === t && x.why === w), all = QUIET.filter(x => x.type === t && x.why === w);
     return `<tr><td class="l">${esc(KIND[t] || t)}</td><td class="l">${esc(WHY[w] || w)}</td><td>${all.length}</td>${LINES.map(([p]) => { const ok = xs.filter(x => x.res[p]).length;
       return `<td>${xs.length ? `${ok}/${xs.length}` : '–'}</td>`; }).join('')}</tr>`; }).join('');
-  const reg = QUIET.slice().reverse().slice(0, 40).map(x => `<tr><td class="l">${esc(when(x.ts))}</td><td class="l w">${esc(x.home)} – ${esc(x.away)}</td>
+  const reg = QUIET.slice().reverse().slice(0, 40).map(x => `${v2tr(x)}<td class="l">${esc(when(x.ts))}${v2tag(x)}</td><td class="l w">${esc(x.home)} – ${esc(x.away)}</td>
     <td class="l">${esc(KIND[x.type] || x.type)}<div class="muted small">minuto ${nf(x.el)} · ${esc(x.score)} · ${esc(WHY[x.why] || x.why)}</div></td>
     <td class="l w"><div class="muted small">${esc(periodTxt(x))}</div>${LINES.map(([p]) => `<div class="bet"><span class="sw" style="background:var(--c${p})"></span>${esc(shortBet(x, p))}${
       x.res ? ` <b class="${x.res[p] ? 'ok' : 'ko'}">${x.res[p] ? '✓' : '✗'}</b>` : ''}</div>`).join('')}</td>

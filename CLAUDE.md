@@ -256,6 +256,8 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   Revisar el experimento con 30-40 avisos en directo.
   Ese mismo día, también por decisión de Sergio (pasan su listón del 85 %), vuelven a mandarse «Total caliente del cuarto»
   (`tot_caliente` en `SEND_Q`: 32/34 en la del 90) y el ritmo insostenible desde el inicio (`SEND_RITMO_MIN` = 0: 35/38).
+  Sergio lo llama la «v2»: en el banco, los avisos con rebajada en directo van con fondo morado y la marca «v2» en todas las
+  tablas (`isV2`, `tr.v2`); en el apartado del experimento, tabla «Apuesta por apuesta» con filtros (`rbTable`, `rbF`).
 
 ## Tareas programadas (todas en GitHub salvo el informe)
 
