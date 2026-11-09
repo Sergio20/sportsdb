@@ -254,6 +254,8 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   Lo que la casa ofreció en 8 avisos: entre 3 y 10 puntos más ajustado que nuestra del 90, y en 7 de 8 la cuota pedía más
   acierto del que dábamos (sin valor); acertaron 4 de 8. Por debajo del 75 % prometido la campana falla (57-64 % real).
   Revisar el experimento con 30-40 avisos en directo.
+  Ese mismo día, también por decisión de Sergio (pasan su listón del 85 %), vuelven a mandarse «Total caliente del cuarto»
+  (`tot_caliente` en `SEND_Q`: 32/34 en la del 90) y el ritmo insostenible desde el inicio (`SEND_RITMO_MIN` = 0: 35/38).
 
 ## Tareas programadas (todas en GitHub salvo el informe)
 

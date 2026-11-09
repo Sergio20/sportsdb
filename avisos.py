@@ -37,8 +37,11 @@ def racha(done, diffs):
 # intervienen en su ajuste). El resto se sigue calculando y queda callado en el registro, para estudiarlo.
 # 9-11-2026 (Sergio: «todo lo que sea menor de 85 % de éxito, eliminar»): fuera también «racha» (línea del 90: 15 de 20,
 # 75 %) y «mitad_fria» (2 de 5) con lo enviado y callado del 3-10 al 8-11-2026.
-SEND_Q = {"tot_frio", "eq_frio"}     # fuera: racha, mitad_fria, paliza, eq_caliente, tot_caliente, mitad_caliente
-SEND_RITMO_MIN = 28     # «Ritmo insostenible» solo cumple al final del 3.er cuarto (93/96 %); antes, 87-89 % en la del 90
+# 9-11-2026, Sergio: vuelve «tot_caliente» (callado del 3-10 al 8-11: 32 de 34 en la línea del 90, 94 %; rebajada 88 %).
+SEND_Q = {"tot_frio", "eq_frio", "tot_caliente"}     # fuera: racha, mitad_fria, paliza, eq_caliente, mitad_caliente
+# «Ritmo insostenible»: del 8-10 al 9-11-2026 solo desde el minuto 28 (en el histórico antiguo, antes del 28 la del 90
+# acertaba 87-89 %). Lo callado antes del 28 en ese tiempo acertó 35 de 38 (92 %; rebajada 87 %): vuelve desde el inicio.
+SEND_RITMO_MIN = 0
 SHOW = (95, 90, 82)     # líneas que se enseñan en Telegram: la del 80 % ya no (en directo acertaba 70 %); 82 = rebajada
 # Línea REBAJADA (experimento desde el 9-11-2026, idea de Sergio): la del 95 casi nunca aparece en la casa. Es el punto
 # del 82 % de la misma campana, al menos 1 punto más ajustada que la del 90. Con lo registrado del 3-10 al 8-11-2026 y
