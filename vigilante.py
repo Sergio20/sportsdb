@@ -504,10 +504,14 @@ def verdict(al, line, odds, v):
 
 
 def note_none(e):
-    """Anota «no aparece en mi casa» una sola vez por aviso (tocar el botón dos veces no cuenta doble).
-    Devuelve False si ya estaba anotado."""
-    if any(x.get("none") and not x.get("anulado") for x in e.get("casa") or []):
+    """Anota «no aparece en mi casa» (tocar el botón dos veces no cuenta doble). Vale la última respuesta: las líneas
+    anotadas antes quedan anuladas (8-11-2026: tocó una línea del partido entero en un aviso del 3.er cuarto).
+    Devuelve False si ya estaba anotado como última respuesta."""
+    casa = [x for x in e.get("casa") or [] if not x.get("anulado")]
+    if casa and casa[-1].get("none"):
         return False
+    for x in casa:
+        x["anulado"] = True
     e.setdefault("casa", []).append(dict(ts=now().isoformat(timespec="seconds"), none=True))
     return True
 
@@ -587,6 +591,7 @@ def no_line(e):
     """Anota que la casa no ofrecía ninguna de nuestras líneas y lo confirma."""
     first = note_none(e)
     return ("📝 Anotado: tu casa no ofrecía ninguna de nuestras líneas" + ("" if first else " (ya lo tenía anotado)") + ".\n"
+            "Si antes me habías dado una línea, queda anulada: vale tu última respuesta.\n"
             "Si ves otra línea (aunque sea más ajustada), respóndeme al aviso con ella y su cuota y te digo cuánto acierta.")
 
 

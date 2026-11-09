@@ -470,12 +470,14 @@ def _casa(al, casa, value):
     100 / cuota, con su margen dentro), la ganancia esperada por euro (ev) y, si ya se sabe, si esa línea se ganó (hit)."""
     import avisos
     out = []
-    # Vale la última respuesta: si Sergio dio una línea de la casa, un «no aparece» anterior era un error (8-11-2026:
-    # buscó el hándicap del partido entero en un aviso del 3.er cuarto). También los que anotó el vigilante antiguo.
-    has_line = any(c.get("line") is not None and c.get("odds") for c in casa or [])
-    for c in casa or []:
-        if c.get("none") and (c.get("anulado") or has_line):
-            continue
+    # Vale la última respuesta (8-11-2026, Burgos – Valencia: tocó +8,5 a 1,26 mirando el partido entero y luego
+    # «No aparece», que era lo bueno para el 3.er cuarto). Un «no aparece» posterior anula las líneas anotadas antes; una
+    # línea posterior anula el «no aparece». Varias líneas seguidas valen todas (la casa puede ofrecer varias).
+    rows = [c for c in casa or [] if not c.get("anulado")]
+    last_none = max((i for i, c in enumerate(rows) if c.get("none")), default=-1)
+    last_line = max((i for i, c in enumerate(rows) if c.get("line") is not None and c.get("odds")), default=-1)
+    rows = rows[last_none:] if last_none > last_line else [c for c in rows if not c.get("none")]
+    for c in rows:
         c = dict(c)
         if c.get("line") is not None and c.get("odds"):
             c["implied"] = round(100 / c["odds"], 1)
