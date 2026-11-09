@@ -748,6 +748,31 @@ def freno_step(log, save):
     return off
 
 
+V2_META = 100      # 9-11-2026, Sergio: «cuando lleguemos a otros 100 avisos, revisar y si es necesario pasamos a v3»
+
+
+def v2_step(log, save):
+    """Hito de la v2 (avisos con línea rebajada, desde el 9-11-2026): al tener V2_META avisos enviados y ya resueltos,
+    avisa una sola vez por Telegram para revisar el experimento y decidir si se pasa a la v3 (marca {hito_v2} en el registro)."""
+    if any(e.get("hito_v2") == V2_META for e in log):
+        return
+    v2 = [e for e in log if "alert" in e and not e.get("callado") and not e.get("anulado") and e.get("res")
+          and str(avisos.REBAJA) in {str(k) for k in e["alert"].get("lines", {})}]
+    if len(v2) < V2_META:
+        return
+    v2 = sorted(v2, key=lambda e: e["ts"])[:V2_META]
+    k = {p: sum(bool(e["res"].get(p)) for e in v2) for p in ("95", "90", str(avisos.REBAJA))}
+    casa = sum(1 for e in v2 if e.get("casa"))
+    send(f"🏁 HITO: {V2_META} AVISOS DE LA v2\nYa hay {V2_META} avisos con línea rebajada enviados y resueltos "
+         f"(del {v2[0]['ts'][:10]} al {v2[-1]['ts'][:10]}). Toca revisarlos y decidir si pasamos a la v3.\n\n"
+         f"🔵 Rebajada: {k[str(avisos.REBAJA)]} de {V2_META} acertadas\n🟢 Línea del 95: {k['95']} de {V2_META}\n"
+         f"🟡 Línea del 90: {k['90']} de {V2_META}\nAvisos con la cuota de tu casa anotada: {casa}\n\n"
+         f"Escríbele a Claude en el proyecto: «revisa los {V2_META} avisos de la v2».\nDetalle: https://sergio20.github.io/sportsdb/pruebas.html")
+    with LOCK:
+        log.append(dict(hito_v2=V2_META, ts=now().isoformat(timespec="seconds")))
+    save()
+
+
 def publish(snapshot):
     """Estado en directo de la Liga Endesa para la web (rama `vivo`, fichero vivo.json). El navegador no puede leer
     acb.com, así que lo lee de aquí. Solo dentro de GitHub (necesita su credencial); en local no hace nada."""
@@ -848,6 +873,10 @@ def watch(con, log_path, hours):
     except Exception as e:      # ni el mensaje previo ni las reglas de cuartos deben impedir la vigilancia
         print(f"  no se ha podido preparar el mensaje previo o las reglas de cuartos: {e}", flush=True)
     off = freno_step(log, save)
+    try:
+        v2_step(log, save)
+    except Exception as e:      # nunca debe tumbar la vigilancia
+        print(f"  hito v2: {e}", flush=True)
     rules = {k: v for k, v in rules.items() if k not in off}
     print(f"{len(games)} partidos alrededor de esta hora; vigilando hasta las {deadline:%H:%M} UTC como muy tarde", flush=True)
     for g in sorted(games, key=lambda g: g["start"]):
@@ -923,6 +952,10 @@ def watch(con, log_path, hours):
                                  res={str(k): ok for k, ok in avisos.settle(e["alert"], st["hs"], st["as_"]).items()})
                     if quiet:
                         save()
+                    try:
+                        v2_step(log, save)          # ¿100 avisos de la v2 resueltos? (aviso una sola vez)
+                    except Exception as e:
+                        print(f"  hito v2: {e}", flush=True)
                     continue
                 base = bases[g["comp"]]
                 el, bA, bB = st.get("el"), base.get(g["hc"]), base.get(g["ac"])
