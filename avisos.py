@@ -10,6 +10,7 @@ Cada aviso propone una apuesta y sus LÍNEAS DE SEGURIDAD: las que, según el mo
 from __future__ import annotations
 
 import math
+from statistics import NormalDist
 
 K = dict(home=0.10, q=0.021, m=-0.010, sd=2.1)      # margen: lo que queda de partido
 KT = dict(a=1.02, c=0.08, sd=2.48)                  # total de puntos
@@ -34,9 +35,16 @@ def racha(done, diffs):
 # Avisos que se mandan por Telegram (8-10-2026, Sergio: «calidad antes que cantidad»). Solo los que en el histórico
 # cumplen lo prometido: línea del 90 % con 90 % o más y la del 95 % con 94 % o más (los de cuarto, con temporadas que no
 # intervienen en su ajuste). El resto se sigue calculando y queda callado en el registro, para estudiarlo.
-SEND_Q = {"racha", "tot_frio", "mitad_fria", "eq_frio"}     # fuera: paliza, eq_caliente, tot_caliente, mitad_caliente
+# 9-11-2026 (Sergio: «todo lo que sea menor de 85 % de éxito, eliminar»): fuera también «racha» (línea del 90: 15 de 20,
+# 75 %) y «mitad_fria» (2 de 5) con lo enviado y callado del 3-10 al 8-11-2026.
+SEND_Q = {"tot_frio", "eq_frio"}     # fuera: racha, mitad_fria, paliza, eq_caliente, tot_caliente, mitad_caliente
 SEND_RITMO_MIN = 28     # «Ritmo insostenible» solo cumple al final del 3.er cuarto (93/96 %); antes, 87-89 % en la del 90
-SHOW = (95, 90)         # líneas que se enseñan en Telegram: la del 80 % ya no (en directo acertaba 70 %)
+SHOW = (95, 90, 82)     # líneas que se enseñan en Telegram: la del 80 % ya no (en directo acertaba 70 %); 82 = rebajada
+# Línea REBAJADA (experimento desde el 9-11-2026, idea de Sergio): la del 95 casi nunca aparece en la casa. Es el punto
+# del 82 % de la misma campana, al menos 1 punto más ajustada que la del 90. Con lo registrado del 3-10 al 8-11-2026 y
+# las reglas que quedan, habría acertado 41 de 45 enviados (91 %), unos 5 puntos por debajo de la del 95. Va aparte en el
+# banco de pruebas («Experimento: línea rebajada») para ver si se cumple en directo.
+REBAJA, REBAJA_Z = 82, 0.9154
 LINES_FROM = 85         # «Otras» y botones: solo líneas del 85 % en adelante (criterio de Sergio)
 
 
@@ -183,7 +191,7 @@ def evaluate(el, A, B, bA, bB):
             under = pace > tmean
             out.append(dict(type="total", under=under, level="fuerte" if abs(pace - tmean) >= 28 else "moderado", pace=round(pace), usual=round(usual),
                             lines={p: up_half(tmean + z * tsd) if under else down_half(tmean - z * tsd) for p, z in SAFE}))
-    return out
+    return with_rebaja(out)
 
 
 def quarter_alerts(done, quarters, bA, bB, rules):
@@ -230,7 +238,7 @@ def quarter_alerts(done, quarters, bA, bB, rules):
                 add("mitad_fria", 2 * usual_q, "mitad", pts=h1, usual=round(2 * usual_q, 1))
             if h1 >= 100:
                 add("mitad_caliente", 2 * usual_q, "mitad", pts=h1, usual=round(2 * usual_q, 1))
-    return strongest(out, rules)
+    return with_rebaja(strongest(out, rules))
 
 
 def strongest(alerts, rules):
@@ -288,7 +296,7 @@ def num(x, d=1):
 
 
 ORD = {1: "1.er", 2: "2.º", 3: "3.er", 4: "4.º"}
-ICON = {95: "🟢", 90: "🟡", 80: "🟠"}      # de más segura a más ajustada
+ICON = {95: "🟢", 90: "🟡", 82: "🔵", 80: "🟠"}      # de más segura a más ajustada
 FACTS = {
     "eq_frio": "ese equipo anotó más en el cuarto siguiente", "eq_caliente": "ese equipo anotó menos en el cuarto siguiente",
     "tot_frio": "el cuarto siguiente tuvo más puntos", "tot_caliente": "el cuarto siguiente tuvo menos puntos",
@@ -324,7 +332,8 @@ def _bell(al):
     """Centro y anchura de la campana de un aviso, sacadas de sus líneas (línea = centro + paso × z). None si no se puede."""
     ln = {int(k): float(v) for k, v in al["lines"].items()}
     ps = sorted(ln)
-    z = {80: 0.8416, 85: 1.0364, 90: 1.2816, 95: 1.6449}
+    z = {80: 0.8416, REBAJA: REBAJA_Z, 85: 1.0364, 90: 1.2816, 95: 1.6449}
+    z = {p: z.get(p) or NormalDist().inv_cdf(p / 100) for p in ps}       # cualquier % (p. ej. el 84 de una rebajada leída de un mensaje)
     if len(ps) < 2:
         return None
     a, b = ps[0], ps[-1]
@@ -341,6 +350,29 @@ def prob_of_line(al, line):
         return None
     center, step = bell
     return 100 * 0.5 * (1 + math.erf((line - center) / step / math.sqrt(2)))
+
+
+def rebaja(al):
+    """Línea rebajada (experimento, 9-11-2026): el punto del 82 % de la campana del aviso, redondeada a ,5 hacia el lado
+    seguro y como mínimo 1 punto más ajustada que la del 90. None si no hay campana."""
+    ln = {int(k): float(v) for k, v in al["lines"].items() if int(k) != REBAJA}
+    bell = _bell({"lines": ln})
+    if not bell or 90 not in ln:
+        return None
+    center, step = bell
+    x = center + step * REBAJA_Z
+    if step > 0:                # subir la línea es más seguro (hándicap, o «menos de»)
+        return min(up_half(x), ln[90] - 1)
+    return max(down_half(x), ln[90] + 1)
+
+
+def with_rebaja(alerts):
+    """Añade a cada aviso su línea rebajada en lines[REBAJA] (se resuelve igual que las demás)."""
+    for al in alerts:
+        r = rebaja(al)
+        if r is not None:
+            al["lines"][REBAJA] = r
+    return alerts
 
 
 def line_table(al, lo=80, hi=97):
@@ -445,7 +477,8 @@ def describe(al, home, away):
         out.append("Sentido: " + b["way"])
     out += ["", "ELIGE UNA LÍNEA (de más segura a más ajustada)"]
     for p, label, cond in b["lines"]:
-        out += [f"{ICON[p]} {label}", f"     {cond}", f"     acierta {p} de cada 100 · apuesta solo si la cuota es {num(100 / p, 2)} o más"]
+        out += [f"{ICON[p]} {label}" + ("  (🧪 REBAJADA: experimento)" if p == REBAJA else ""), f"     {cond}",
+                f"     acierta {p} de cada 100 · apuesta solo si la cuota es {num(100 / p, 2)} o más"]
     tab = line_table(al)
     if tab:
         hcap = b["market"].startswith("HÁNDICAP")
@@ -522,6 +555,11 @@ def compact(al, home, away, shot=None):
     for p, label, _ in b["lines"]:
         if p not in SHOW:
             continue
+        if p == REBAJA:             # su % real en la campana (al redondear a ,5 queda algo por encima del 82)
+            q = round(min(prob_of_line({"lines": {k: v for k, v in al["lines"].items() if int(k) != REBAJA}},
+                                                 float(al["lines"].get(REBAJA, al["lines"].get(str(REBAJA))))) or p, 89))
+            out.append(f"{ICON[p]} {label} · {q} % · cuota ≥ {num(100 / q, 2)} · 🧪 REBAJADA (experimento)")
+            continue
         out.append(f"{ICON[p]} {label} · {p} % · cuota ≥ {num(100 / p, 2)}")
     main = {round(float(v), 1) for v in al["lines"].values()}
     others = [(line, pct) for line, pct in line_table(al, lo=LINES_FROM) if round(line, 1) not in main]
@@ -536,5 +574,5 @@ def compact(al, home, away, shot=None):
 def result_lines(al, res, home, away):
     """Para el mensaje de resultado: cada línea con su marca y GANADA / PERDIDA."""
     labels = {p: label for p, label, _ in bet_of(al, home, away)["lines"]}
-    return [f"{'✅' if res[k] else '❌'} {labels[int(k)]} (la del {int(k)} %): {'GANADA' if res[k] else 'PERDIDA'}"
+    return [f"{'✅' if res[k] else '❌'} {labels[int(k)]} ({'🧪 rebajada' if int(k) == REBAJA else f'la del {int(k)} %'}): {'GANADA' if res[k] else 'PERDIDA'}"
             for k in sorted(res, key=lambda k: -int(k)) if int(k) in SHOW]

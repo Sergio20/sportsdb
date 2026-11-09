@@ -487,6 +487,22 @@ def _casa(al, casa, value):
     return out or None
 
 
+def _rb(al, value, el):
+    """Experimento de la línea rebajada (9-11-2026): la línea, si se ganó y si llegó de verdad en el aviso (live) o se
+    calcula ahora sobre un aviso anterior (simulado). `now`: su regla se seguiría mandando hoy."""
+    import avisos
+    k = str(avisos.REBAJA)
+    lines = {str(p): v for p, v in al["lines"].items()}
+    line = lines.get(k)
+    live = line is not None
+    if not live:
+        line = avisos.rebaja(al)
+    if line is None:
+        return None
+    return dict(line=line, live=live, hit=avisos.line_hits(al, line, value), now=avisos.sendable(al, el),
+                l95=lines.get("95"), l90=lines.get("90"))
+
+
 def _timing(row, e):
     """Rapidez: segundos desde que el vigilante leyó el dato hasta que salió el aviso (lat.read), cada cuánto se leía
     el partido (lat.poll) y cuánto tardó Sergio en tocar el primer botón del aviso (react)."""
@@ -551,6 +567,7 @@ def _rows(con, log, quiet=False):
                                      period="la 2.ª parte" if al["target"] == "mitad" else f"el {int(al['target'])}.º cuarto"),
                              final=str(e.get("value")) if e.get("res") else (f"{r[0]}-{r[1]}" if r and r[2] == "played" else None)))
             rows[-1]["casa"] = _casa(al, e.get("casa"), e.get("value") if e.get("res") else None)
+            rows[-1]["rb"] = _rb(al, e.get("value") if e.get("res") else None, e.get("el"))
             _timing(rows[-1], e)
             if quiet:
                 rows[-1]["why"] = e["callado"]      # «partido» o «regla»
@@ -571,6 +588,7 @@ def _rows(con, log, quiet=False):
             hs, as_ = (int(x) for x in row["final"].split("-"))
             value = avisos.bet_value(al, hs, as_, r[4] if r and r[2] == "played" else None)
         row["casa"] = _casa(al, e.get("casa"), value)
+        row["rb"] = _rb(al, value, e.get("el"))
         _timing(row, e)
         if quiet:
             row["why"] = e["callado"]
@@ -581,7 +599,8 @@ def _rows(con, log, quiet=False):
 # Banco de pruebas: cada aviso enviado por Telegram cuenta como una apuesta simulada de STAKE € en cada una de sus
 # tres líneas, a una cuota aproximada de la casa que dio Sergio (ODDS). En la página se pueden cambiar las dos cosas.
 # MIN_ODDS: la cuota a partir de la cual cada línea sale a cuenta si acierta lo prometido.
-STAKE, ODDS, MIN_ODDS = 500, {"95": 1.175, "90": 1.275, "80": 1.40}, {"95": 1.05, "90": 1.11, "80": 1.25}
+# "82": línea rebajada (experimento del 9-11-2026); su cuota es una estimación entre la del 90 y la del 80, editable.
+STAKE, ODDS, MIN_ODDS = 500, {"95": 1.175, "90": 1.275, "82": 1.33, "80": 1.40}, {"95": 1.05, "90": 1.11, "82": 1.22, "80": 1.25}
 
 
 def save_bank(con, sent):

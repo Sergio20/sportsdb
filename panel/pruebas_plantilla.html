@@ -9,8 +9,10 @@
 <style>
 /*CSS*/
 /* Una serie por línea de seguridad: mismo orden y color en la gráfica, las fichas y la tabla. */
-:root { --c95: #2a78d6; --c90: #eb6834; --c80: #1baf7a }
-@media (prefers-color-scheme: dark) { :root { --c95: #3987e5; --c90: #d95926; --c80: #199e70 } }
+:root { --c95: #2a78d6; --c90: #eb6834; --c80: #1baf7a; --c82: #8b4fd8 }
+@media (prefers-color-scheme: dark) { :root { --c95: #3987e5; --c90: #d95926; --c80: #199e70; --c82: #a175ea } }
+.exp { border: 2px dashed var(--c82) }
+.exp h2 { color: var(--c82) }
 .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: baseline }
 .kpi .v { font: 700 30px/1.1 var(--display); font-variant-numeric: tabular-nums }
 .kpi .l { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-3) }
@@ -55,7 +57,8 @@ const sgn = v => v > 0.005 ? 'pos' : v < -0.005 ? 'neg' : '';
 const KIND = { desfase: 'Desfase', ritmo: 'Ritmo insostenible', triples: 'Triples insostenibles', total: 'Total desfasado', cuarto: 'Cuarto anormal', racha: 'Racha de cuartos' };
 const COMP = { E: 'Euroliga', U: 'EuroCup', A: 'Liga Endesa' };
 const LINES = [['95', 'Línea del 95 %'], ['90', 'Línea del 90 %'], ['80', 'Línea del 80 %']];
-const CFG = D.bank_cfg || { stake: 500, odds: { 95: 1.175, 90: 1.275, 80: 1.4 }, min_odds: { 95: 1.05, 90: 1.11, 80: 1.25 } };
+const CFG = D.bank_cfg || { stake: 500, odds: { 95: 1.175, 90: 1.275, 82: 1.33, 80: 1.4 }, min_odds: { 95: 1.05, 90: 1.11, 82: 1.22, 80: 1.25 } };
+if (CFG.odds[82] == null) CFG.odds[82] = 1.33;
 const ALL = (D.sent && D.sent.bank) || [];
 const QUIET = (D.sent && D.sent.quiet) || [];       // detectados pero no enviados: se llevan aparte
 const WHY = { partido: 'ya hubo otro aviso en el partido', regla: 'su regla no está entre las que se mandan' };
@@ -108,7 +111,9 @@ function render() {
   // Registro completo: lo más reciente arriba
   const rows = ALL.slice().reverse().map(x => {
     const bets = `<div class="muted small">${esc(periodTxt(x))}</div>` + LINES.map(([p]) => `<div class="bet"><span class="sw" style="background:var(--c${p})"></span>${esc(shortBet(x, p))}${
-      x.res ? ` <b class="${x.res[p] ? 'ok' : 'ko'}">${x.res[p] ? '✓' : '✗'}</b>` : ''}</div>`).join('');
+      x.res ? ` <b class="${x.res[p] ? 'ok' : 'ko'}">${x.res[p] ? '✓' : '✗'}</b>` : ''}</div>`).join('') + (x.rb && x.rb.live ?
+      `<div class="bet"><span class="sw" style="background:var(--c82)"></span>🧪 ${esc(shortBet(Object.assign({}, x, { lines: { r: x.rb.line } }), 'r'))}${
+      x.rb.hit == null ? '' : ` <b class="${x.rb.hit ? 'ok' : 'ko'}">${x.rb.hit ? '✓' : '✗'}</b>`}</div>` : '');
     // Lo que ofrecía la casa de Sergio cuando contestó al aviso en Telegram
     const casa = (x.casa || []).map(c => { if (c.none) return `<div class="small muted">Tu casa: no ofrecía nada parecido</div>`;
       const val = c.odds > 100 / c.p;
@@ -128,11 +133,14 @@ function render() {
     <div class="odds"><label><span class="strong">Importe por apuesta:</span><input type="number" step="10" min="1" inputmode="decimal" id="stake" value="${stake}"> €</label>
       <span class="strong">Cuota supuesta:</span>${LINES.map(([p, name]) => `<label><span class="sw" style="background:var(--c${p})"></span>${name.replace('Línea del ', '')}
       <input type="number" step="0.005" min="1.01" inputmode="decimal" data-p="${p}" value="${odds[p]}"></label>`).join('')}
+      <label><span class="sw" style="background:var(--c82)"></span>🧪 rebajada
+      <input type="number" step="0.005" min="1.01" inputmode="decimal" data-p="82" value="${odds[82]}"></label>
       <button class="seg" style="padding:6px 10px;cursor:pointer" id="reset">Volver a los valores por defecto</button></div>
     <div class="muted small">Por defecto: ${nf(CFG.stake)} € por apuesta y las cuotas aproximadas de la casa (${LINES.map(([p]) => odd(CFG.odds[p])).join(' / ')}). Lo que cambies aquí
       lo recuerda tu navegador. Como referencia, la cuota mínima para que cada línea salga a cuenta si acierta justo lo prometido es ${LINES.map(([p]) => odd(CFG.min_odds[p])).join(' / ')}.</div>
   </section>
   <div class="kpis">${kpis}</div>
+  ${rebajaSummary()}
   <section class="panel"><h2>Con tope de ${nf(stake)} € por partido</h2>
     <div class="kpis">${capKpis}</div>
     <div class="muted small">Una sola apuesta por partido y línea: la del primer aviso que saltó en él (en directo no se sabe si vendrán más).
@@ -157,6 +165,31 @@ function render() {
     const v = parseFloat(String(i.value).replace(',', '.')); if (v > 1) { odds[i.dataset.p] = v; save(); render(); } }));
   $('#stake').addEventListener('change', e => { const v = parseFloat(String(e.target.value).replace(',', '.')); if (v > 0) { stake = v; save(); render(); } });
   $('#reset').addEventListener('click', () => { odds = Object.assign({}, CFG.odds); stake = CFG.stake; save(); render(); });
+}
+// Experimento de la línea rebajada (desde el 9-11-2026, idea de Sergio): la línea del 95 casi nunca aparece en la casa.
+// Cada aviso trae una 🔵 línea más ajustada (punto del 82 % de la campana, al menos 1 punto por debajo de la del 90).
+// Aparte: no entra en las carteras de arriba. «En directo» = avisos que la llevaron de verdad; «Simulada» = la misma
+// cuenta hecha ahora sobre los avisos anteriores cuya regla se sigue mandando hoy.
+function rebajaSummary() {
+  const withRb = ALL.filter(x => x.rb), live = withRb.filter(x => x.rb.live), sim = withRb.filter(x => !x.rb.live && x.rb.now);
+  const card = (xs, title, note) => { const d = xs.filter(x => x.rb.hit != null), ok = d.filter(x => x.rb.hit).length,
+      bal = d.reduce((s, x) => s + (x.rb.hit ? stake * (odds[82] - 1) : -stake), 0),
+      k95 = d.filter(x => x.res && x.res['95']).length, k90 = d.filter(x => x.res && x.res['90']).length,
+      gap = d.length ? d.reduce((s, x) => s + Math.abs((x.rb.l95 || 0) - x.rb.line), 0) / d.length : null;
+    return `<div class="kpi"><div class="l"><span class="sw" style="background:var(--c82)"></span>${title}</div>
+      <div class="v ${d.length ? sgn(bal) : ''}">${d.length ? `${ok} de ${d.length} (${nf(100 * ok / d.length, 0)} %)` : '–'}</div>
+      <div class="s">${d.length ? `${eur(bal)} a cuota ${odd(odds[82])} · en los mismos avisos la del 95 acertó ${k95} y la del 90 ${k90} · de media ${nf(gap, 1)} puntos más ajustada que la del 95` : note}${
+      xs.length > d.length ? ` · ${xs.length - d.length} pendientes` : ''}</div></div>`; };
+  const reg = live.slice().reverse().map(x => `<tr><td class="l">${esc(when(x.ts))}</td><td class="l w">${esc(x.home)} – ${esc(x.away)}<div class="muted small">${esc(KIND[x.type] || x.type)} · ${esc(periodTxt(x))}</div></td>
+    <td class="l">${esc(shortBet(x, '95'))}${x.res ? ` <b class="${x.res['95'] ? 'ok' : 'ko'}">${x.res['95'] ? '✓' : '✗'}</b>` : ''}</td>
+    <td class="l"><b style="color:var(--c82)">${esc(shortBet(Object.assign({}, x, { lines: { r: x.rb.line } }), 'r'))}</b>${x.rb.hit == null ? ' <span class="muted">pendiente</span>' : ` <b class="${x.rb.hit ? 'ok' : 'ko'}">${x.rb.hit ? '✓' : '✗'}</b>`}</td>
+    <td>${x.res ? esc(x.final || '') : ''}</td></tr>`).join('');
+  return `<section class="panel exp"><h2>🧪 Experimento: línea rebajada (desde el 9-11-2026)</h2>
+    <div class="muted">Cada aviso trae en Telegram una línea 🔵 más ajustada que la del 95, la que la casa sí suele ofrecer. Va aparte: no entra en las carteras de arriba.
+      Objetivo: que siga acertando el 85 % o más. Promete el 82 % (cuota mínima ${odd(CFG.min_odds[82] || 1.22)}); con lo registrado antes del 9-11 habría acertado alrededor del 90 %.</div>
+    <div class="kpis">${card(live, 'En directo', 'aún no ha saltado ningún aviso con línea rebajada')}${card(sim, 'Simulada en avisos anteriores', 'sin avisos anteriores')}</div>
+    ${live.length ? `<div class="scroll"><table><thead><tr><th class="l">Cuándo</th><th class="l">Partido</th><th class="l">Línea del 95</th><th class="l">🔵 Rebajada</th><th>Final</th></tr></thead><tbody>${reg}</tbody></table></div>` : ''}
+    <div class="muted small">«Simulada»: la misma línea calculada ahora sobre los avisos enviados antes del 9-11 cuya regla se sigue mandando hoy (no estaba en el mensaje).</div></section>`;
 }
 // Avisos callados: el vigilante los detectó pero no los mandó (un solo aviso por partido, y solo las reglas que cumplen
 // lo prometido). Se resuelven igual que los enviados y se enseñan APARTE: no entran en las carteras de arriba. Sirven
