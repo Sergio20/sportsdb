@@ -108,11 +108,21 @@ MADRID = ZoneInfo("Europe/Madrid")
 local = lambda t=None: (t or now()).astimezone(MADRID)  # noqa: E731
 
 
-def message(al, g, el, score, shot=None):
-    """Aviso: cabecera con el partido y el momento, y el cuerpo corto de avisos.compact (la explicación larga va a la web)."""
+def next_num(log):
+    """Número de apuesta de la v2 (desde el 9-11-2026, Sergio: «Apuesta N.º 1 · v2 SportsDB»): uno más que el último
+    aviso enviado que ya lleva número. Los de la v1 se numeran en el banco de pruebas, por orden."""
+    return 1 + max((e.get("num") or 0 for e in log if "alert" in e and not e.get("callado")), default=0)
+
+
+def bet_tag(num):
+    return f"🎟️ Apuesta N.º {num} · v2 SportsDB\n" if num else ""
+
+
+def message(al, g, el, score, shot=None, num=None):
+    """Aviso: cabecera con el número de apuesta, el partido y el momento, y el cuerpo corto de avisos.compact."""
     moment = (f"Final del {avisos.ORD[al['done']]} cuarto" if al["type"] == "cuarto"
               else f"Minuto {el:.0f} de partido ({avisos.ORD[min(4, int(el // 10) + 1)]} cuarto)")
-    return (f"🔔 {avisos.name_of(al).upper()} · {COMP[g['comp']]}\n{g['home']} {score} {g['away']}\n{moment} · {local():%H:%M}\n\n"
+    return (bet_tag(num) + f"🔔 {avisos.name_of(al).upper()} · {COMP[g['comp']]}\n{g['home']} {score} {g['away']}\n{moment} · {local():%H:%M}\n\n"
             + avisos.compact(al, g["home"], g["away"], shot))
 
 
@@ -167,7 +177,7 @@ def quarter_step(g, st, base, rules, log, save):
         got = ((f"{team} ganó {what} por {value}" if value > 0 else f"{team} perdió {what} por {-value}" if value < 0 else f"{team} empató {what}")
                if al["market"] == "hcap" else f"{team} metió {value} puntos en {what}" if al["market"] == "equipo"
                else f"hubo {value} puntos entre los dos en {what}")
-        send(f"🏁 RESULTADO · {avisos.name_of(al).upper()}\n{g['home']} – {g['away']}\n\nAPOSTABAS A\n{avisos.bet_of(al, g['home'], g['away'])['market']}"
+        send(bet_tag(e.get("num")) + f"🏁 RESULTADO · {avisos.name_of(al).upper()}\n{g['home']} – {g['away']}\n\nAPOSTABAS A\n{avisos.bet_of(al, g['home'], g['away'])['market']}"
              + f"\n\nLO QUE PASÓ\n{got[0].upper() + got[1:]}.\n\n" + "\n".join(avisos.result_lines(al, e["res"], g["home"], g["away"])))
         save()
     for e in g["quiet"].values():                      # callados de cuarto: se resuelven igual, sin mensaje
@@ -189,9 +199,10 @@ def quarter_step(g, st, base, rules, log, save):
         score = f"{st['hs']}-{st['as_']}"
         if quiet_step(g, al, k, done * 10, score, log, save):
             continue
-        mid = send(message(al, g, done * 10, score, (st.get("A"), st.get("B"), bA, bB)), buttons=lines_kb(al))
+        num = next_num(log)
+        mid = send(message(al, g, done * 10, score, (st.get("A"), st.get("B"), bA, bB), num), buttons=lines_kb(al))
         entry = dict(ts=now().isoformat(timespec="seconds"), comp=g["comp"], year=g["year"], code=g["code"], home=g["home"], away=g["away"],
-                     key=k, el=done * 10, score=score, alert=al, msg=[mid] if isinstance(mid, int) else [], lat=lat_of(g, st))
+                     key=k, el=done * 10, score=score, alert=al, msg=[mid] if isinstance(mid, int) else [], lat=lat_of(g, st), num=num)
         g["sent"][k] = entry
         log.append(entry)
         save()
@@ -234,7 +245,7 @@ def result_message(g, entries, hs, as_):
         else:
             team, m = (g["home"] if al["side"] > 0 else g["away"]), al["side"] * (hs - as_)
             got = f"{team} ganó por {m}." if m > 0 else f"{team} perdió por {-m}." if m < 0 else f"{team} empató."
-        out += ["", f"{avisos.NAMES[al['type']].upper()} · aviso del minuto {e['el']:.0f} ({e['score']})",
+        out += ["", (f"🎟️ Apuesta N.º {e['num']} · " if e.get("num") else "") + f"{avisos.NAMES[al['type']].upper()} · aviso del minuto {e['el']:.0f} ({e['score']})",
                 "Apostabas a: " + avisos.bet_of(al, g["home"], g["away"])["market"], "Lo que pasó: " + got]
         out += avisos.result_lines(al, res, g["home"], g["away"])
     return "\n".join(out)
@@ -970,7 +981,8 @@ def watch(con, log_path, hours):
                     score = f"{A['pts']}-{B['pts']}"
                     if not old and quiet_step(g, al, k, el, score, log, save):
                         continue
-                    mid = send(message(al, g, el, score, (A, B, bA, bB)), buttons=lines_kb(al))
+                    num = old.get("num") if old else next_num(log)
+                    mid = send(message(al, g, el, score, (A, B, bA, bB), num), buttons=lines_kb(al))
                     if old:                 # pasa de moderado a fuerte: se avisa otra vez, pero cuenta el primero
                         old["upgraded"] = True
                         if isinstance(mid, int):        # su respuesta se valora con las líneas de ese mensaje
@@ -978,7 +990,7 @@ def watch(con, log_path, hours):
                             old.setdefault("msg_alert", {})[str(mid)] = al
                         continue
                     entry = dict(ts=now().isoformat(timespec="seconds"), comp=g["comp"], year=g["year"], code=g["code"], home=g["home"], away=g["away"],
-                                 key=k, el=round(el, 1), score=score, alert=al, msg=[mid] if isinstance(mid, int) else [], lat=lat_of(g, st))
+                                 key=k, el=round(el, 1), score=score, alert=al, msg=[mid] if isinstance(mid, int) else [], lat=lat_of(g, st), num=num)
                     g["sent"][k] = entry
                     log.append(entry)
                     save()
@@ -1035,10 +1047,10 @@ def replay(base, season, code, el):
     if not als:
         print(f"En el minuto {el} no había ningún aviso ({A['pts']}-{B['pts']}).")
     for al in als:
-        send("🧪 ENSAYO con un partido ya jugado (no es un aviso real)\n\n" + message(al, g, el, f"{A['pts']}-{B['pts']}", (A, B, base[hc], base[ac]))
+        send("🧪 ENSAYO con un partido ya jugado (no es un aviso real)\n\n" + message(al, g, el, f"{A['pts']}-{B['pts']}", (A, B, base[hc], base[ac]), num=1)
              + "\n\n🧪 Prueba: los botones solo anotan con avisos reales; aquí puedes ver cómo responden.", buttons=lines_kb(al))
     if als:
-        send("ENSAYO\n" + result_message(g, [dict(alert=al, el=el, score=f"{A['pts']}-{B['pts']}") for al in als], int(h["ScoreA"]), int(h["ScoreB"])))
+        send("ENSAYO\n" + result_message(g, [dict(alert=al, el=el, score=f"{A['pts']}-{B['pts']}", num=1) for al in als], int(h["ScoreA"]), int(h["ScoreB"])))
     return 0
 
 

@@ -71,7 +71,8 @@ try { const o = JSON.parse(localStorage.getItem('banco-ajustes') || 'null'); if 
 
 const isV2 = x => !!(x.rb && x.rb.live);
 const v2tr = x => isV2(x) ? '<tr class="v2">' : '<tr>';
-const v2tag = x => isV2(x) ? '<span class="v2tag" title="Aviso de la v2: con línea rebajada (desde el 9-11-2026)">v2</span>' : '';
+const v2tag = x => (x.num ? `<div class="small strong">N.º ${x.num} · ${isV2(x) ? 'v2' : 'v1'}</div>` : '')
+  + (isV2(x) ? '<span class="v2tag" title="Aviso de la v2: con línea rebajada (desde el 9-11-2026)">v2</span>' : '');
 const when = ts => new Date(ts).toLocaleString('es-ES', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
 // La apuesta, corta: «Río Breogán hándicap +29,5», «Manresa menos de 28,5 puntos», «Menos de 218,5 puntos».
 function shortBet(x, p) {

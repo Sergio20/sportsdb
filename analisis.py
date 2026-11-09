@@ -536,6 +536,16 @@ def sent_log(con, path):
     except ValueError:
         return None
     rows = _rows(con, [e for e in log if not e.get("callado")])
+    # Número de apuesta (9-11-2026): la v2 lo trae del vigilante («Apuesta N.º 1 · v2 SportsDB»); la v1 se numera por orden.
+    n1 = n2 = 0
+    for x in sorted(rows, key=lambda x: x["ts"]):
+        x["ver"] = "v2" if (x.get("rb") or {}).get("live") else "v1"
+        if x["ver"] == "v1":
+            n1 += 1
+            x["num"] = n1
+        else:
+            n2 += 1
+            x["num"] = x.get("num") or n2
     done = [x for x in rows if x["res"]]
     by = {}
     for x in done:
@@ -578,6 +588,7 @@ def _rows(con, log, quiet=False):
                              final=str(e.get("value")) if e.get("res") else (f"{r[0]}-{r[1]}" if r and r[2] == "played" else None)))
             rows[-1]["casa"] = _casa(al, e.get("casa"), e.get("value") if e.get("res") else None)
             rows[-1]["rb"] = _rb(al, e.get("value") if e.get("res") else None, e.get("el"))
+            rows[-1]["num"] = e.get("num")
             _timing(rows[-1], e)
             if quiet:
                 rows[-1]["why"] = e["callado"]      # «partido» o «regla»
@@ -599,6 +610,7 @@ def _rows(con, log, quiet=False):
             value = avisos.bet_value(al, hs, as_, r[4] if r and r[2] == "played" else None)
         row["casa"] = _casa(al, e.get("casa"), value)
         row["rb"] = _rb(al, value, e.get("el"))
+        row["num"] = e.get("num")
         _timing(row, e)
         if quiet:
             row["why"] = e["callado"]
