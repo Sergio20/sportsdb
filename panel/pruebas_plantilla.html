@@ -161,6 +161,10 @@ function render() {
   </section>
   ${quietSummary()}`;
   if (done.length) chart(run, done);
+  document.querySelectorAll('#rbF select').forEach(sel => { sel.value = rbF[sel.dataset.k] || '';
+    if (sel.value !== (rbF[sel.dataset.k] || '')) sel.selectedIndex = 0;
+    sel.addEventListener('change', () => { rbF[sel.dataset.k] = sel.value; rbMax = 30; try { localStorage.setItem('banco-rebajada', JSON.stringify(rbF)); } catch (e) { /* */ } rbTable(); }); });
+  rbTable();
   document.querySelectorAll('.odds input').forEach(i => i.addEventListener('change', () => {
     const v = parseFloat(String(i.value).replace(',', '.')); if (v > 1) { odds[i.dataset.p] = v; save(); render(); } }));
   $('#stake').addEventListener('change', e => { const v = parseFloat(String(e.target.value).replace(',', '.')); if (v > 0) { stake = v; save(); render(); } });
@@ -180,16 +184,58 @@ function rebajaSummary() {
       <div class="v ${d.length ? sgn(bal) : ''}">${d.length ? `${ok} de ${d.length} (${nf(100 * ok / d.length, 0)} %)` : '–'}</div>
       <div class="s">${d.length ? `${eur(bal)} a cuota ${odd(odds[82])} · en los mismos avisos la del 95 acertó ${k95} y la del 90 ${k90} · de media ${nf(gap, 1)} puntos más ajustada que la del 95` : note}${
       xs.length > d.length ? ` · ${xs.length - d.length} pendientes` : ''}</div></div>`; };
-  const reg = live.slice().reverse().map(x => `<tr><td class="l">${esc(when(x.ts))}</td><td class="l w">${esc(x.home)} – ${esc(x.away)}<div class="muted small">${esc(KIND[x.type] || x.type)} · ${esc(periodTxt(x))}</div></td>
-    <td class="l">${esc(shortBet(x, '95'))}${x.res ? ` <b class="${x.res['95'] ? 'ok' : 'ko'}">${x.res['95'] ? '✓' : '✗'}</b>` : ''}</td>
-    <td class="l"><b style="color:var(--c82)">${esc(shortBet(Object.assign({}, x, { lines: { r: x.rb.line } }), 'r'))}</b>${x.rb.hit == null ? ' <span class="muted">pendiente</span>' : ` <b class="${x.rb.hit ? 'ok' : 'ko'}">${x.rb.hit ? '✓' : '✗'}</b>`}</td>
-    <td>${x.res ? esc(x.final || '') : ''}</td></tr>`).join('');
   return `<section class="panel exp"><h2>🧪 Experimento: línea rebajada (desde el 9-11-2026)</h2>
     <div class="muted">Cada aviso trae en Telegram una línea 🔵 más ajustada que la del 95, la que la casa sí suele ofrecer. Va aparte: no entra en las carteras de arriba.
       Objetivo: que siga acertando el 85 % o más. Promete el 82 % (cuota mínima ${odd(CFG.min_odds[82] || 1.22)}); con lo registrado antes del 9-11 habría acertado alrededor del 90 %.</div>
     <div class="kpis">${card(live, 'En directo', 'aún no ha saltado ningún aviso con línea rebajada')}${card(sim, 'Simulada en avisos anteriores', 'sin avisos anteriores')}</div>
-    ${live.length ? `<div class="scroll"><table><thead><tr><th class="l">Cuándo</th><th class="l">Partido</th><th class="l">Línea del 95</th><th class="l">🔵 Rebajada</th><th>Final</th></tr></thead><tbody>${reg}</tbody></table></div>` : ''}
-    <div class="muted small">«Simulada»: la misma línea calculada ahora sobre los avisos enviados antes del 9-11 cuya regla se sigue mandando hoy (no estaba en el mensaje).</div></section>`;
+    <div class="muted small">«Simulada»: la misma línea calculada ahora sobre los avisos enviados antes del 9-11 cuya regla se sigue mandando hoy (no estaba en el mensaje).</div>
+    <h3>Apuesta por apuesta</h3>
+    <div class="odds" id="rbF">
+      <label>Avisos <select data-k="who"><option value="sent">enviados por Telegram</option><option value="quiet">callados (no enviados)</option><option value="all">todos los detectados</option></select></label>
+      <label>Origen <select data-k="src"><option value="all">todos</option><option value="live">en directo (desde el 9-11)</option><option value="sim">simulada (antes del 9-11)</option></select></label>
+      <label>Tipo <select data-k="type"><option value="">todos</option>${[...new Set(rbRows('all').map(rbKind))].sort().map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('')}</select></label>
+      <label>Reglas <select data-k="now"><option value="">todas</option><option value="1">solo las que hoy se mandan</option></select></label>
+      <label>Resultado <select data-k="res"><option value="">todos</option><option value="ok">✓ acertadas</option><option value="ko">✗ falladas</option><option value="open">pendientes</option></select></label>
+    </div>
+    <div id="rbTable"></div></section>`;
+}
+// Tabla del experimento: una fila por aviso con las tres líneas (95, 90 y rebajada), lo que prometía la rebajada, si se
+// cumplió y por cuántos puntos. Filtros en rbF; se guardan en el navegador.
+let rbF = { who: 'sent', src: 'all', type: '', now: '', res: '' }, rbMax = 30;
+try { Object.assign(rbF, JSON.parse(localStorage.getItem('banco-rebajada') || '{}')); } catch (e) { /* sin memoria */ }
+const rbKind = x => x.type === 'cuarto' && x.rb.sub ? (SUB[x.rb.sub] || x.rb.sub) : (KIND[x.type] || x.type);
+const SUB = { tot_frio: 'Total frío del cuarto', tot_caliente: 'Total caliente del cuarto', eq_frio: 'Equipo frío', eq_caliente: 'Equipo caliente',
+  paliza: 'Paliza en el cuarto', mitad_fria: '2.ª parte fría', mitad_caliente: '2.ª parte caliente', racha: 'Racha de cuartos' };
+function rbRows(who) {
+  const src = who === 'quiet' ? QUIET : who === 'all' ? ALL.concat(QUIET) : ALL;
+  return src.filter(x => x.rb).sort((a, b) => b.ts < a.ts ? -1 : 1);
+}
+function rbTable() {
+  const box = document.getElementById('rbTable'); if (!box) return;
+  const xs = rbRows(rbF.who).filter(x => (rbF.src === 'all' || (rbF.src === 'live') === x.rb.live) && (!rbF.type || rbKind(x) === rbF.type)
+    && (!rbF.now || x.rb.now) && (!rbF.res || (rbF.res === 'open' ? x.rb.hit == null : rbF.res === 'ok' ? x.rb.hit === true : x.rb.hit === false)));
+  const d = xs.filter(x => x.rb.hit != null), ok = d.filter(x => x.rb.hit).length;
+  const prom = d.filter(x => x.rb.p != null), avgP = prom.length ? prom.reduce((s, x) => s + x.rb.p, 0) / prom.length : null;
+  const k95 = d.filter(x => x.res && x.res['95']).length, k90 = d.filter(x => x.res && x.res['90']).length;
+  const mark = v => v == null ? '<span class="muted">·</span>' : `<b class="${v ? 'ok' : 'ko'}">${v ? '✓' : '✗'}</b>`;
+  const rb = x => shortBet(Object.assign({}, x, { lines: { r: x.rb.line } }), 'r');
+  const spare = x => x.rb.spare == null ? '' : x.rb.spare > 0 ? `<span class="ok">le sobraron ${nf(x.rb.spare, 1)}</span>` : `<span class="ko">le faltaron ${nf(-x.rb.spare, 1)}</span>`;
+  const rows = xs.slice(0, rbMax).map(x => `<tr><td class="l">${esc(when(x.ts))}</td>
+    <td class="l w">${esc(x.home)} – ${esc(x.away)}<div class="muted small">${esc(COMP[x.comp] || x.comp)}</div></td>
+    <td class="l">${esc(rbKind(x))}<div class="muted small">${x.type === 'cuarto' || x.type === 'racha' ? 'al acabar el minuto ' : 'minuto '}${nf(x.el)} · ${esc(x.score)} · ${esc(periodTxt(x).toLowerCase())}</div></td>
+    <td class="l"><b style="color:var(--c82)">${esc(rb(x))}</b> ${mark(x.rb.hit)}<div class="muted small">prometía ${x.rb.p == null ? '–' : nf(x.rb.p, 0) + ' %'} · ${x.rb.live ? 'en directo' : 'simulada'}${x.why ? ' · callado' : ''}${x.rb.now ? '' : ' · regla apagada hoy'}</div></td>
+    <td class="l">${esc(shortBet(x, '95'))} ${mark(x.res && x.res['95'])}</td>
+    <td class="l">${esc(shortBet(x, '90'))} ${mark(x.res && x.res['90'])}</td>
+    <td>${x.res ? esc(x.final || '') : '<span class="muted">pendiente</span>'}<div class="small">${spare(x)}</div></td></tr>`).join('');
+  box.innerHTML = `<div class="kpis">
+      <div class="kpi"><div class="l"><span class="sw" style="background:var(--c82)"></span>Rebajada en esta selección</div><div class="v">${d.length ? `${ok} de ${d.length}` : '–'}</div>
+        <div class="s">${d.length ? `acierta ${nf(100 * ok / d.length, 0)} % · prometía de media ${nf(avgP, 0)} %` : 'sin apuestas resueltas'}${xs.length > d.length ? ` · ${xs.length - d.length} pendientes` : ''}</div></div>
+      <div class="kpi"><div class="l"><span class="sw" style="background:var(--c95)"></span>Línea del 95, mismos avisos</div><div class="v">${d.length ? `${k95} de ${d.length}` : '–'}</div><div class="s">${d.length ? nf(100 * k95 / d.length, 0) + ' %' : ''}</div></div>
+      <div class="kpi"><div class="l"><span class="sw" style="background:var(--c90)"></span>Línea del 90, mismos avisos</div><div class="v">${d.length ? `${k90} de ${d.length}` : '–'}</div><div class="s">${d.length ? nf(100 * k90 / d.length, 0) + ' %' : ''}</div></div></div>
+    ${xs.length ? `<div class="scroll"><table><thead><tr><th class="l">Cuándo</th><th class="l">Partido</th><th class="l">Aviso</th><th class="l">🔵 Rebajada</th><th class="l">Línea del 95</th><th class="l">Línea del 90</th><th>Final</th></tr></thead><tbody>${rows}</tbody></table></div>${xs.length > rbMax ? `<button class="seg" style="padding:6px 10px;cursor:pointer;margin-top:8px" id="rbMore">Ver ${Math.min(30, xs.length - rbMax)} más (quedan ${xs.length - rbMax})</button>` : ''}`
+      : '<div class="empty">Ningún aviso con estos filtros.</div>'}
+    <div class="muted small">«Final»: marcador final o, en los de cuarto, lo que pasó en el periodo apostado (puntos, o diferencia en los de hándicap). «Le sobraron / le faltaron»: puntos de margen de la línea rebajada.</div>`;
+  const more = document.getElementById('rbMore'); if (more) more.addEventListener('click', () => { rbMax += 30; rbTable(); });
 }
 // Avisos callados: el vigilante los detectó pero no los mandó (un solo aviso por partido, y solo las reglas que cumplen
 // lo prometido). Se resuelven igual que los enviados y se enseñan APARTE: no entran en las carteras de arriba. Sirven
