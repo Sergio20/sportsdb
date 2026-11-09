@@ -145,7 +145,7 @@ def agenda(con, log, save, hours, games, hist):
     if not lines:
         return
     send("📋 Próximos partidos que vigilo (hora de España)\n\n" + "\n\n".join(lines)
-         + "\n\nTe aviso en el momento en que salte cualquiera de los avisos (desfase, ritmo, triples, total, cuarto anormal o racha de cuartos).")
+         + "\n\nTe aviso en el momento en que salte cualquiera de los avisos (desfase, ritmo insostenible o cuarto anormal).")
     log.append(dict(agenda=ids, ts=now().isoformat(timespec="seconds")))
     save()
 
@@ -659,7 +659,7 @@ def avisos_from_keyboard(msg):
         return None
     text = msg.get("text") or ""
     pcts = [int(x) for x in re.findall(r"· (\d+) % · cuota", text)]
-    vals = [float(x.replace(",", ".")) for x in re.findall(r"(?:🟢|🟡|🟠) .*?([+-]?\d+(?:,\d+)?) · \d+ %", text)]
+    vals = [float(x.replace(",", ".")) for x in re.findall(r"(?:🟢|🟡|🔵|🟠) .*?([+-]?\d+(?:,\d+)?) · \d+ %", text)]
     if len(pcts) != len(vals) or len(vals) < 2:
         return None
     hcap = "Hándicap" in text

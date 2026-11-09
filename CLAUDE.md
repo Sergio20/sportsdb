@@ -242,6 +242,19 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   partido por primera vez y «NO ENCUENTRO EN DIRECTO» si a los 20 min la fuente no lo da (nombres distintos). Marcas `{futbol: "<id>|<marcador>|HT"}` (y `agenda|…`, `leo|…`, `noleo|…`) en `avisos.json` (no entran en el banco). Prueba de la clave:
   `prueba_futbol.yml` → `scripts/prueba_futbol_api.py`. Sin probar aún con un partido real de LaLiga.
 
+- Limpieza y LÍNEA REBAJADA (9-11-2026, decisión de Sergio tras el estudio de 422 avisos del 3-10 al 8-11): fuera de Telegram
+  todo tipo que acierte menos del 85 %: «Racha de cuartos» (línea del 90: 15/20) y «2.ª parte fría» (2/5) salen de `SEND_Q`
+  (quedan callados en el registro). Quedan: desfase, ritmo desde el min. 28, total frío del cuarto y equipo frío.
+  Experimento: cada aviso lleva además una 🔵 línea rebajada (`avisos.REBAJA` = 82, `rebaja`/`with_rebaja`): el punto del
+  82 % de su campana, redondeada a ,5 hacia el lado seguro y al menos 1 punto más ajustada que la del 90; va en
+  `lines["82"]` y se resuelve como las demás. Motivo: la línea del 95 casi nunca aparece en la casa. Con lo registrado y
+  las reglas que quedan habría acertado 41/45 (91 %), ~5 puntos por debajo de la del 95. En Telegram sale con su % real de
+  la campana. En el banco de pruebas va aparte (`analisis._rb` → `row["rb"]`, `rebajaSummary`, color morado `--c82`):
+  «En directo» (avisos que la llevaron) frente a «Simulada» (la misma cuenta sobre avisos anteriores). Cuota supuesta 1,33.
+  Lo que la casa ofreció en 8 avisos: entre 3 y 10 puntos más ajustado que nuestra del 90, y en 7 de 8 la cuota pedía más
+  acierto del que dábamos (sin valor); acertaron 4 de 8. Por debajo del 75 % prometido la campana falla (57-64 % real).
+  Revisar el experimento con 30-40 avisos en directo.
+
 ## Tareas programadas (todas en GitHub salvo el informe)
 
 - `vigilante.yml`: cadena continua de tandas + respaldo cada hora (min. 23). Únicos avisos en directo.
