@@ -121,7 +121,7 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   «SI LA CASA TE OFRECE OTRA LÍNEA»: probabilidad y cuota mínima de cada línea entre el 80 y el 97 %, sacadas de la
   misma campana que las tres líneas del aviso (con dos de ellas se recupera centro y anchura).
 - Mensaje de Telegram corto (`avisos.compact`, ~10 líneas, para decidir en segundos): por qué, mercado y periodo, las tres
-  líneas con su cuota mínima, «Otras» (4 líneas de la tabla) y los botones. La explicación larga (`describe`) solo va a la web.
+  líneas con su cuota mínima y los botones (desde el 9-11-2026 sin «Otras» en el texto: las demás líneas, solo en los botones). La explicación larga (`describe`) solo va a la web.
   Desde el 8-11-2026 (Sergio: «desde la calle no sé en qué te basas») lleva «🎯 ¿Por qué?» (`avisos.shooting_why`): para cada
   equipo, puntos de más o de menos por acierto en lo que va de partido frente a su % habitual (`_xp`, base de `export_live.baseline`)
   y los tiros que más se apartan; anormal si ≥4 puntos y ≥1 desviación. Si ninguno tira raro, lo dice: el aviso se apoya solo en el histórico.
