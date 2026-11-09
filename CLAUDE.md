@@ -258,6 +258,9 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   (`tot_caliente` en `SEND_Q`: 32/34 en la del 90) y el ritmo insostenible desde el inicio (`SEND_RITMO_MIN` = 0: 35/38).
   Sergio lo llama la «v2»: en el banco, los avisos con rebajada en directo van con fondo morado y la marca «v2» en todas las
   tablas (`isV2`, `tr.v2`); en el apartado del experimento, tabla «Apuesta por apuesta» con filtros (`rbTable`, `rbF`).
+  HITO (orden de Sergio, «grabado a fuego»): a los 100 avisos v2 enviados y resueltos, revisar y decidir si se pasa a la
+  «v3». `vigilante.v2_step` (`V2_META` = 100) avisa una sola vez por Telegram (marca `{hito_v2: 100}` en `avisos.json`) y
+  una rutina de Claude lo comprueba cada día y avisa en el hilo del proyecto «Analizar acierto de los avisos de apuestas».
 
 ## Tareas programadas (todas en GitHub salvo el informe)
 
