@@ -134,9 +134,10 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   casa (`implied` = 100/cuota), el valor esperado (`ev`) y si esa línea se ganó (`hit`, con `avisos.line_hits`); el banco
   enseña en «Tu casa de apuestas» si ofrecía nuestras líneas, dónde pone las suyas, la ventaja por tipo de aviso y el
   balance apostando solo la oferta con más valor de cada aviso.
-  Vale la última respuesta (8-11-2026): si tras «No aparece» Sergio da una línea con su cuota, el «no aparece» queda
-  `anulado` (`note_line` en `vigilante.py`) y `analisis._casa` lo ignora (también los antiguos sin la marca). Motivo: buscó el
-  hándicap del partido entero en un aviso del 3.er cuarto. Desde entonces los avisos de cuarto/2.ª parte llevan arriba
+  Vale la última respuesta (8-11-2026), en los dos sentidos: una línea tras «No aparece» anula el «no aparece» (`note_line`)
+  y un «No aparece» tras líneas anula esas líneas (`note_none`); `analisis._casa` aplica lo mismo a los registros antiguos sin
+  marca `anulado`. Motivo: en el Burgos – Valencia del 8-11 tocó +8,5 a 1,26 mirando el hándicap del partido entero en un
+  aviso del 3.er cuarto y luego «No aparece», que era lo bueno. Desde entonces los avisos de cuarto/2.ª parte llevan arriba
   «⚠️ APUESTA SOLO PARA EL 3.er CUARTO, NO PARA EL PARTIDO ENTERO» (`avisos.period_of`/`the_period`), y el periodo sale
   también en las teclas. Objetivo: ver dónde se le puede ganar a la casa. La cuenta del valor
   es la misma para botones y respuestas escritas (`value_of`). Un hilo (`listen`) escucha Telegram sin parar (espera
