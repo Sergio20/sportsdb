@@ -73,7 +73,7 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   avisos en la plantilla en vivo, cambiarlos también en `analisis.py`.
 - Banco de pruebas (`pruebas.html`, plantilla `panel/pruebas_plantilla.html`; `analisis.save_bank` → tabla
   `banco_pruebas` de la base): cada aviso enviado por Telegram cuenta como apuesta simulada de 500 € (`STAKE`) en cada
-  una de sus tres líneas, a las cuotas aproximadas de la casa que dio Sergio (`ODDS`: 95 % 1,12 · 90 % 1,17 · rebajada 1,29 · 80 % 1,32 desde el 10-11-2026, más realistas según Sergio; antes 1,175 / 1,275 / 1,33 / 1,40. Rebajada y 80 en la misma proporción: cuota justa × 1,058);
+  una de sus tres líneas, a las cuotas aproximadas de la casa que dio Sergio (`ODDS`: 95 % 1,12 · 90 % 1,17 · rebajada 1,29 · 80 % 1,32 desde el 10-11-2026, más realistas según Sergio; antes 1,175 / 1,275 / 1,33 / 1,40. Rebajada y 80 en la misma proporción: cuota justa × 1,058. Desde el 10-11-2026 la tercera cartera del banco es la línea del 85 % (verde, `analisis._add85`, punto del 85 % de la campana calculado también sobre los avisos anteriores, cuota 1,24) en vez de la del 80; la del 80 sigue en `res` para «¿Funciona?»);
   una cartera por línea; importe y cuotas editables en la página. Cada apuesta se escribe corta («Breogán hándicap +29,5»,
   «Manresa menos de 28,5 puntos», con el periodo encima). Es un
   simulacro: Sergio no apuesta con esto y nunca se publican sus apuestas reales. El vigilante anota `res`/`final` en

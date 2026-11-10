@@ -9,8 +9,8 @@
 <style>
 /*CSS*/
 /* Una serie por línea de seguridad: mismo orden y color en la gráfica, las fichas y la tabla. */
-:root { --c95: #2a78d6; --c90: #eb6834; --c80: #1baf7a; --c82: #8b4fd8 }
-@media (prefers-color-scheme: dark) { :root { --c95: #3987e5; --c90: #d95926; --c80: #199e70; --c82: #a175ea } }
+:root { --c95: #2a78d6; --c90: #eb6834; --c80: #1baf7a; --c85: #1baf7a; --c82: #8b4fd8 }
+@media (prefers-color-scheme: dark) { :root { --c95: #3987e5; --c90: #d95926; --c80: #199e70; --c85: #199e70; --c82: #a175ea } }
 .exp { border: 2px dashed var(--c82) }
 /* v2 (desde el 9-11-2026): avisos con línea rebajada en directo, resaltados en todas las tablas */
 tr.v2 td { background: color-mix(in srgb, var(--c82) 12%, transparent) }
@@ -62,9 +62,10 @@ const eur = v => (v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v), 2) + ' €
 const sgn = v => v > 0.005 ? 'pos' : v < -0.005 ? 'neg' : '';
 const KIND = { desfase: 'Desfase', ritmo: 'Ritmo insostenible', triples: 'Triples insostenibles', total: 'Total desfasado', cuarto: 'Cuarto anormal', racha: 'Racha de cuartos' };
 const COMP = { E: 'Euroliga', U: 'EuroCup', A: 'Liga Endesa' };
-const LINES = [['95', 'Línea del 95 %'], ['90', 'Línea del 90 %'], ['80', 'Línea del 80 %']];
-const CFG = D.bank_cfg || { stake: 500, odds: { 95: 1.12, 90: 1.17, 82: 1.29, 80: 1.32 }, min_odds: { 95: 1.05, 90: 1.11, 82: 1.22, 80: 1.25 } };
+const LINES = [['95', 'Línea del 95 %'], ['90', 'Línea del 90 %'], ['85', 'Línea del 85 %']];
+const CFG = D.bank_cfg || { stake: 500, odds: { 95: 1.12, 90: 1.17, 85: 1.24, 82: 1.29 }, min_odds: { 95: 1.05, 90: 1.11, 85: 1.18, 82: 1.22 } };
 if (CFG.odds[82] == null) CFG.odds[82] = 1.29;
+if (CFG.odds[85] == null) CFG.odds[85] = 1.24;
 const ALL = (D.sent && D.sent.bank) || [];
 const QUIET = (D.sent && D.sent.quiet) || [];       // detectados pero no enviados: se llevan aparte
 const WHY = { partido: 'ya hubo otro aviso en el partido', regla: 'su regla no está entre las que se mandan' };
@@ -85,7 +86,7 @@ function shortBet(x, p) {
   return `${ou[0].toUpperCase() + ou.slice(1)} de ${n} puntos entre los dos`;
 }
 const periodTxt = x => { const per = (x.mk || {}).period || 'el partido'; return per === 'el partido' ? 'Partido entero' : 'Solo ' + per; };
-const betTxt = x => shortBet(x, '80') + ' · ' + periodTxt(x).toLowerCase();
+const betTxt = x => shortBet(x, '85') + ' · ' + periodTxt(x).toLowerCase();
 const odd = v => nf(v, Math.round(v * 1000) % 10 ? 3 : 2);
 const gain = (ok, p) => ok ? stake * (odds[p] - 1) : -stake;
 
@@ -93,13 +94,13 @@ function render() {
   const done = ALL.filter(x => x.res), open = ALL.filter(x => !x.res);
   if (!ALL.length) { $('#view').innerHTML = '<div class="panel"><div class="empty">Todavía no hay avisos enviados por Telegram.</div></div>'; return; }
   // Totales por línea y balance acumulado apuesta a apuesta (en el orden en que saltaron los avisos)
-  const tot = {}, run = { 95: [0], 90: [0], 80: [0], 82: [0] };
+  const tot = {}, run = { 95: [0], 90: [0], 85: [0], 82: [0] };
   for (const [p] of LINES) tot[p] = { n: 0, ok: 0, bal: 0 };
   for (const x of done) for (const [p] of LINES) {
     const ok = !!x.res[p]; tot[p].n++; tot[p].ok += ok; tot[p].bal += gain(ok, p); run[p].push(tot[p].bal); }
   // Curva de la línea rebajada (en directo o simulada) sobre los mismos avisos; sin rebajada calculable, no se apuesta
   for (const x of done) { const r = x.rb && x.rb.hit != null; run[82].push(run[82][run[82].length - 1] + (r ? gain(x.rb.hit, 82) : 0)); }
-  const promised = { 95: 95, 90: 90, 80: 80 };
+  const promised = { 95: 95, 90: 90, 85: 85 };
   const kpis = LINES.map(([p, name]) => { const t = tot[p], pct = t.n ? 100 * t.ok / t.n : null, staked = t.n * stake;
     return `<div class="kpi"><div class="l"><span class="sw" style="background:var(--c${p})"></span>${name} · cuota ${odd(odds[p])}</div>
       <div class="v ${sgn(t.bal)}">${t.n ? eur(t.bal) : '–'}</div>
@@ -169,7 +170,7 @@ function render() {
   <section class="panel"><h2>Registro de apuestas simuladas</h2>
     <div class="scroll"><table><thead><tr><th class="l">Cuándo</th><th class="l">Partido</th><th class="l">Aviso</th><th class="l">Apuesta</th><th>Final</th><th>Balance</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
-    <div class="muted small">Cada aviso son tres apuestas, una por línea: <span class="sw" style="background:var(--c95)"></span>95 % · <span class="sw" style="background:var(--c90)"></span>90 % · <span class="sw" style="background:var(--c80)"></span>80 %. ✓ ganada · ✗ perdida.
+    <div class="muted small">Cada aviso son tres apuestas, una por línea: <span class="sw" style="background:var(--c95)"></span>95 % · <span class="sw" style="background:var(--c90)"></span>90 % · <span class="sw" style="background:var(--c85)"></span>85 % (antes 80 %, cambiada el 10-11-2026; calculada también sobre los avisos anteriores). ✓ ganada · ✗ perdida.
       «Final»: marcador final o, en los de cuarto, el valor del periodo apostado (puntos, o diferencia en los de hándicap). «Balance»: lo que dejan las tres juntas.</div>
   </section>
   ${quietSummary()}`;
@@ -329,7 +330,7 @@ function save() { try { localStorage.setItem('banco-ajustes-2', JSON.stringify({
 // Gráfica de líneas: balance acumulado de cada cartera tras cada apuesta. Etiqueta directa al final de cada línea y cruz con detalle al pasar el ratón.
 function chart(run, done) {
   const box = $('#chart'), W = Math.max(320, box.clientWidth), H = 300, m = { l: 56, r: 150, t: 12, b: 28 };
-  const n = done.length, all = [].concat(run[95], run[90], run[80], run[82]), SER = ['95', '90', '80', '82'], nm = p => p === '82' ? 'Rebajada' : p + ' %';
+  const n = done.length, all = [].concat(run[95], run[90], run[85], run[82]), SER = ['95', '90', '85', '82'], nm = p => p === '82' ? 'Rebajada' : p + ' %';
   let lo = Math.min(0, ...all), hi = Math.max(0, ...all); if (hi - lo < 10) { hi += 5; lo -= 5; }
   const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
   const x = i => m.l + (n ? i / n : 0) * (W - m.l - m.r), y = v => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
