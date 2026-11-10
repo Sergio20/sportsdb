@@ -819,6 +819,42 @@ def publish(snapshot):
             print("  no se ha podido publicar el estado de la Liga Endesa para la web", flush=True)
 
 
+BANCO = threading.Event()      # «ha terminado un partido con aviso»: toca rehacer el banco de pruebas
+
+
+def banco_step(log_path, stop):
+    """Banco de pruebas al día (10-11-2026, Sergio): al acabar un partido con aviso guarda el registro en la rama `avisos`
+    y pide a actualizar.yml que rehaga la web (`repository_dispatch` «publicar»: solo web, sin tocar la base). En su
+    propio hilo, para no retrasar los avisos; varios partidos que acaban a la vez dan una sola publicación."""
+    token, repo = os.environ.get("GITHUB_TOKEN"), os.environ.get("GITHUB_REPOSITORY")
+    if not (os.environ.get("GITHUB_ACTIONS") and token and repo):
+        return
+    while not stop.wait(30):
+        if not BANCO.is_set():
+            continue
+        BANCO.clear()
+        try:
+            with LOCK:
+                data = log_path.read_text(encoding="utf-8")
+            with tempfile.TemporaryDirectory() as tmp:
+                Path(tmp, "avisos.json").write_text(data, encoding="utf-8")
+                run = lambda *a: subprocess.run(["git", *a], cwd=tmp, capture_output=True, text=True)  # noqa: E731
+                run("init", "-q", "-b", "avisos")
+                run("config", "user.name", "github-actions[bot]")
+                run("config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com")
+                run("add", "avisos.json")
+                run("commit", "-q", "-m", f"Avisos hasta {now():%Y-%m-%d}")
+                r = run("push", "--force", f"https://x-access-token:{token}@github.com/{repo}.git", "avisos")
+            if r.returncode != 0:
+                print("  [banco] no se ha podido guardar el registro de avisos", flush=True)
+                continue
+            r = subprocess.run(["gh", "api", "-X", "POST", f"repos/{repo}/dispatches", "-f", "event_type=publicar"],
+                               env=dict(os.environ, GH_TOKEN=token), capture_output=True, text=True, timeout=60)
+            print("  [banco] " + ("publicación de la web pedida" if r.returncode == 0 else f"no se ha podido pedir la publicación: {r.stderr.strip()[:200]}"), flush=True)
+        except Exception as e:      # esto nunca debe frenar la vigilancia
+            print(f"  [banco] {e}", flush=True)
+
+
 def vivo_data(games, bases):
     out = []
     for g in games:
@@ -884,6 +920,7 @@ def watch(con, log_path, hours):
     stop = threading.Event()
     threading.Thread(target=listen, args=(log, save, stop), daemon=True).start()
     threading.Thread(target=datos_guardia, args=(stop,), daemon=True).start()
+    threading.Thread(target=banco_step, args=(log_path, stop), daemon=True).start()
     try:        # LaLiga en directo, en su propio hilo: el favorito que va perdiendo (futbol_live.py)
         import futbol_live
         fw = futbol_live.Watcher(con, send, log, save, LOCK)
@@ -963,6 +1000,7 @@ def watch(con, log_path, hours):
                 except Exception as e:      # un fallo aquí no debe tumbar el resto de avisos
                     print(f"  aviso de cuarto: {e}", flush=True)
                 if st["final"]:
+                    fresh = not g.get("done") and bool(g["sent"] or g["quiet"])
                     g["done"] = True
                     mine = [e for e in g["sent"].values() if e["alert"]["type"] != "cuarto"]
                     if mine and not any(e.get("closed") for e in mine):
@@ -982,6 +1020,8 @@ def watch(con, log_path, hours):
                         v2_step(log, save)          # ¿100 avisos de la v2 resueltos? (aviso una sola vez)
                     except Exception as e:
                         print(f"  hito v2: {e}", flush=True)
+                    if fresh:
+                        BANCO.set()         # resultado ya anotado: se rehace el banco de pruebas (banco_step)
                     continue
                 base = bases[g["comp"]]
                 el, bA, bB = st.get("el"), base.get(g["hc"]), base.get(g["ac"])

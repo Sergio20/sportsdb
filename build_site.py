@@ -70,7 +70,7 @@ if(!t||!(t=t.trim()))return;put(t)}
 go.disabled=true;var t0=Date.now()-60000;
 fetch("https://api.github.com/repos/"+R+"/actions/workflows/actualizar.yml/runs?per_page=5",{headers:{Accept:"application/vnd.github+json"},cache:"no-store"})
 .then(function(r){return r.ok?r.json():{workflow_runs:[]}}).catch(function(){return{workflow_runs:[]}})
-.then(function(d){var busy=(d.workflow_runs||[]).some(function(w){return w.event!=="push"&&(w.status==="in_progress"||w.status==="queued")});
+.then(function(d){var busy=(d.workflow_runs||[]).some(function(w){return w.event!=="push"&&w.event!=="repository_dispatch"&&(w.status==="in_progress"||w.status==="queued")});
 if(busy){say("Ya hay una actualización en marcha. Espera a que termine (unos 2 minutos).");return}
 return fetch("https://api.github.com/repos/"+R+"/actions/workflows/actualizar.yml/dispatches",{method:"POST",
 headers:{Accept:"application/vnd.github+json",Authorization:"Bearer "+t,"Content-Type":"application/json"},body:JSON.stringify({ref:"main"})})
