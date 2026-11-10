@@ -516,6 +516,25 @@ def _rb(al, value, el):
                 s95=margin(lines.get("95")), s90=margin(lines.get("90")))
 
 
+def _add85(row, al, value):
+    """Línea del 85 % (10-11-2026, Sergio: sustituye a la del 80 en el banco): el punto del 85 % de la campana del aviso,
+    redondeado a ,5 hacia el lado seguro, calculado también sobre los avisos anteriores. Se resuelve con el marcador."""
+    import avisos
+    from statistics import NormalDist
+    ln = {int(k): float(v) for k, v in al["lines"].items() if int(k) != avisos.REBAJA}
+    bell = avisos._bell({"lines": ln})
+    if not bell:
+        return
+    center, step = bell
+    x = center + step * NormalDist().inv_cdf(0.85)
+    line = avisos.up_half(x) if step > 0 else avisos.down_half(x)
+    row["lines"] = {**{str(k): v for k, v in row["lines"].items()}, "85": line}
+    if row.get("res") and value is not None:
+        hit = avisos.line_hits(al, line, value)
+        if hit is not None:
+            row["res"] = {**row["res"], "85": bool(hit)}
+
+
 def _timing(row, e):
     """Rapidez: segundos desde que el vigilante leyó el dato hasta que salió el aviso (lat.read), cada cuánto se leía
     el partido (lat.poll) y cuánto tardó Sergio en tocar el primer botón del aviso (react)."""
@@ -552,10 +571,10 @@ def sent_log(con, path):
     done = [x for x in rows if x["res"]]
     by = {}
     for x in done:
-        b = by.setdefault(x["type"], dict(n=0, s80=0, s90=0, s95=0))
+        b = by.setdefault(x["type"], dict(n=0, s80=0, s85=0, s90=0, s95=0))
         b["n"] += 1
-        for p in ("80", "90", "95"):
-            b["s" + p] += int(x["res"][p])
+        for p in ("80", "85", "90", "95"):
+            b["s" + p] += int(x["res"].get(p) or 0)
     # Callados (8-10-2026): detectados pero no enviados, porque el partido ya tuvo uno o su regla no está entre las que
     # se mandan. Se resuelven igual y el banco los enseña APARTE, sin mezclarlos con lo que de verdad llegó a Telegram.
     quiet = _rows(con, [e for e in log if e.get("callado")], quiet=True)
@@ -592,6 +611,7 @@ def _rows(con, log, quiet=False):
             rows[-1]["casa"] = _casa(al, e.get("casa"), e.get("value") if e.get("res") else None)
             rows[-1]["rb"] = _rb(al, e.get("value") if e.get("res") else None, e.get("el"))
             rows[-1]["num"] = e.get("num")
+            _add85(rows[-1], al, e.get("value") if e.get("res") else None)
             _timing(rows[-1], e)
             if quiet:
                 rows[-1]["why"] = e["callado"]      # «partido» o «regla»
@@ -614,6 +634,7 @@ def _rows(con, log, quiet=False):
         row["casa"] = _casa(al, e.get("casa"), value)
         row["rb"] = _rb(al, value, e.get("el"))
         row["num"] = e.get("num")
+        _add85(row, al, value)
         _timing(row, e)
         if quiet:
             row["why"] = e["callado"]
@@ -625,7 +646,7 @@ def _rows(con, log, quiet=False):
 # tres líneas, a una cuota aproximada de la casa que dio Sergio (ODDS). En la página se pueden cambiar las dos cosas.
 # MIN_ODDS: la cuota a partir de la cual cada línea sale a cuenta si acierta lo prometido.
 # "82": línea rebajada (experimento del 9-11-2026); su cuota es una estimación entre la del 90 y la del 80, editable.
-STAKE, ODDS, MIN_ODDS = 500, {"95": 1.12, "90": 1.17, "82": 1.29, "80": 1.32}, {"95": 1.05, "90": 1.11, "82": 1.22, "80": 1.25}
+STAKE, ODDS, MIN_ODDS = 500, {"95": 1.12, "90": 1.17, "85": 1.24, "82": 1.29, "80": 1.32}, {"95": 1.05, "90": 1.11, "85": 1.18, "82": 1.22, "80": 1.25}
 
 
 def save_bank(con, sent):
@@ -635,7 +656,7 @@ def save_bank(con, sent):
                    marcador TEXT, apuesta TEXT, linea_de TEXT, linea REAL, cuota REAL, importe REAL, resultado TEXT, ganancia REAL, final TEXT)""")
     liga = {"E": "Euroliga", "U": "EuroCup", "A": "Liga Endesa"}
     for x in (sent or {}).get("bank") or []:
-        for p in ("95", "90", "80"):
+        for p in ("95", "90", "85"):
             ok = (x["res"] or {}).get(p)
             gain = None if ok is None else round(STAKE * (ODDS[p] - 1), 2) if ok else -STAKE
             con.execute("INSERT INTO banco_pruebas VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
