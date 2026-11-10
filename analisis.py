@@ -501,16 +501,19 @@ def _rb(al, value, el):
         return None
     base = {k: v for k, v in lines.items() if k != str(avisos.REBAJA)}
     p = avisos.prob_of_line({"lines": base}, line)
-    spare = None                # puntos que sobraron (+) o faltaron (−) a la rebajada
-    if value is not None:
+    def margin(ln):             # puntos que sobraron (+) o faltaron (−) a una línea
+        if value is None or ln is None:
+            return None
+        ln = float(ln)
         if al["type"] == "cuarto" and al["market"] != "hcap":
-            spare = value - line if al["over"] else line - value
-        elif al["type"] == "total":
-            spare = line - value if al.get("under") else value - line
-        else:
-            spare = value + line
+            return value - ln if al["over"] else ln - value
+        if al["type"] == "total":
+            return ln - value if al.get("under") else value - ln
+        return value + ln
+    spare = margin(line)
     return dict(line=line, live=live, hit=avisos.line_hits(al, line, value), now=avisos.sendable(al, el),
-                l95=lines.get("95"), l90=lines.get("90"), p=round(p, 1) if p is not None else None, spare=spare, sub=al.get("sub"))
+                l95=lines.get("95"), l90=lines.get("90"), p=round(p, 1) if p is not None else None, spare=spare, sub=al.get("sub"),
+                s95=margin(lines.get("95")), s90=margin(lines.get("90")))
 
 
 def _timing(row, e):
