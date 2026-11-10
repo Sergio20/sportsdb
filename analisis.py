@@ -625,7 +625,7 @@ def _rows(con, log, quiet=False):
 # tres líneas, a una cuota aproximada de la casa que dio Sergio (ODDS). En la página se pueden cambiar las dos cosas.
 # MIN_ODDS: la cuota a partir de la cual cada línea sale a cuenta si acierta lo prometido.
 # "82": línea rebajada (experimento del 9-11-2026); su cuota es una estimación entre la del 90 y la del 80, editable.
-STAKE, ODDS, MIN_ODDS = 500, {"95": 1.175, "90": 1.275, "82": 1.33, "80": 1.40}, {"95": 1.05, "90": 1.11, "82": 1.22, "80": 1.25}
+STAKE, ODDS, MIN_ODDS = 500, {"95": 1.12, "90": 1.17, "82": 1.29, "80": 1.32}, {"95": 1.05, "90": 1.11, "82": 1.22, "80": 1.25}
 
 
 def save_bank(con, sent):

@@ -63,13 +63,13 @@ const sgn = v => v > 0.005 ? 'pos' : v < -0.005 ? 'neg' : '';
 const KIND = { desfase: 'Desfase', ritmo: 'Ritmo insostenible', triples: 'Triples insostenibles', total: 'Total desfasado', cuarto: 'Cuarto anormal', racha: 'Racha de cuartos' };
 const COMP = { E: 'Euroliga', U: 'EuroCup', A: 'Liga Endesa' };
 const LINES = [['95', 'Línea del 95 %'], ['90', 'Línea del 90 %'], ['80', 'Línea del 80 %']];
-const CFG = D.bank_cfg || { stake: 500, odds: { 95: 1.175, 90: 1.275, 82: 1.33, 80: 1.4 }, min_odds: { 95: 1.05, 90: 1.11, 82: 1.22, 80: 1.25 } };
-if (CFG.odds[82] == null) CFG.odds[82] = 1.33;
+const CFG = D.bank_cfg || { stake: 500, odds: { 95: 1.12, 90: 1.17, 82: 1.29, 80: 1.32 }, min_odds: { 95: 1.05, 90: 1.11, 82: 1.22, 80: 1.25 } };
+if (CFG.odds[82] == null) CFG.odds[82] = 1.29;
 const ALL = (D.sent && D.sent.bank) || [];
 const QUIET = (D.sent && D.sent.quiet) || [];       // detectados pero no enviados: se llevan aparte
 const WHY = { partido: 'ya hubo otro aviso en el partido', regla: 'su regla no está entre las que se mandan' };
 let odds = Object.assign({}, CFG.odds), stake = CFG.stake;
-try { const o = JSON.parse(localStorage.getItem('banco-ajustes') || 'null'); if (o) { odds = Object.assign(odds, o.odds); stake = o.stake || stake; } } catch (e) { /* sin memoria del navegador */ }
+try { const o = JSON.parse(localStorage.getItem('banco-ajustes-2') || 'null'); if (o) { odds = Object.assign(odds, o.odds); stake = o.stake || stake; } } catch (e) { /* sin memoria del navegador */ }
 
 const isV2 = x => !!(x.rb && x.rb.live);
 const v2tr = x => isV2(x) ? '<tr class="v2">' : '<tr>';
@@ -324,7 +324,7 @@ function speedSummary() {
     ${k('Aviso → tu primer toque', med(react), `mediana de ${react.length} avisos valorados`)}</div>
     <div class="muted small">Si la casa ya ha movido la línea cuando llega el aviso, llegamos tarde: compáralo alguna vez con la tele o la app de la casa.</div></section>`;
 }
-function save() { try { localStorage.setItem('banco-ajustes', JSON.stringify({ odds, stake })); } catch (e) { /* sin memoria del navegador */ } }
+function save() { try { localStorage.setItem('banco-ajustes-2', JSON.stringify({ odds, stake })); } catch (e) { /* sin memoria del navegador */ } }
 
 // Gráfica de líneas: balance acumulado de cada cartera tras cada apuesta. Etiqueta directa al final de cada línea y cruz con detalle al pasar el ratón.
 function chart(run, done) {

@@ -73,7 +73,7 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   avisos en la plantilla en vivo, cambiarlos también en `analisis.py`.
 - Banco de pruebas (`pruebas.html`, plantilla `panel/pruebas_plantilla.html`; `analisis.save_bank` → tabla
   `banco_pruebas` de la base): cada aviso enviado por Telegram cuenta como apuesta simulada de 500 € (`STAKE`) en cada
-  una de sus tres líneas, a las cuotas aproximadas de la casa que dio Sergio (`ODDS`: 95 % 1,175 · 90 % 1,275 · 80 % 1,40);
+  una de sus tres líneas, a las cuotas aproximadas de la casa que dio Sergio (`ODDS`: 95 % 1,12 · 90 % 1,17 · rebajada 1,29 · 80 % 1,32 desde el 10-11-2026, más realistas según Sergio; antes 1,175 / 1,275 / 1,33 / 1,40. Rebajada y 80 en la misma proporción: cuota justa × 1,058);
   una cartera por línea; importe y cuotas editables en la página. Cada apuesta se escribe corta («Breogán hándicap +29,5»,
   «Manresa menos de 28,5 puntos», con el periodo encima). Es un
   simulacro: Sergio no apuesta con esto y nunca se publican sus apuestas reales. El vigilante anota `res`/`final` en
@@ -250,7 +250,7 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   `lines["82"]` y se resuelve como las demás. Motivo: la línea del 95 casi nunca aparece en la casa. Con lo registrado y
   las reglas que quedan habría acertado 41/45 (91 %), ~5 puntos por debajo de la del 95. En Telegram sale con su % real de
   la campana. En el banco de pruebas va aparte (`analisis._rb` → `row["rb"]`, `rebajaSummary`, color morado `--c82`):
-  «En directo» (avisos que la llevaron) frente a «Simulada» (la misma cuenta sobre avisos anteriores). Cuota supuesta 1,33.
+  «En directo» (avisos que la llevaron) frente a «Simulada» (la misma cuenta sobre avisos anteriores). Cuota supuesta 1,29 (antes 1,33).
   Lo que la casa ofreció en 8 avisos: entre 3 y 10 puntos más ajustado que nuestra del 90, y en 7 de 8 la cuota pedía más
   acierto del que dábamos (sin valor); acertaron 4 de 8. Por debajo del 75 % prometido la campana falla (57-64 % real).
   Revisar el experimento con 30-40 avisos en directo.
