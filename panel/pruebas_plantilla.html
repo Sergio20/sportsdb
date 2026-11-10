@@ -91,10 +91,12 @@ function render() {
   const done = ALL.filter(x => x.res), open = ALL.filter(x => !x.res);
   if (!ALL.length) { $('#view').innerHTML = '<div class="panel"><div class="empty">Todavía no hay avisos enviados por Telegram.</div></div>'; return; }
   // Totales por línea y balance acumulado apuesta a apuesta (en el orden en que saltaron los avisos)
-  const tot = {}, run = { 95: [0], 90: [0], 80: [0] };
+  const tot = {}, run = { 95: [0], 90: [0], 80: [0], 82: [0] };
   for (const [p] of LINES) tot[p] = { n: 0, ok: 0, bal: 0 };
   for (const x of done) for (const [p] of LINES) {
     const ok = !!x.res[p]; tot[p].n++; tot[p].ok += ok; tot[p].bal += gain(ok, p); run[p].push(tot[p].bal); }
+  // Curva de la línea rebajada (en directo o simulada) sobre los mismos avisos; sin rebajada calculable, no se apuesta
+  for (const x of done) { const r = x.rb && x.rb.hit != null; run[82].push(run[82][run[82].length - 1] + (r ? gain(x.rb.hit, 82) : 0)); }
   const promised = { 95: 95, 90: 90, 80: 80 };
   const kpis = LINES.map(([p, name]) => { const t = tot[p], pct = t.n ? 100 * t.ok / t.n : null, staked = t.n * stake;
     return `<div class="kpi"><div class="l"><span class="sw" style="background:var(--c${p})"></span>${name} · cuota ${odd(odds[p])}</div>
@@ -155,7 +157,7 @@ function render() {
     <div class="muted small">Una sola apuesta por partido y línea: la del primer aviso que saltó en él (en directo no se sabe si vendrán más).
       Los avisos de un mismo partido suelen ganar o perder juntos; esta cartera muestra el resultado sin ese efecto acumulado.</div></section>
   <section class="panel"><h2>Balance acumulado</h2>
-    <div class="legend">${LINES.map(([p, name]) => `<span><span class="sw" style="background:var(--c${p})"></span>${name}</span>`).join('')}</div>
+    <div class="legend">${LINES.map(([p, name]) => `<span><span class="sw" style="background:var(--c${p})"></span>${name}</span>`).join('')}<span><span class="sw" style="background:var(--c82)"></span>🧪 Línea rebajada (cuota ${odd(odds[82])})</span></div>
     ${done.length ? '<div class="chart" id="chart"></div>' : '<div class="empty">Aún no hay ninguna apuesta resuelta.</div>'}
     <div class="muted small">${done.length} apuestas resueltas${open.length ? ` y ${open.length} pendientes (se resuelven al acabar su partido o su cuarto)` : ''}. Eje horizontal: avisos en el orden en que saltaron.</div>
   </section>
@@ -229,21 +231,22 @@ function rbTable() {
   const mark = v => v == null ? '<span class="muted">·</span>' : `<b class="${v ? 'ok' : 'ko'}">${v ? '✓' : '✗'}</b>`;
   const rb = x => shortBet(Object.assign({}, x, { lines: { r: x.rb.line } }), 'r');
   // Margen frente a la línea rebajada (no la del 95 ni la del 90): en morado, con ✅ o ❌
-  const spare = x => x.rb.spare == null ? '' : `<span style="color:var(--c82);font-weight:600">rebajada: ${x.rb.spare > 0
-    ? `le sobraron ${nf(x.rb.spare, 1)} ✅` : `le faltaron ${nf(-x.rb.spare, 1)} ❌`}</span>`;
+  const mg = (v, c, name) => v == null ? '' : `<div style="color:var(--${c});font-weight:600">${name}: ${v > 0
+    ? `le sobraron ${nf(v, 1)} ✅` : `le faltaron ${nf(-v, 1)} ❌`}</div>`;
+  const spare = x => mg(x.rb.spare, 'c82', 'rebajada') + mg(x.rb.s95, 'c95', '95 %') + mg(x.rb.s90, 'c90', '90 %');
   const rows = xs.slice(0, rbMax).map(x => `${v2tr(x)}<td class="l">${esc(when(x.ts))}${v2tag(x)}</td>
     <td class="l w">${esc(x.home)} – ${esc(x.away)}<div class="muted small">${esc(COMP[x.comp] || x.comp)}</div></td>
     <td class="l">${esc(rbKind(x))}<div class="muted small">${x.type === 'cuarto' || x.type === 'racha' ? 'al acabar el minuto ' : 'minuto '}${nf(x.el)} · ${esc(x.score)} · ${esc(periodTxt(x).toLowerCase())}</div></td>
     <td class="l"><b style="color:var(--c82)">${esc(rb(x))}</b> ${mark(x.rb.hit)}<div class="muted small">prometía ${x.rb.p == null ? '–' : nf(x.rb.p, 0) + ' %'} · ${x.rb.live ? 'en directo' : 'simulada'}${x.why ? ' · callado' : ''}${x.rb.now ? '' : ' · regla apagada hoy'}</div></td>
-    <td class="l">${esc(shortBet(x, '95'))} ${mark(x.res && x.res['95'])}</td>
-    <td class="l">${esc(shortBet(x, '90'))} ${mark(x.res && x.res['90'])}</td>
+    <td class="l"><b style="color:var(--c95)">${esc(shortBet(x, '95'))}</b> ${mark(x.res && x.res['95'])}</td>
+    <td class="l"><b style="color:var(--c90)">${esc(shortBet(x, '90'))}</b> ${mark(x.res && x.res['90'])}</td>
     <td>${x.res ? esc(x.final || '') : '<span class="muted">pendiente</span>'}<div class="small">${spare(x)}</div></td></tr>`).join('');
   box.innerHTML = `<div class="kpis">
       <div class="kpi"><div class="l"><span class="sw" style="background:var(--c82)"></span>Rebajada en esta selección</div><div class="v">${d.length ? `${ok} de ${d.length}` : '–'}</div>
         <div class="s">${d.length ? `acierta ${nf(100 * ok / d.length, 0)} % · prometía de media ${nf(avgP, 0)} %` : 'sin apuestas resueltas'}${xs.length > d.length ? ` · ${xs.length - d.length} pendientes` : ''}</div></div>
       <div class="kpi"><div class="l"><span class="sw" style="background:var(--c95)"></span>Línea del 95, mismos avisos</div><div class="v">${d.length ? `${k95} de ${d.length}` : '–'}</div><div class="s">${d.length ? nf(100 * k95 / d.length, 0) + ' %' : ''}</div></div>
       <div class="kpi"><div class="l"><span class="sw" style="background:var(--c90)"></span>Línea del 90, mismos avisos</div><div class="v">${d.length ? `${k90} de ${d.length}` : '–'}</div><div class="s">${d.length ? nf(100 * k90 / d.length, 0) + ' %' : ''}</div></div></div>
-    ${xs.length ? `<div class="scroll"><table><thead><tr><th class="l">Cuándo</th><th class="l">Partido</th><th class="l">Aviso</th><th class="l">🔵 Rebajada</th><th class="l">Línea del 95</th><th class="l">Línea del 90</th><th>Final</th></tr></thead><tbody>${rows}</tbody></table></div>${xs.length > rbMax ? `<button class="seg" style="padding:6px 10px;cursor:pointer;margin-top:8px" id="rbMore">Ver ${Math.min(30, xs.length - rbMax)} más (quedan ${xs.length - rbMax})</button>` : ''}`
+    ${xs.length ? `<div class="scroll"><table><thead><tr><th class="l">Cuándo</th><th class="l">Partido</th><th class="l">Aviso</th><th class="l" style="color:var(--c82)">🔵 Rebajada</th><th class="l" style="color:var(--c95)">Línea del 95</th><th class="l" style="color:var(--c90)">Línea del 90</th><th>Final</th></tr></thead><tbody>${rows}</tbody></table></div>${xs.length > rbMax ? `<button class="seg" style="padding:6px 10px;cursor:pointer;margin-top:8px" id="rbMore">Ver ${Math.min(30, xs.length - rbMax)} más (quedan ${xs.length - rbMax})</button>` : ''}`
       : '<div class="empty">Ningún aviso con estos filtros.</div>'}
     <div class="muted small">«Final»: marcador final o, en los de cuarto, lo que pasó en el periodo apostado (puntos, o diferencia en los de hándicap). «Rebajada: le sobraron / le faltaron» (en morado): puntos de margen frente a la línea rebajada 🔵, con ✅ si se habría acertado y ❌ si no.</div>`;
   const more = document.getElementById('rbMore'); if (more) more.addEventListener('click', () => { rbMax += 30; rbTable(); });
@@ -323,7 +326,7 @@ function save() { try { localStorage.setItem('banco-ajustes', JSON.stringify({ o
 // Gráfica de líneas: balance acumulado de cada cartera tras cada apuesta. Etiqueta directa al final de cada línea y cruz con detalle al pasar el ratón.
 function chart(run, done) {
   const box = $('#chart'), W = Math.max(320, box.clientWidth), H = 300, m = { l: 56, r: 150, t: 12, b: 28 };
-  const n = done.length, all = [].concat(run[95], run[90], run[80]);
+  const n = done.length, all = [].concat(run[95], run[90], run[80], run[82]), SER = ['95', '90', '80', '82'], nm = p => p === '82' ? 'Rebajada' : p + ' %';
   let lo = Math.min(0, ...all), hi = Math.max(0, ...all); if (hi - lo < 10) { hi += 5; lo -= 5; }
   const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
   const x = i => m.l + (n ? i / n : 0) * (W - m.l - m.r), y = v => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
@@ -331,16 +334,16 @@ function chart(run, done) {
   const xt = []; const xs = Math.max(1, Math.ceil(n / 8)); for (let i = 0; i <= n; i += xs) xt.push(i);
   const path = p => run[p].map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ',' + y(v).toFixed(1)).join('');
   // Etiquetas finales sin solaparse: se ordenan por altura y se separan al menos 16 px
-  const ends = ['95', '90', '80'].map(p => ({ p, v: run[p][n], yy: y(run[p][n]) })).sort((a, b) => a.yy - b.yy);
+  const ends = SER.map(p => ({ p, v: run[p][n], yy: y(run[p][n]) })).sort((a, b) => a.yy - b.yy);
   for (let i = 1; i < ends.length; i++) if (ends[i].yy - ends[i - 1].yy < 16) ends[i].yy = ends[i - 1].yy + 16;
   box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Balance acumulado de cada línea tras cada apuesta simulada">
     <g class="grid">${ticks.map(v => `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}"></line>`).join('')}</g>
     <g class="axis">${ticks.map(v => `<text x="${m.l - 8}" y="${y(v) + 4}" text-anchor="end">${(v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v))} €</text>`).join('')}
       ${xt.map(i => `<text x="${x(i)}" y="${H - 8}" text-anchor="middle">${i}</text>`).join('')}</g>
     <line class="zero" x1="${m.l}" x2="${W - m.r}" y1="${y(0)}" y2="${y(0)}"></line>
-    ${['95', '90', '80'].map(p => `<path class="ser" d="${path(p)}" style="stroke:var(--c${p})"></path>`).join('')}
-    ${['95', '90', '80'].map(p => `<circle cx="${x(n)}" cy="${y(run[p][n])}" r="4" style="fill:var(--c${p});stroke:var(--surface);stroke-width:2"></circle>`).join('')}
-    ${ends.map(e => `<text class="lab" x="${x(n) + 10}" y="${e.yy + 4}">${e.p} %: ${eur(e.v)}</text>`).join('')}
+    ${SER.map(p => `<path class="ser" d="${path(p)}" style="stroke:var(--c${p})${p === '82' ? ';stroke-width:3' : ''}"></path>`).join('')}
+    ${SER.map(p => `<circle cx="${x(n)}" cy="${y(run[p][n])}" r="4" style="fill:var(--c${p});stroke:var(--surface);stroke-width:2"></circle>`).join('')}
+    ${ends.map(e => `<text class="lab" x="${x(n) + 10}" y="${e.yy + 4}">${nm(e.p)}: ${eur(e.v)}</text>`).join('')}
     <line class="xh" id="xh" y1="${m.t}" y2="${H - m.b}" x1="-10" x2="-10"></line>
     <rect x="${m.l}" y="0" width="${W - m.l - m.r}" height="${H}" fill="transparent" id="hit"></rect></svg><div class="tip" id="tip" hidden></div>`;
   const hit = $('#hit'), tip = $('#tip'), xh = $('#xh');
@@ -349,7 +352,8 @@ function chart(run, done) {
     const i = Math.max(1, Math.min(n, Math.round((px - m.l) / (W - m.l - m.r) * n))), b = done[i - 1];
     xh.setAttribute('x1', x(i)); xh.setAttribute('x2', x(i));
     tip.innerHTML = `<div class="h">Apuesta ${i} · ${esc(when(b.ts))}</div><div>${esc(b.home)} – ${esc(b.away)}</div><div class="muted">${esc(KIND[b.type] || b.type)} · ${esc(betTxt(b))}</div>
-      ${['95', '90', '80'].map(p => `<div><span class="sw" style="background:var(--c${p})"></span>${p} %: ${b.res[p] ? 'ganada' : 'perdida'} · acumulado <strong>${eur(run[p][i])}</strong></div>`).join('')}`;
+      ${SER.map(p => { const ok = p === '82' ? (b.rb ? b.rb.hit : null) : b.res[p];
+        return `<div><span class="sw" style="background:var(--c${p})"></span>${nm(p)}: ${ok == null ? 'sin línea' : ok ? 'ganada' : 'perdida'} · acumulado <strong>${eur(run[p][i])}</strong></div>`; }).join('')}`;
     tip.hidden = false;
     const left = x(i) * r.width / W; tip.style.left = Math.min(Math.max(0, left + 12), r.width - tip.offsetWidth) + 'px'; tip.style.top = '8px';
   };
