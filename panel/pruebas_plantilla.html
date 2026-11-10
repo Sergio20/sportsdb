@@ -62,7 +62,9 @@ const eur = v => (v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v), 2) + ' €
 const sgn = v => v > 0.005 ? 'pos' : v < -0.005 ? 'neg' : '';
 const KIND = { desfase: 'Desfase', ritmo: 'Ritmo insostenible', triples: 'Triples insostenibles', total: 'Total desfasado', cuarto: 'Cuarto anormal', racha: 'Racha de cuartos' };
 const COMP = { E: 'Euroliga', U: 'EuroCup', A: 'Liga Endesa' };
-const LINES = [['95', 'Línea del 95 %'], ['90', 'Línea del 90 %'], ['85', 'Línea del 85 %']];
+// Las cuatro líneas del banco, siempre en este orden y con su color: 95 azul, 90 naranja, 85 verde, rebajada morado
+const LINES = [['95', 'Línea del 95 %'], ['90', 'Línea del 90 %'], ['85', 'Línea del 85 %'], ['82', '🧪 Línea rebajada']];
+const LN = p => p === '82' ? 'Rebajada' : p + ' %';
 const CFG = D.bank_cfg || { stake: 500, odds: { 95: 1.12, 90: 1.17, 85: 1.24, 82: 1.29 }, min_odds: { 95: 1.05, 90: 1.11, 85: 1.18, 82: 1.22 } };
 if (CFG.odds[82] == null) CFG.odds[82] = 1.29;
 if (CFG.odds[85] == null) CFG.odds[85] = 1.24;
@@ -89,6 +91,8 @@ const periodTxt = x => { const per = (x.mk || {}).period || 'el partido'; return
 const betTxt = x => shortBet(x, '85') + ' · ' + periodTxt(x).toLowerCase();
 const odd = v => nf(v, Math.round(v * 1000) % 10 ? 3 : 2);
 const gain = (ok, p) => ok ? stake * (odds[p] - 1) : -stake;
+const has = (x, p) => !!x.res && x.res[p] != null;     // la línea existe y está resuelta (si no, no se apuesta)
+const gx = (x, p) => has(x, p) ? gain(x.res[p], p) : 0;
 
 function render() {
   const done = ALL.filter(x => x.res), open = ALL.filter(x => !x.res);
@@ -97,10 +101,8 @@ function render() {
   const tot = {}, run = { 95: [0], 90: [0], 85: [0], 82: [0] };
   for (const [p] of LINES) tot[p] = { n: 0, ok: 0, bal: 0 };
   for (const x of done) for (const [p] of LINES) {
-    const ok = !!x.res[p]; tot[p].n++; tot[p].ok += ok; tot[p].bal += gain(ok, p); run[p].push(tot[p].bal); }
-  // Curva de la línea rebajada (en directo o simulada) sobre los mismos avisos; sin rebajada calculable, no se apuesta
-  for (const x of done) { const r = x.rb && x.rb.hit != null; run[82].push(run[82][run[82].length - 1] + (r ? gain(x.rb.hit, 82) : 0)); }
-  const promised = { 95: 95, 90: 90, 85: 85 };
+    if (has(x, p)) { const ok = !!x.res[p]; tot[p].n++; tot[p].ok += ok; tot[p].bal += gain(ok, p); } run[p].push(tot[p].bal); }
+  const promised = { 95: '95', 90: '90', 85: '85', 82: '≈82' };
   const kpis = LINES.map(([p, name]) => { const t = tot[p], pct = t.n ? 100 * t.ok / t.n : null, staked = t.n * stake;
     return `<div class="kpi"><div class="l"><span class="sw" style="background:var(--c${p})"></span>${name} · cuota ${odd(odds[p])}</div>
       <div class="v ${sgn(t.bal)}">${t.n ? eur(t.bal) : '–'}</div>
@@ -110,29 +112,27 @@ function render() {
   // más). Varios avisos del mismo partido suelen ganar o perder juntos; así se ve cuánto pesa eso.
   const seen = new Set(), firsts = ALL.filter(x => { const k = x.comp + '|' + x.home + '|' + x.away + '|' + x.ts.slice(0, 10);
     if (seen.has(k)) return false; seen.add(k); return true; }).filter(x => x.res);
-  const capKpis = LINES.map(([p, name]) => { const ok = firsts.filter(x => x.res[p]).length, n = firsts.length,
-      bal = firsts.reduce((s, x) => s + gain(!!x.res[p], p), 0);
+  const capKpis = LINES.map(([p, name]) => { const fx = firsts.filter(x => has(x, p)), ok = fx.filter(x => x.res[p]).length, n = fx.length,
+      bal = fx.reduce((s, x) => s + gx(x, p), 0);
     return `<div class="kpi"><div class="l"><span class="sw" style="background:var(--c${p})"></span>${name}</div>
       <div class="v ${sgn(bal)}">${n ? eur(bal) : '–'}</div><div class="s">${n ? `${ok} de ${n} partidos ganados (${nf(100 * ok / n, 0)} %)` : 'sin partidos resueltos'}</div></div>`; }).join('');
 
   // Por tipo de aviso
   const types = [...new Set(done.map(x => x.type))];
   const byType = types.map(k => { const xs = done.filter(x => x.type === k);
-    return `<tr><td class="l">${esc(KIND[k] || k)}</td><td>${xs.length}</td>${LINES.map(([p]) => { const ok = xs.filter(x => x.res[p]).length, b = xs.reduce((s, x) => s + gain(!!x.res[p], p), 0);
-      return `<td>${ok}/${xs.length}</td><td class="${sgn(b)}">${eur(b)}</td>`; }).join('')}</tr>`; }).join('');
+    return `<tr><td class="l">${esc(KIND[k] || k)}</td><td>${xs.length}</td>${LINES.map(([p]) => { const ys = xs.filter(x => has(x, p)), ok = ys.filter(x => x.res[p]).length, b = ys.reduce((s, x) => s + gx(x, p), 0);
+      return `<td style="color:var(--c${p})">${ok}/${ys.length}</td><td class="${sgn(b)}">${eur(b)}</td>`; }).join('')}</tr>`; }).join('');
 
   // Registro completo: lo más reciente arriba
   const rows = ALL.slice().reverse().map(x => {
-    const bets = `<div class="muted small">${esc(periodTxt(x))}</div>` + LINES.map(([p]) => `<div class="bet"><span class="sw" style="background:var(--c${p})"></span>${esc(shortBet(x, p))}${
-      x.res ? ` <b class="${x.res[p] ? 'ok' : 'ko'}">${x.res[p] ? '✓' : '✗'}</b>` : ''}</div>`).join('') + (x.rb && x.rb.live ?
-      `<div class="bet"><span class="sw" style="background:var(--c82)"></span>🧪 ${esc(shortBet(Object.assign({}, x, { lines: { r: x.rb.line } }), 'r'))}${
-      x.rb.hit == null ? '' : ` <b class="${x.rb.hit ? 'ok' : 'ko'}">${x.rb.hit ? '✓' : '✗'}</b>`}</div>` : '');
+    const bets = `<div class="muted small">${esc(periodTxt(x))}</div>` + LINES.map(([p]) => `<div class="bet" style="color:var(--c${p})"><span class="sw" style="background:var(--c${p})"></span>${esc(shortBet(x, p))}${
+      has(x, p) ? ` <b class="${x.res[p] ? 'ok' : 'ko'}">${x.res[p] ? '✓' : '✗'}</b>` : ''}</div>`).join('');
     // Lo que ofrecía la casa de Sergio cuando contestó al aviso en Telegram
     const casa = (x.casa || []).map(c => { if (c.none) return `<div class="small muted">Tu casa: no ofrecía nada parecido</div>`;
       const val = c.odds > 100 / c.p;
       return `<div class="small"><span class="${val ? 'ok' : 'ko'}">Tu casa: ${esc(c.line > 0 && x.hcap ? '+' : '')}${nf(c.line, 1)} a ${nf(c.odds, 2)} · acierta ${nf(c.p, 0)} %${c.implied ? ` (la casa cree ${nf(c.implied, 0)} %)` : ''} · ${val ? 'con valor' : 'sin valor'}</span>${
         c.hit == null ? '' : ` <b class="${c.hit ? 'ok' : 'ko'}">${c.hit ? '✓' : '✗'}</b>`}</div>`; }).join('');
-    const g = x.res ? LINES.reduce((s, [p]) => s + gain(!!x.res[p], p), 0) : null;
+    const g = x.res ? LINES.reduce((s, [p]) => s + gx(x, p), 0) : null;
     return `${v2tr(x)}<td class="l">${esc(when(x.ts))}${v2tag(x)}</td><td class="l w">${esc(x.home)} – ${esc(x.away)}<div class="muted small">${esc(COMP[x.comp] || x.comp)}</div></td>
       <td class="l">${esc(KIND[x.type] || x.type)}${x.level === 'fuerte' ? ' · fuerte' : ''}<div class="muted small">${(x.type === 'cuarto' || x.type === 'racha') ? 'al acabar el minuto ' + nf(x.el) : 'minuto ' + nf(x.el)} · ${esc(x.score)}</div></td>
       <td class="l w">${bets}${casa}</td><td>${x.res ? esc(x.final || '') : '<span class="muted">pendiente</span>'}</td><td class="${g == null ? '' : sgn(g)}">${g == null ? '–' : eur(g)}</td></tr>`; }).join('');
@@ -140,15 +140,13 @@ function render() {
   $('#view').innerHTML = `
   <section class="panel">
     <div class="muted">Prueba sin dinero. Cada aviso que el vigilante ha mandado por Telegram cuenta como si se hubiera apostado
-      <strong>${nf(stake)} €</strong> en cada una de sus tres líneas. Sale una cartera por línea, para ver cuál de las tres habría funcionado mejor.
+      <strong>${nf(stake)} €</strong> en cada una de sus cuatro líneas (95, 90, 85 y rebajada). Sale una cartera por línea, para ver cuál habría funcionado mejor.
       Los avisos falsos por fallos de la fuente (el 0-0 del 3 de octubre) no cuentan.
       Si un aviso pasa de moderado a fuerte, cuenta una sola vez, con las líneas del primer mensaje.</div>
-    <div class="small" style="margin-top:6px"><span class="v2tag" style="margin-left:0">v2</span> Las filas con fondo morado son avisos de la <strong>v2</strong> (desde el 9-11-2026): ya sin los tipos que acertaban menos del 85 % y con la línea 🔵 rebajada.</div>
+    <div class="small" style="margin-top:6px"><span class="v2tag" style="margin-left:0">v2</span> Las filas con fondo morado son avisos de la <strong>v2</strong> (desde el 9-11-2026): ya sin los tipos que acertaban menos del 85 % y con la línea rebajada (morada).</div>
     <div class="odds"><label><span class="strong">Importe por apuesta:</span><input type="number" step="10" min="1" inputmode="decimal" id="stake" value="${stake}"> €</label>
-      <span class="strong">Cuota supuesta:</span>${LINES.map(([p, name]) => `<label><span class="sw" style="background:var(--c${p})"></span>${name.replace('Línea del ', '')}
+      <span class="strong">Cuota supuesta:</span>${LINES.map(([p, name]) => `<label><span class="sw" style="background:var(--c${p})"></span>${LN(p)}
       <input type="number" step="0.005" min="1.01" inputmode="decimal" data-p="${p}" value="${odds[p]}"></label>`).join('')}
-      <label><span class="sw" style="background:var(--c82)"></span>🧪 rebajada
-      <input type="number" step="0.005" min="1.01" inputmode="decimal" data-p="82" value="${odds[82]}"></label>
       <button class="seg" style="padding:6px 10px;cursor:pointer" id="reset">Volver a los valores por defecto</button></div>
     <div class="muted small">Por defecto: ${nf(CFG.stake)} € por apuesta y las cuotas aproximadas de la casa (${LINES.map(([p]) => odd(CFG.odds[p])).join(' / ')}). Lo que cambies aquí
       lo recuerda tu navegador. Como referencia, la cuota mínima para que cada línea salga a cuenta si acierta justo lo prometido es ${LINES.map(([p]) => odd(CFG.min_odds[p])).join(' / ')}.</div>
@@ -160,18 +158,18 @@ function render() {
     <div class="muted small">Una sola apuesta por partido y línea: la del primer aviso que saltó en él (en directo no se sabe si vendrán más).
       Los avisos de un mismo partido suelen ganar o perder juntos; esta cartera muestra el resultado sin ese efecto acumulado.</div></section>
   <section class="panel"><h2>Balance acumulado</h2>
-    <div class="legend">${LINES.map(([p, name]) => `<span><span class="sw" style="background:var(--c${p})"></span>${name}</span>`).join('')}<span><span class="sw" style="background:var(--c82)"></span>🧪 Línea rebajada (cuota ${odd(odds[82])})</span></div>
+    <div class="legend">${LINES.map(([p, name]) => `<span><span class="sw" style="background:var(--c${p})"></span>${name}</span>`).join('')}</div>
     ${done.length ? '<div class="chart" id="chart"></div>' : '<div class="empty">Aún no hay ninguna apuesta resuelta.</div>'}
     <div class="muted small">${done.length} apuestas resueltas${open.length ? ` y ${open.length} pendientes (se resuelven al acabar su partido o su cuarto)` : ''}. Eje horizontal: avisos en el orden en que saltaron.</div>
   </section>
-  ${types.length ? `<section class="panel"><h2>Por tipo de aviso</h2><div class="scroll"><table><thead><tr><th class="l">Aviso</th><th>Apuestas</th>${LINES.map(([p]) => `<th>${p} %: ganadas</th><th>${p} %: balance</th>`).join('')}</tr></thead><tbody>${byType}</tbody></table></div></section>` : ''}
+  ${types.length ? `<section class="panel"><h2>Por tipo de aviso</h2><div class="scroll"><table><thead><tr><th class="l">Aviso</th><th>Apuestas</th>${LINES.map(([p]) => `<th style="color:var(--c${p})">${LN(p)}: ganadas</th><th style="color:var(--c${p})">balance</th>`).join('')}</tr></thead><tbody>${byType}</tbody></table></div></section>` : ''}
   ${casaSummary()}
   ${speedSummary()}
   <section class="panel"><h2>Registro de apuestas simuladas</h2>
     <div class="scroll"><table><thead><tr><th class="l">Cuándo</th><th class="l">Partido</th><th class="l">Aviso</th><th class="l">Apuesta</th><th>Final</th><th>Balance</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
-    <div class="muted small">Cada aviso son tres apuestas, una por línea: <span class="sw" style="background:var(--c95)"></span>95 % · <span class="sw" style="background:var(--c90)"></span>90 % · <span class="sw" style="background:var(--c85)"></span>85 % (antes 80 %, cambiada el 10-11-2026; calculada también sobre los avisos anteriores). ✓ ganada · ✗ perdida.
-      «Final»: marcador final o, en los de cuarto, el valor del periodo apostado (puntos, o diferencia en los de hándicap). «Balance»: lo que dejan las tres juntas.</div>
+    <div class="muted small">Cada aviso son cuatro apuestas, una por línea: <span class="sw" style="background:var(--c95)"></span>95 % · <span class="sw" style="background:var(--c90)"></span>90 % · <span class="sw" style="background:var(--c85)"></span>85 % (antes 80 %, cambiada el 10-11-2026) · <span class="sw" style="background:var(--c82)"></span>rebajada. La del 85 y la rebajada se calculan también sobre los avisos anteriores. ✓ ganada · ✗ perdida.
+      «Final»: marcador final o, en los de cuarto, el valor del periodo apostado (puntos, o diferencia en los de hándicap). «Balance»: lo que dejan las cuatro juntas.</div>
   </section>
   ${quietSummary()}`;
   if (done.length) chart(run, done);
@@ -199,7 +197,7 @@ function rebajaSummary() {
       <div class="s">${d.length ? `${eur(bal)} a cuota ${odd(odds[82])} · en los mismos avisos la del 95 acertó ${k95} y la del 90 ${k90} · de media ${nf(gap, 1)} puntos más ajustada que la del 95` : note}${
       xs.length > d.length ? ` · ${xs.length - d.length} pendientes` : ''}</div></div>`; };
   return `<section class="panel exp"><h2>🧪 Experimento: línea rebajada (desde el 9-11-2026)</h2>
-    <div class="muted">Cada aviso trae en Telegram una línea 🔵 más ajustada que la del 95, la que la casa sí suele ofrecer. Va aparte: no entra en las carteras de arriba.
+    <div class="muted">Cada aviso trae en Telegram una línea rebajada (morada), más ajustada que la del 95, la que la casa sí suele ofrecer. Arriba ya cuenta como cuarta cartera; aquí se separa lo que llegó en directo de lo simulado.
       Objetivo: que siga acertando el 85 % o más. Promete el 82 % (cuota mínima ${odd(CFG.min_odds[82] || 1.22)}); con lo registrado antes del 9-11 habría acertado alrededor del 90 %.</div>
     <div class="kpis">${card(live, 'En directo', 'aún no ha saltado ningún aviso con línea rebajada')}${card(sim, 'Simulada en avisos anteriores', 'sin avisos anteriores')}</div>
     <div class="muted small">«Simulada»: la misma línea calculada ahora sobre los avisos enviados antes del 9-11 cuya regla se sigue mandando hoy (no estaba en el mensaje).</div>
@@ -230,29 +228,30 @@ function rbTable() {
     && (!rbF.now || x.rb.now) && (!rbF.res || (rbF.res === 'open' ? x.rb.hit == null : rbF.res === 'ok' ? x.rb.hit === true : x.rb.hit === false)));
   const d = xs.filter(x => x.rb.hit != null), ok = d.filter(x => x.rb.hit).length;
   const prom = d.filter(x => x.rb.p != null), avgP = prom.length ? prom.reduce((s, x) => s + x.rb.p, 0) / prom.length : null;
-  const k95 = d.filter(x => x.res && x.res['95']).length, k90 = d.filter(x => x.res && x.res['90']).length;
+  const kOf = p => { const ys = xs.filter(x => has(x, p)); return [ys.filter(x => x.res[p]).length, ys.length]; };
   const mark = v => v == null ? '<span class="muted">·</span>' : `<b class="${v ? 'ok' : 'ko'}">${v ? '✓' : '✗'}</b>`;
   const rb = x => shortBet(Object.assign({}, x, { lines: { r: x.rb.line } }), 'r');
   // Margen frente a la línea rebajada (no la del 95 ni la del 90): en morado, con ✅ o ❌
   const mg = (v, c, name) => v == null ? '' : `<div style="color:var(--${c});font-weight:600">${name}: ${v > 0
     ? `le sobraron ${nf(v, 1)} ✅` : `le faltaron ${nf(-v, 1)} ❌`}</div>`;
-  const spare = x => mg(x.rb.spare, 'c82', 'rebajada') + mg(x.rb.s95, 'c95', '95 %') + mg(x.rb.s90, 'c90', '90 %');
-  // Una sola columna para el aviso (cuándo, partido, tipo) y las tres líneas una al lado de otra, sin salirse de la pantalla
+  const spare = x => mg(x.rb.s95, 'c95', '95 %') + mg(x.rb.s90, 'c90', '90 %') + mg(x.rb.s85, 'c85', '85 %') + mg(x.rb.spare, 'c82', 'rebajada');
+  // Una sola columna para el aviso (cuándo, partido, tipo) y las cuatro líneas una al lado de otra, sin salirse de la pantalla
   const rows = xs.slice(0, rbMax).map(x => `${v2tr(x)}<td class="l rbw"><b>${esc(x.home)} – ${esc(x.away)}</b>${v2tag(x)}
       <div class="muted small">${esc(when(x.ts))} · ${esc(COMP[x.comp] || x.comp)}</div>
       <div class="small">${esc(rbKind(x))} · ${x.type === 'cuarto' || x.type === 'racha' ? 'al acabar el minuto ' : 'minuto '}${nf(x.el)} · ${esc(x.score)} · ${esc(periodTxt(x).toLowerCase())}</div></td>
-    <td class="l rbw"><b style="color:var(--c82)">${esc(rb(x))}</b> ${mark(x.rb.hit)}<div class="muted small">prometía ${x.rb.p == null ? '–' : nf(x.rb.p, 0) + ' %'} · ${x.rb.live ? 'en directo' : 'simulada'}${x.why ? ' · callado' : ''}${x.rb.now ? '' : ' · regla apagada hoy'}</div></td>
     <td class="l rbw"><b style="color:var(--c95)">${esc(shortBet(x, '95'))}</b> ${mark(x.res && x.res['95'])}</td>
     <td class="l rbw"><b style="color:var(--c90)">${esc(shortBet(x, '90'))}</b> ${mark(x.res && x.res['90'])}</td>
+    <td class="l rbw"><b style="color:var(--c85)">${esc(shortBet(x, '85'))}</b> ${mark(x.res && x.res['85'])}</td>
+    <td class="l rbw"><b style="color:var(--c82)">${esc(rb(x))}</b> ${mark(x.rb.hit)}<div class="muted small">prometía ${x.rb.p == null ? '–' : nf(x.rb.p, 0) + ' %'} · ${x.rb.live ? 'en directo' : 'simulada'}${x.why ? ' · callado' : ''}${x.rb.now ? '' : ' · regla apagada hoy'}</div></td>
     <td>${x.res ? esc(x.final || '') : '<span class="muted">pendiente</span>'}<div class="small">${spare(x)}</div></td></tr>`).join('');
   box.innerHTML = `<div class="kpis">
-      <div class="kpi"><div class="l"><span class="sw" style="background:var(--c82)"></span>Rebajada en esta selección</div><div class="v">${d.length ? `${ok} de ${d.length}` : '–'}</div>
+      ${['95', '90', '85'].map(p => { const [k, n] = kOf(p); return `<div class="kpi"><div class="l"><span class="sw" style="background:var(--c${p})"></span>Línea del ${p}, mismos avisos</div><div class="v" style="color:var(--c${p})">${n ? `${k} de ${n}` : '–'}</div><div class="s">${n ? nf(100 * k / n, 0) + ' %' : ''}</div></div>`; }).join('')}
+      <div class="kpi"><div class="l"><span class="sw" style="background:var(--c82)"></span>Rebajada en esta selección</div><div class="v" style="color:var(--c82)">${d.length ? `${ok} de ${d.length}` : '–'}</div>
         <div class="s">${d.length ? `acierta ${nf(100 * ok / d.length, 0)} % · prometía de media ${nf(avgP, 0)} %` : 'sin apuestas resueltas'}${xs.length > d.length ? ` · ${xs.length - d.length} pendientes` : ''}</div></div>
-      <div class="kpi"><div class="l"><span class="sw" style="background:var(--c95)"></span>Línea del 95, mismos avisos</div><div class="v">${d.length ? `${k95} de ${d.length}` : '–'}</div><div class="s">${d.length ? nf(100 * k95 / d.length, 0) + ' %' : ''}</div></div>
-      <div class="kpi"><div class="l"><span class="sw" style="background:var(--c90)"></span>Línea del 90, mismos avisos</div><div class="v">${d.length ? `${k90} de ${d.length}` : '–'}</div><div class="s">${d.length ? nf(100 * k90 / d.length, 0) + ' %' : ''}</div></div></div>
-    ${xs.length ? `<div class="scroll"><table><thead><tr><th class="l">Aviso</th>${[['82', '🧪 Rebajada'], ['95', 'Línea del 95'], ['90', 'Línea del 90']].map(([p, t]) => `<th class="l" style="color:var(--c${p})"><span class="sw" style="background:var(--c${p})"></span>${t}</th>`).join('')}<th>Final</th></tr></thead><tbody>${rows}</tbody></table></div>${xs.length > rbMax ? `<button class="seg" style="padding:6px 10px;cursor:pointer;margin-top:8px" id="rbMore">Ver ${Math.min(30, xs.length - rbMax)} más (quedan ${xs.length - rbMax})</button>` : ''}`
+    </div>
+    ${xs.length ? `<div class="scroll"><table><thead><tr><th class="l">Aviso</th>${[['95', 'Línea del 95'], ['90', 'Línea del 90'], ['85', 'Línea del 85'], ['82', '🧪 Rebajada']].map(([p, t]) => `<th class="l" style="color:var(--c${p})"><span class="sw" style="background:var(--c${p})"></span>${t}</th>`).join('')}<th>Final</th></tr></thead><tbody>${rows}</tbody></table></div>${xs.length > rbMax ? `<button class="seg" style="padding:6px 10px;cursor:pointer;margin-top:8px" id="rbMore">Ver ${Math.min(30, xs.length - rbMax)} más (quedan ${xs.length - rbMax})</button>` : ''}`
       : '<div class="empty">Ningún aviso con estos filtros.</div>'}
-    <div class="muted small">«Final»: marcador final o, en los de cuarto, lo que pasó en el periodo apostado (puntos, o diferencia en los de hándicap). «Rebajada: le sobraron / le faltaron» (en morado): puntos de margen frente a la línea rebajada 🔵, con ✅ si se habría acertado y ❌ si no.</div>`;
+    <div class="muted small">«Final»: marcador final o, en los de cuarto, lo que pasó en el periodo apostado (puntos, o diferencia en los de hándicap). «Le sobraron / le faltaron»: puntos de margen frente a cada línea, en su color, con ✅ si se habría acertado y ❌ si no.</div>`;
   const more = document.getElementById('rbMore'); if (more) more.addEventListener('click', () => { rbMax += 30; rbTable(); });
 }
 // Avisos callados: el vigilante los detectó pero no los mandó (un solo aviso por partido, y solo las reglas que cumplen
@@ -262,22 +261,22 @@ function quietSummary() {
   const head = '<section class="panel"><h2>Avisos callados (detectados, no enviados)</h2>';
   if (!QUIET.length) return head + '<div class="muted">Aún no hay ninguno. Desde el 8 de octubre solo se manda un aviso por partido y solo de las reglas que cumplen lo prometido; el resto se guarda aquí, sin mezclarse con las apuestas de arriba.</div></section>';
   const done = QUIET.filter(x => x.res);
-  const kpis = LINES.map(([p, name]) => { const ok = done.filter(x => x.res[p]).length, n = done.length, bal = done.reduce((s, x) => s + gain(!!x.res[p], p), 0);
+  const kpis = LINES.map(([p, name]) => { const ds = done.filter(x => has(x, p)), ok = ds.filter(x => x.res[p]).length, n = ds.length, bal = ds.reduce((s, x) => s + gx(x, p), 0);
     return `<div class="kpi"><div class="l"><span class="sw" style="background:var(--c${p})"></span>${name}</div>
       <div class="v ${sgn(bal)}">${n ? eur(bal) : '–'}</div><div class="s">${n ? `${ok} de ${n} ganadas (${nf(100 * ok / n, 0)} %)` : 'sin resolver aún'}</div></div>`; }).join('');
   const groups = [...new Set(QUIET.map(x => x.type + '|' + x.why))];
   const table = groups.map(g => { const [t, w] = g.split('|'), xs = done.filter(x => x.type === t && x.why === w), all = QUIET.filter(x => x.type === t && x.why === w);
-    return `<tr><td class="l">${esc(KIND[t] || t)}</td><td class="l">${esc(WHY[w] || w)}</td><td>${all.length}</td>${LINES.map(([p]) => { const ok = xs.filter(x => x.res[p]).length;
-      return `<td>${xs.length ? `${ok}/${xs.length}` : '–'}</td>`; }).join('')}</tr>`; }).join('');
+    return `<tr><td class="l">${esc(KIND[t] || t)}</td><td class="l">${esc(WHY[w] || w)}</td><td>${all.length}</td>${LINES.map(([p]) => { const ys = xs.filter(x => has(x, p)), ok = ys.filter(x => x.res[p]).length;
+      return `<td style="color:var(--c${p})">${ys.length ? `${ok}/${ys.length}` : '–'}</td>`; }).join('')}</tr>`; }).join('');
   const reg = QUIET.slice().reverse().slice(0, 40).map(x => `${v2tr(x)}<td class="l">${esc(when(x.ts))}${v2tag(x)}</td><td class="l w">${esc(x.home)} – ${esc(x.away)}</td>
     <td class="l">${esc(KIND[x.type] || x.type)}<div class="muted small">minuto ${nf(x.el)} · ${esc(x.score)} · ${esc(WHY[x.why] || x.why)}</div></td>
-    <td class="l w"><div class="muted small">${esc(periodTxt(x))}</div>${LINES.map(([p]) => `<div class="bet"><span class="sw" style="background:var(--c${p})"></span>${esc(shortBet(x, p))}${
-      x.res ? ` <b class="${x.res[p] ? 'ok' : 'ko'}">${x.res[p] ? '✓' : '✗'}</b>` : ''}</div>`).join('')}</td>
+    <td class="l w"><div class="muted small">${esc(periodTxt(x))}</div>${LINES.map(([p]) => `<div class="bet" style="color:var(--c${p})"><span class="sw" style="background:var(--c${p})"></span>${esc(shortBet(x, p))}${
+      has(x, p) ? ` <b class="${x.res[p] ? 'ok' : 'ko'}">${x.res[p] ? '✓' : '✗'}</b>` : ''}</div>`).join('')}</td>
     <td>${x.res ? esc(x.final || '') : '<span class="muted">pendiente</span>'}</td></tr>`).join('');
   return head + `<div class="muted">Detectados pero NO enviados por Telegram. No cuentan en las carteras de arriba: aquí se ve, con las mismas cuotas, cómo habrían ido.
       Sirve para decidir si alguna regla de fuera merece volver o si el segundo aviso de un partido habría sido mejor que el primero.</div>
     <div class="kpis">${kpis}</div>
-    <div class="scroll"><table><thead><tr><th class="l">Aviso</th><th class="l">Por qué se calló</th><th>Detectados</th>${LINES.map(([p]) => `<th>${p} %: ganadas</th>`).join('')}</tr></thead><tbody>${table}</tbody></table></div>
+    <div class="scroll"><table><thead><tr><th class="l">Aviso</th><th class="l">Por qué se calló</th><th>Detectados</th>${LINES.map(([p]) => `<th style="color:var(--c${p})">${LN(p)}: ganadas</th>`).join('')}</tr></thead><tbody>${table}</tbody></table></div>
     <h3>Últimos callados</h3><div class="scroll"><table><thead><tr><th class="l">Cuándo</th><th class="l">Partido</th><th class="l">Aviso</th><th class="l">Apuesta</th><th>Final</th></tr></thead><tbody>${reg}</tbody></table></div></section>`;
 }
 // Lo que ofrece de verdad la casa de Sergio, anotado con los botones de Telegram («No aparece» → línea y cuota que ve).
@@ -330,7 +329,7 @@ function save() { try { localStorage.setItem('banco-ajustes-2', JSON.stringify({
 // Gráfica de líneas: balance acumulado de cada cartera tras cada apuesta. Etiqueta directa al final de cada línea y cruz con detalle al pasar el ratón.
 function chart(run, done) {
   const box = $('#chart'), W = Math.max(320, box.clientWidth), H = 300, m = { l: 56, r: 150, t: 12, b: 28 };
-  const n = done.length, all = [].concat(run[95], run[90], run[85], run[82]), SER = ['95', '90', '85', '82'], nm = p => p === '82' ? 'Rebajada' : p + ' %';
+  const SER = LINES.map(([p]) => p), n = done.length, all = [].concat(...SER.map(p => run[p])), nm = LN;
   let lo = Math.min(0, ...all), hi = Math.max(0, ...all); if (hi - lo < 10) { hi += 5; lo -= 5; }
   const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
   const x = i => m.l + (n ? i / n : 0) * (W - m.l - m.r), y = v => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
