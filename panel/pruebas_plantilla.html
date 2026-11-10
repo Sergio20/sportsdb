@@ -39,6 +39,8 @@ tr.v2 td:first-child { box-shadow: inset 4px 0 0 var(--c82) }
 .ok { color: var(--win); font-weight: 600 } .ko { color: var(--loss); font-weight: 600 }
 .bet { white-space: nowrap; line-height: 1.6 }
 td.l.w { white-space: normal; min-width: 150px }
+td.rbw { white-space: normal; min-width: 130px; vertical-align: top }
+#rbTable td:last-child { vertical-align: top; white-space: nowrap }
 </style>
 </head>
 <body>
@@ -234,19 +236,20 @@ function rbTable() {
   const mg = (v, c, name) => v == null ? '' : `<div style="color:var(--${c});font-weight:600">${name}: ${v > 0
     ? `le sobraron ${nf(v, 1)} ✅` : `le faltaron ${nf(-v, 1)} ❌`}</div>`;
   const spare = x => mg(x.rb.spare, 'c82', 'rebajada') + mg(x.rb.s95, 'c95', '95 %') + mg(x.rb.s90, 'c90', '90 %');
-  const rows = xs.slice(0, rbMax).map(x => `${v2tr(x)}<td class="l">${esc(when(x.ts))}${v2tag(x)}</td>
-    <td class="l w">${esc(x.home)} – ${esc(x.away)}<div class="muted small">${esc(COMP[x.comp] || x.comp)}</div></td>
-    <td class="l">${esc(rbKind(x))}<div class="muted small">${x.type === 'cuarto' || x.type === 'racha' ? 'al acabar el minuto ' : 'minuto '}${nf(x.el)} · ${esc(x.score)} · ${esc(periodTxt(x).toLowerCase())}</div></td>
-    <td class="l"><b style="color:var(--c82)">${esc(rb(x))}</b> ${mark(x.rb.hit)}<div class="muted small">prometía ${x.rb.p == null ? '–' : nf(x.rb.p, 0) + ' %'} · ${x.rb.live ? 'en directo' : 'simulada'}${x.why ? ' · callado' : ''}${x.rb.now ? '' : ' · regla apagada hoy'}</div></td>
-    <td class="l"><b style="color:var(--c95)">${esc(shortBet(x, '95'))}</b> ${mark(x.res && x.res['95'])}</td>
-    <td class="l"><b style="color:var(--c90)">${esc(shortBet(x, '90'))}</b> ${mark(x.res && x.res['90'])}</td>
+  // Una sola columna para el aviso (cuándo, partido, tipo) y las tres líneas una al lado de otra, sin salirse de la pantalla
+  const rows = xs.slice(0, rbMax).map(x => `${v2tr(x)}<td class="l rbw"><b>${esc(x.home)} – ${esc(x.away)}</b>${v2tag(x)}
+      <div class="muted small">${esc(when(x.ts))} · ${esc(COMP[x.comp] || x.comp)}</div>
+      <div class="small">${esc(rbKind(x))} · ${x.type === 'cuarto' || x.type === 'racha' ? 'al acabar el minuto ' : 'minuto '}${nf(x.el)} · ${esc(x.score)} · ${esc(periodTxt(x).toLowerCase())}</div></td>
+    <td class="l rbw"><b style="color:var(--c82)">${esc(rb(x))}</b> ${mark(x.rb.hit)}<div class="muted small">prometía ${x.rb.p == null ? '–' : nf(x.rb.p, 0) + ' %'} · ${x.rb.live ? 'en directo' : 'simulada'}${x.why ? ' · callado' : ''}${x.rb.now ? '' : ' · regla apagada hoy'}</div></td>
+    <td class="l rbw"><b style="color:var(--c95)">${esc(shortBet(x, '95'))}</b> ${mark(x.res && x.res['95'])}</td>
+    <td class="l rbw"><b style="color:var(--c90)">${esc(shortBet(x, '90'))}</b> ${mark(x.res && x.res['90'])}</td>
     <td>${x.res ? esc(x.final || '') : '<span class="muted">pendiente</span>'}<div class="small">${spare(x)}</div></td></tr>`).join('');
   box.innerHTML = `<div class="kpis">
       <div class="kpi"><div class="l"><span class="sw" style="background:var(--c82)"></span>Rebajada en esta selección</div><div class="v">${d.length ? `${ok} de ${d.length}` : '–'}</div>
         <div class="s">${d.length ? `acierta ${nf(100 * ok / d.length, 0)} % · prometía de media ${nf(avgP, 0)} %` : 'sin apuestas resueltas'}${xs.length > d.length ? ` · ${xs.length - d.length} pendientes` : ''}</div></div>
       <div class="kpi"><div class="l"><span class="sw" style="background:var(--c95)"></span>Línea del 95, mismos avisos</div><div class="v">${d.length ? `${k95} de ${d.length}` : '–'}</div><div class="s">${d.length ? nf(100 * k95 / d.length, 0) + ' %' : ''}</div></div>
       <div class="kpi"><div class="l"><span class="sw" style="background:var(--c90)"></span>Línea del 90, mismos avisos</div><div class="v">${d.length ? `${k90} de ${d.length}` : '–'}</div><div class="s">${d.length ? nf(100 * k90 / d.length, 0) + ' %' : ''}</div></div></div>
-    ${xs.length ? `<div class="scroll"><table><thead><tr><th class="l">Cuándo</th><th class="l">Partido</th><th class="l">Aviso</th><th class="l" style="color:var(--c82)">🔵 Rebajada</th><th class="l" style="color:var(--c95)">Línea del 95</th><th class="l" style="color:var(--c90)">Línea del 90</th><th>Final</th></tr></thead><tbody>${rows}</tbody></table></div>${xs.length > rbMax ? `<button class="seg" style="padding:6px 10px;cursor:pointer;margin-top:8px" id="rbMore">Ver ${Math.min(30, xs.length - rbMax)} más (quedan ${xs.length - rbMax})</button>` : ''}`
+    ${xs.length ? `<div class="scroll"><table><thead><tr><th class="l">Aviso</th>${[['82', '🧪 Rebajada'], ['95', 'Línea del 95'], ['90', 'Línea del 90']].map(([p, t]) => `<th class="l" style="color:var(--c${p})"><span class="sw" style="background:var(--c${p})"></span>${t}</th>`).join('')}<th>Final</th></tr></thead><tbody>${rows}</tbody></table></div>${xs.length > rbMax ? `<button class="seg" style="padding:6px 10px;cursor:pointer;margin-top:8px" id="rbMore">Ver ${Math.min(30, xs.length - rbMax)} más (quedan ${xs.length - rbMax})</button>` : ''}`
       : '<div class="empty">Ningún aviso con estos filtros.</div>'}
     <div class="muted small">«Final»: marcador final o, en los de cuarto, lo que pasó en el periodo apostado (puntos, o diferencia en los de hándicap). «Rebajada: le sobraron / le faltaron» (en morado): puntos de margen frente a la línea rebajada 🔵, con ✅ si se habría acertado y ❌ si no.</div>`;
   const more = document.getElementById('rbMore'); if (more) more.addEventListener('click', () => { rbMax += 30; rbTable(); });
