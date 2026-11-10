@@ -42,7 +42,7 @@ SEND_Q = {"tot_frio", "eq_frio", "tot_caliente"}     # fuera: racha, mitad_fria,
 # «Ritmo insostenible»: del 8-10 al 9-11-2026 solo desde el minuto 28 (en el histórico antiguo, antes del 28 la del 90
 # acertaba 87-89 %). Lo callado antes del 28 en ese tiempo acertó 35 de 38 (92 %; rebajada 87 %): vuelve desde el inicio.
 SEND_RITMO_MIN = 0
-SHOW = (95, 90, 82)     # líneas que se enseñan en Telegram: la del 80 % ya no (en directo acertaba 70 %); 82 = rebajada
+SHOW = (95, 90, 85, 82)  # líneas que se enseñan en Telegram: la del 80 % ya no (en directo acertaba 70 %); 85 desde el 10-11-2026; 82 = rebajada
 # Línea REBAJADA (experimento desde el 9-11-2026, idea de Sergio): la del 95 casi nunca aparece en la casa. Es el punto
 # del 82 % de la misma campana, al menos 1 punto más ajustada que la del 90. Con lo registrado del 3-10 al 8-11-2026 y
 # las reglas que quedan, habría acertado 41 de 45 enviados (91 %), unos 5 puntos por debajo de la del 95. Va aparte en el
@@ -299,7 +299,8 @@ def num(x, d=1):
 
 
 ORD = {1: "1.er", 2: "2.º", 3: "3.er", 4: "4.º"}
-ICON = {95: "🟢", 90: "🟡", 82: "🔵", 80: "🟠"}      # de más segura a más ajustada
+# Mismos colores que el banco de pruebas (10-11-2026): 95 azul, 90 naranja, 85 verde, rebajada morado
+ICON = {95: "🔵", 90: "🟠", 85: "🟢", 82: "🟣", 80: "⚪"}
 FACTS = {
     "eq_frio": "ese equipo anotó más en el cuarto siguiente", "eq_caliente": "ese equipo anotó menos en el cuarto siguiente",
     "tot_frio": "el cuarto siguiente tuvo más puntos", "tot_caliente": "el cuarto siguiente tuvo menos puntos",
@@ -369,10 +370,30 @@ def rebaja(al):
     return max(down_half(x), ln[90] + 1)
 
 
+def line_at(al, p):
+    """Línea del p % de la campana del aviso, redondeada a ,5 hacia el lado seguro. None si no hay campana."""
+    bell = _bell({"lines": {int(k): float(v) for k, v in al["lines"].items() if int(k) != REBAJA}})
+    if not bell:
+        return None
+    center, step = bell
+    x = center + step * NormalDist().inv_cdf(p / 100)
+    return up_half(x) if step > 0 else down_half(x)
+
+
 def with_rebaja(alerts):
-    """Añade a cada aviso su línea rebajada en lines[REBAJA] (se resuelve igual que las demás)."""
+    """Añade a cada aviso la línea del 85 % (lines[85], desde el 10-11-2026) y su línea rebajada en lines[REBAJA]
+    (se resuelven igual que las demás)."""
     for al in alerts:
         r = rebaja(al)
+        l85 = line_at(al, 85)
+        l90 = al["lines"].get(90, al["lines"].get("90"))
+        if l85 is not None and r is not None and l85 == r:      # que no salgan dos líneas iguales: la del 85, un punto más segura
+            safe = l85 + (1 if (l90 is not None and float(l90) > l85) else -1)
+            l85 = safe if l90 is None or safe != float(l90) else None
+        if l85 is not None and l90 is not None and l85 == float(l90):
+            l85 = None
+        if l85 is not None:
+            al["lines"][85] = l85
         if r is not None:
             al["lines"][REBAJA] = r
     return alerts
