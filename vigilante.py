@@ -70,6 +70,18 @@ def get(url, **params):
     return r.json() if r.status_code == 200 and r.text.strip() else None
 
 
+def purple_bold(text):
+    """Telegram no deja poner texto de color: la línea rebajada (🟣) va en NEGRITA para que se vea de un vistazo a cuál
+    apostar. Devuelve las marcas («entities») con posiciones en UTF-16, que es como las cuenta Telegram."""
+    out, pos = [], 0
+    for line in text.split("\n"):
+        n = len(line.encode("utf-16-le")) // 2
+        if line.startswith("🟣"):
+            out.append({"type": "bold", "offset": pos, "length": n})
+        pos += n + 1
+    return out
+
+
 def send(text, reply_to=None, buttons=None):
     """Manda un mensaje por Telegram y devuelve su número (o False). El token nunca se escribe en pantalla."""
     print("\n" + text + "\n", flush=True)
@@ -81,6 +93,9 @@ def send(text, reply_to=None, buttons=None):
         time.sleep(wait)
         try:
             body = {"chat_id": chat, "text": text, "disable_web_page_preview": True}
+            marks = purple_bold(text)
+            if marks:
+                body["entities"] = marks
             if reply_to:
                 body["reply_to_message_id"] = reply_to
             if buttons:

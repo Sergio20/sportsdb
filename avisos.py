@@ -582,7 +582,7 @@ def compact(al, home, away, shot=None):
         if p == REBAJA:             # su % real en la campana (al redondear a ,5 queda algo por encima del 82)
             q = round(min(prob_of_line({"lines": {k: v for k, v in al["lines"].items() if int(k) != REBAJA}},
                                                  float(al["lines"].get(REBAJA, al["lines"].get(str(REBAJA))))) or p, 89))
-            out.append(f"{ICON[p]} {label} · {q} % · cuota ≥ {num(100 / q, 2)} · 🧪 REBAJADA (experimento)")
+            out.append(f"{ICON[p]} {label} · {q} % · cuota ≥ {num(100 / q, 2)} · 🧪 REBAJADA 🟣")
             continue
         out.append(f"{ICON[p]} {label} · {p} % · cuota ≥ {num(100 / p, 2)}")
     # Sin «Otras» en el texto (Sergio, 9-11-2026): las demás líneas solo en los botones
@@ -593,5 +593,5 @@ def compact(al, home, away, shot=None):
 def result_lines(al, res, home, away):
     """Para el mensaje de resultado: cada línea con su marca y GANADA / PERDIDA."""
     labels = {p: label for p, label, _ in bet_of(al, home, away)["lines"]}
-    return [f"{ICON.get(int(k), '')} {'✅' if res[k] else '❌'} {labels[int(k)]} ({'🧪 rebajada' if int(k) == REBAJA else f'la del {int(k)} %'}): {'GANADA' if res[k] else 'PERDIDA'}"
+    return [f"{ICON.get(int(k), '')} {'✅' if res[k] else '❌'} {labels[int(k)]} ({'🧪 rebajada' if int(k) == REBAJA else f'la del {int(k)} %'}): {'GANADA' if res[k] else 'PERDIDA'}{' 🟣' if int(k) == REBAJA else ''}"
             for k in sorted(res, key=lambda k: -int(k)) if int(k) in SHOW]
