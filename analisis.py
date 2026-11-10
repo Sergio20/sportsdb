@@ -533,6 +533,14 @@ def _add85(row, al, value):
         hit = avisos.line_hits(al, line, value)
         if hit is not None:
             row["res"] = {**row["res"], "85": bool(hit)}
+    rb = row.get("rb")
+    if rb:                      # la rebajada como cuarta línea del banco (en directo o simulada) y el margen de la del 85
+        row["lines"]["82"] = rb["line"]
+        if row.get("res") and rb.get("hit") is not None:
+            row["res"] = {**row["res"], "82": bool(rb["hit"])}
+        if value is not None:
+            rb["s85"] = (value - line if al["over"] else line - value) if al["type"] == "cuarto" and al["market"] != "hcap" else \
+                (line - value if al.get("under") else value - line) if al["type"] == "total" else value + line
 
 
 def _timing(row, e):
