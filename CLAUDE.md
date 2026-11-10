@@ -120,6 +120,7 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
 - Tabla de líneas (`avisos.line_table`): la casa casi nunca ofrece justo nuestras líneas, así que cada aviso trae
   «SI LA CASA TE OFRECE OTRA LÍNEA»: probabilidad y cuota mínima de cada línea entre el 80 y el 97 %, sacadas de la
   misma campana que las tres líneas del aviso (con dos de ellas se recupera centro y anchura).
+- Desde el 10-11-2026 (Sergio) los avisos de Telegram traen CUATRO líneas con los colores del banco: 🔵 95 · 🟠 90 · 🟢 85 (`avisos.line_at`, va en `lines[85]`, un punto más segura si coincide con la rebajada; si coincide con la del 90 no sale) · 🟣 rebajada (`SHOW`, `ICON`).
 - Mensaje de Telegram corto (`avisos.compact`, ~10 líneas, para decidir en segundos): por qué, mercado y periodo, las tres
   líneas con su cuota mínima y los botones (desde el 9-11-2026 sin «Otras» en el texto: las demás líneas, solo en los botones). La explicación larga (`describe`) solo va a la web.
   Desde el 8-11-2026 (Sergio: «desde la calle no sé en qué te basas») lleva «🎯 ¿Por qué?» (`avisos.shooting_why`): para cada

@@ -528,6 +528,9 @@ def _add85(row, al, value):
     center, step = bell
     x = center + step * NormalDist().inv_cdf(0.85)
     line = avisos.up_half(x) if step > 0 else avisos.down_half(x)
+    sent85 = {str(k): v for k, v in al["lines"].items()}.get("85")
+    if sent85 is not None:      # desde el 10-11-2026 llega en el aviso: vale la que se mandó
+        line = float(sent85)
     row["lines"] = {**{str(k): v for k, v in row["lines"].items()}, "85": line}
     if row.get("res") and value is not None:
         hit = avisos.line_hits(al, line, value)

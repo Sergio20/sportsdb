@@ -670,7 +670,7 @@ def avisos_from_keyboard(msg):
         return None
     text = msg.get("text") or ""
     pcts = [int(x) for x in re.findall(r"· (\d+) % · cuota", text)]
-    vals = [float(x.replace(",", ".")) for x in re.findall(r"(?:🟢|🟡|🔵|🟠) .*?([+-]?\d+(?:,\d+)?) · \d+ %", text)]
+    vals = [float(x.replace(",", ".")) for x in re.findall(r"(?:🟢|🟡|🔵|🟠|🟣) .*?([+-]?\d+(?:,\d+)?) · \d+ %", text)]
     if len(pcts) != len(vals) or len(vals) < 2:
         return None
     hcap = "Hándicap" in text
@@ -772,12 +772,12 @@ def v2_step(log, save):
     if len(v2) < V2_META:
         return
     v2 = sorted(v2, key=lambda e: e["ts"])[:V2_META]
-    k = {p: sum(bool(e["res"].get(p)) for e in v2) for p in ("95", "90", str(avisos.REBAJA))}
+    k = {p: sum(bool(e["res"].get(p)) for e in v2) for p in ("95", "90", "85", str(avisos.REBAJA))}
     casa = sum(1 for e in v2 if e.get("casa"))
     send(f"🏁 HITO: {V2_META} AVISOS DE LA v2\nYa hay {V2_META} avisos con línea rebajada enviados y resueltos "
          f"(del {v2[0]['ts'][:10]} al {v2[-1]['ts'][:10]}). Toca revisarlos y decidir si pasamos a la v3.\n\n"
-         f"🔵 Rebajada: {k[str(avisos.REBAJA)]} de {V2_META} acertadas\n🟢 Línea del 95: {k['95']} de {V2_META}\n"
-         f"🟡 Línea del 90: {k['90']} de {V2_META}\nAvisos con la cuota de tu casa anotada: {casa}\n\n"
+         f"🔵 Línea del 95: {k['95']} de {V2_META} acertadas\n🟠 Línea del 90: {k['90']} de {V2_META}\n"
+         f"🟢 Línea del 85: {k['85']} de {V2_META}\n🟣 Rebajada: {k[str(avisos.REBAJA)]} de {V2_META}\nAvisos con la cuota de tu casa anotada: {casa}\n\n"
          f"Escríbele a Claude en el proyecto: «revisa los {V2_META} avisos de la v2».\nDetalle: https://sergio20.github.io/sportsdb/pruebas.html")
     with LOCK:
         log.append(dict(hito_v2=V2_META, ts=now().isoformat(timespec="seconds")))
