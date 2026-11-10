@@ -593,5 +593,5 @@ def compact(al, home, away, shot=None):
 def result_lines(al, res, home, away):
     """Para el mensaje de resultado: cada línea con su marca y GANADA / PERDIDA."""
     labels = {p: label for p, label, _ in bet_of(al, home, away)["lines"]}
-    return [f"{'✅' if res[k] else '❌'} {labels[int(k)]} ({'🧪 rebajada' if int(k) == REBAJA else f'la del {int(k)} %'}): {'GANADA' if res[k] else 'PERDIDA'}"
+    return [f"{ICON.get(int(k), '')} {'✅' if res[k] else '❌'} {labels[int(k)]} ({'🧪 rebajada' if int(k) == REBAJA else f'la del {int(k)} %'}): {'GANADA' if res[k] else 'PERDIDA'}"
             for k in sorted(res, key=lambda k: -int(k)) if int(k) in SHOW]
