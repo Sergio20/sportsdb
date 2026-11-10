@@ -6,6 +6,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+  repository_dispatch:
+    types: [publicar]   # la lanza el vigilante al acabar cada partido con aviso: solo rehace la web (banco de pruebas al día)
 
 permissions:
   contents: write
@@ -16,8 +18,8 @@ permissions:
 # van aparte y la más nueva sustituye a la anterior. El 5-10-2026 una publicación atascada en cola bloqueó la
 # actualización del día siguiente; ahora además la guardia (guardia.yml) desatasca y relanza.
 concurrency:
-  group: ${{ github.event_name == 'push' && 'sportsdb-web' || 'sportsdb-datos' }}
-  cancel-in-progress: ${{ github.event_name == 'push' }}
+  group: ${{ (github.event_name == 'push' || github.event_name == 'repository_dispatch') && 'sportsdb-web' || 'sportsdb-datos' }}
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'repository_dispatch' }}
 
 jobs:
   build:
@@ -49,7 +51,7 @@ jobs:
           if git fetch --depth=1 origin avisos; then git show FETCH_HEAD:avisos.json > data/avisos.json; fi
 
       - name: Actualizar datos
-        if: github.event_name != 'push'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           if ! python update_db.py; then
             echo "::warning::Alguna fuente ha fallado; se publica con los datos disponibles"
@@ -69,7 +71,7 @@ jobs:
           path: _site
 
       - name: Guardar la base de datos (rama data, un solo commit)
-        if: github.event_name != 'push'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           python scripts/check_db.py data/deportes.db --checkpoint
           tmp=$(mktemp -d)
@@ -84,7 +86,7 @@ jobs:
 
       # Aviso por Telegram en el momento: de esta base salen los porcentajes de los avisos
       - name: Avisar por Telegram si algo ha fallado
-        if: always() && github.event_name != 'push' && (failure() || env.fuente == 'fallo')
+        if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && (failure() || env.fuente == 'fallo')
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

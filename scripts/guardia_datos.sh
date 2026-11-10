@@ -49,7 +49,7 @@ if [ "$(date -u -d "$last" +%s)" -ge "$need" ]; then
   exit 0
 fi
 
-active=$(jq --argjson now "$now" '[.[] | select(.event != "push" and (.status == "in_progress" or
+active=$(jq --argjson now "$now" '[.[] | select(.event != "push" and .event != "repository_dispatch" and (.status == "in_progress" or
   ((.status == "queued" or .status == "waiting" or .status == "pending" or .status == "requested")
    and ($now - (.createdAt | fromdateiso8601)) <= 1800)))] | length' <<<"$runs")
 if [ "$active" -gt 0 ]; then

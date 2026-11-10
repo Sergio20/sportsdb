@@ -175,6 +175,11 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   con el partido muy roto (2024+): con 15+ de diferencia la línea del 90 acierta 85-87 % frente a 88-91 % con menos;
   diferencia pequeña y dentro del ruido (n≈180), no se cambia nada. Ojo: en el histórico las líneas «del 90» de cuarto
   aciertan 87-93 % según la regla, no exactamente 90.
+- Banco al día (10-11-2026, Sergio): al acabar cada partido con aviso, `vigilante.banco_step` (hilo aparte, marca `BANCO`) guarda
+  `avisos.json` en la rama `avisos` y pide la web con `repository_dispatch` «publicar» (`actualizar.yml` lo trata como un push:
+  solo rehace la web, cola `sportsdb-web`; la guardia y el botón no lo cuentan como actualización). Antes el banco solo se
+  rehacía con la actualización diaria o un push. En Telegram, desde ese día, la línea rebajada va en negrita y con 🟣 a los
+  dos lados (`purple_bold`; Telegram no tiene texto de color) y los resultados llevan el círculo de cada línea.
 - Partidos aplazados (`unstarted_step` en `vigilante.py`): si la ficha de acb.com dice aplazado (estado o fecha
   cambiada) manda «PARTIDO APLAZADO» por Telegram y deja de vigilarlo; si cualquier partido sigue sin empezar 40 min
   después de su hora (`LATE`) manda «¿PARTIDO APLAZADO?», lo revisa cada 3 min y avisa si arranca; a las 2 h 30
