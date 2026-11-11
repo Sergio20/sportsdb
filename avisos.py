@@ -107,7 +107,7 @@ def _z3(t, b):
 
 
 def _pct(m, a):
-    return f"{m}/{a} = {round(100 * m / a)} %"
+    return f"{m}/{a} = {round(100 * m / a)} %" if a else f"{m}/{a}"     # 0 intentos (p. ej. ningún tiro libre aún)
 
 
 def shooting_why(al, A, B, bA, bB, home, away):
@@ -571,7 +571,11 @@ def compact(al, home, away, shot=None):
     lab = lambda line: f"{b['team']} {fmt(line)}" if hcap else f"{b['way'].capitalize()} {num(line)}"  # noqa: E731
     out = [why, ""]
     if shot:                        # (A, B, bA, bB): de dónde sale lo que pasa, en dos o tres líneas
-        why_lines = shooting_why(al, *shot, home, away)
+        try:                        # es solo una explicación: si falla, el aviso sale igual (11-11-2026: 0 tiros libres
+            why_lines = shooting_why(al, *shot, home, away)     # dividía entre cero y dejó sin leer el Le Mans – Burgos)
+        except Exception as e:
+            print(f"  ¿Por qué?: {type(e).__name__}: {e}", flush=True)
+            why_lines = []
         out += why_lines + ([""] if why_lines else [])
     if al["type"] == "cuarto":      # el 8-11-2026 Sergio buscó el hándicap del partido entero y no el del 3.er cuarto
         out += [f"⚠️ APUESTA SOLO PARA {the_period(al).upper().replace('.ER', '.er')}, NO PARA EL PARTIDO ENTERO", f"En tu casa, búscala en el apartado «{period_of(al)}»", ""]
