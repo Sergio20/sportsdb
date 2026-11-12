@@ -147,7 +147,7 @@ function render() {
     // Lo que ofrecía la casa de Sergio cuando contestó al aviso en Telegram
     const casa = (x.casa || []).map(c => { if (c.none) return `<div class="small muted">Tu casa: no ofrecía nada parecido</div>`;
       const val = c.odds > 100 / c.p;
-      return `<div class="small">${c.hit == null ? '' : `<b class="${c.hit ? 'ok' : 'ko'}">${c.hit ? '✓' : '✗'}</b><span class="amt ${sgn(casaGain(c))}">${eur(casaGain(c))}</span> · `}<span class="${val ? 'ok' : 'ko'}">Tu casa: ${esc(c.line > 0 && x.hcap ? '+' : '')}${nf(c.line, 1)} a ${nf(c.odds, 2)} · acierta ${nf(c.p, 0)} %${c.implied ? ` (la casa cree ${nf(c.implied, 0)} %)` : ''} · ${val ? 'con valor' : 'sin valor'}</span></div>`; }).join('');
+      return `<div class="small">${c.hit == null ? '' : `<b class="${c.hit ? 'ok' : 'ko'}">${c.hit ? '✓' : '✗'}</b><span class="amt ${sgn(casaGain(c))}">${eur(casaGain(c))}</span> · `}<span class="${val ? 'ok' : 'ko'}">Tu casa: ${esc(c.line > 0 && x.hcap ? '+' : '')}${nf(c.line, 1)} a ${odd(c.odds)} · acierta ${nf(c.p, 0)} %${c.implied ? ` (la casa cree ${nf(c.implied, 0)} %)` : ''} · ${val ? 'con valor' : 'sin valor'}</span></div>`; }).join('');
     return `${v2tr(x)}<td class="l">${esc(when(x.ts))}${v2tag(x)}</td><td class="l w">${esc(x.home)} – ${esc(x.away)}<div class="muted small">${esc(COMP[x.comp] || x.comp)}</div></td>
       <td class="l">${esc(KIND[x.type] || x.type)}${x.level === 'fuerte' ? ' · fuerte' : ''}<div class="muted small">${(x.type === 'cuarto' || x.type === 'racha') ? 'al acabar el minuto ' + nf(x.el) : 'minuto ' + nf(x.el)} · ${esc(x.score)}</div></td>
       <td class="l w">${bets}${casa}</td><td>${x.res ? esc(x.final || '') : '<span class="muted">pendiente</span>'}</td></tr>`; }).join('');
@@ -376,7 +376,7 @@ function chart(sel, run, done) {
     xh.setAttribute('x1', x(i)); xh.setAttribute('x2', x(i));
     tip.innerHTML = `<div class="h">Apuesta ${i} · ${esc(when(b.ts))}</div><div>${esc(b.home)} – ${esc(b.away)}</div><div class="muted">${esc(KIND[b.type] || b.type)} · ${esc(betTxt(b))}</div>
       ${SER.map(p => { const c = p === 'casa' ? casaPick(b) : null, ok = p === 'casa' ? (c ? c.hit : null) : has(b, p) ? b.res[p] : null;
-        return `<div><span class="sw" style="background:${COL(p)}"></span>${nm(p)}${c ? ` (${nf(c.line, 1)} a ${nf(c.odds, 2)})` : ''}: ${ok == null ? 'sin línea' : ok ? 'ganada' : 'perdida'} · acumulado <strong>${eur(run[p][i])}</strong></div>`; }).join('')}`;
+        return `<div><span class="sw" style="background:${COL(p)}"></span>${nm(p)}${c ? ` (${nf(c.line, 1)} a ${odd(c.odds)})` : ''}: ${ok == null ? 'sin línea' : ok ? 'ganada' : 'perdida'} · acumulado <strong>${eur(run[p][i])}</strong></div>`; }).join('')}`;
     tip.hidden = false;
     const left = x(i) * r.width / W; tip.style.left = Math.min(Math.max(0, left + 12), r.width - tip.offsetWidth) + 'px'; tip.style.top = '8px';
   };
