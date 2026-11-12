@@ -11,6 +11,8 @@
 /* Una serie por línea de seguridad: mismo orden y color en la gráfica, las fichas y la tabla. */
 :root { --c95: #2a78d6; --c90: #eb6834; --c80: #1baf7a; --c85: #1baf7a; --c82: #8b4fd8 }
 @media (prefers-color-scheme: dark) { :root { --c95: #3987e5; --c90: #d95926; --c80: #199e70; --c85: #199e70; --c82: #a175ea } }
+:root { --ccasa: var(--fg) }
+.amt { font-weight: 600; font-variant-numeric: tabular-nums; margin-left: 4px; display: inline-block; min-width: 4.6em }
 .exp { border: 2px dashed var(--c82) }
 /* v2 (desde el 9-11-2026): avisos con línea rebajada en directo, resaltados en todas las tablas */
 tr.v2 td { background: color-mix(in srgb, var(--c82) 12%, transparent) }
@@ -93,9 +95,24 @@ const odd = v => nf(v, Math.round(v * 1000) % 10 ? 3 : 2);
 const gain = (ok, p) => ok ? stake * (odds[p] - 1) : -stake;
 const has = (x, p) => !!x.res && x.res[p] != null;     // la línea existe y está resuelta (si no, no se apuesta)
 const gx = (x, p) => has(x, p) ? gain(x.res[p], p) : 0;
+// «Tu casa» (13-11-2026, Sergio): la línea que anotó de su casa a su cuota real, una apuesta por aviso (si anotó varias,
+// la de más valor). Sin línea anotada no hay apuesta. Es la quinta serie de las gráficas, en negro.
+const casaGain = c => c.hit == null ? null : c.hit ? stake * (c.odds - 1) : -stake;
+const casaPick = x => (x.casa || []).filter(c => c.line != null && c.odds && !c.none).sort((a, b) => (b.ev || 0) - (a.ev || 0))[0] || null;
+const SER5 = ['95', '90', '85', '82', 'casa'];
+const NM = p => p === 'casa' ? 'Tu casa' : LN(p);
+const COL = p => p === 'casa' ? 'var(--ccasa)' : `var(--c${p})`;
+// Balance acumulado de un grupo de avisos resueltos, para las cinco series
+function runOf(xs) {
+  const run = {}, acc = {}, n = {}, ok = {}; for (const p of SER5) { run[p] = [0]; acc[p] = 0; n[p] = 0; ok[p] = 0; }
+  for (const x of xs) { for (const [p] of LINES) { if (has(x, p)) { acc[p] += gain(!!x.res[p], p); n[p]++; ok[p] += !!x.res[p]; } run[p].push(acc[p]); }
+    const c = casaPick(x), g = c ? casaGain(c) : null; if (g != null) { acc.casa += g; n.casa++; ok.casa += !!c.hit; } run.casa.push(acc.casa); }
+  return { run, n, ok };
+}
 
 function render() {
   const done = ALL.filter(x => x.res), open = ALL.filter(x => !x.res);
+  const d1 = done.filter(x => !isV2(x)), d2 = done.filter(isV2);
   if (!ALL.length) { $('#view').innerHTML = '<div class="panel"><div class="empty">Todavía no hay avisos enviados por Telegram.</div></div>'; return; }
   // Totales por línea y balance acumulado apuesta a apuesta (en el orden en que saltaron los avisos)
   const tot = {}, run = { 95: [0], 90: [0], 85: [0], 82: [0] };
@@ -125,17 +142,15 @@ function render() {
 
   // Registro completo: lo más reciente arriba
   const rows = ALL.slice().reverse().map(x => {
-    const bets = `<div class="muted small">${esc(periodTxt(x))}</div>` + LINES.map(([p]) => `<div class="bet" style="color:var(--c${p})"><span class="sw" style="background:var(--c${p})"></span>${esc(shortBet(x, p))}${
-      has(x, p) ? ` <b class="${x.res[p] ? 'ok' : 'ko'}">${x.res[p] ? '✓' : '✗'}</b>` : ''}</div>`).join('');
+    const bets = `<div class="muted small">${esc(periodTxt(x))}</div>` + LINES.map(([p]) => `<div class="bet" style="color:var(--c${p})"><span class="sw" style="background:var(--c${p})"></span>${
+      has(x, p) ? `<b class="${x.res[p] ? 'ok' : 'ko'}">${x.res[p] ? '✓' : '✗'}</b><span class="amt ${sgn(gx(x, p))}">${eur(gx(x, p))}</span> · ` : ''}${esc(shortBet(x, p))}</div>`).join('');
     // Lo que ofrecía la casa de Sergio cuando contestó al aviso en Telegram
     const casa = (x.casa || []).map(c => { if (c.none) return `<div class="small muted">Tu casa: no ofrecía nada parecido</div>`;
       const val = c.odds > 100 / c.p;
-      return `<div class="small"><span class="${val ? 'ok' : 'ko'}">Tu casa: ${esc(c.line > 0 && x.hcap ? '+' : '')}${nf(c.line, 1)} a ${nf(c.odds, 2)} · acierta ${nf(c.p, 0)} %${c.implied ? ` (la casa cree ${nf(c.implied, 0)} %)` : ''} · ${val ? 'con valor' : 'sin valor'}</span>${
-        c.hit == null ? '' : ` <b class="${c.hit ? 'ok' : 'ko'}">${c.hit ? '✓' : '✗'}</b>`}</div>`; }).join('');
-    const g = x.res ? LINES.reduce((s, [p]) => s + gx(x, p), 0) : null;
+      return `<div class="small">${c.hit == null ? '' : `<b class="${c.hit ? 'ok' : 'ko'}">${c.hit ? '✓' : '✗'}</b><span class="amt ${sgn(casaGain(c))}">${eur(casaGain(c))}</span> · `}<span class="${val ? 'ok' : 'ko'}">Tu casa: ${esc(c.line > 0 && x.hcap ? '+' : '')}${nf(c.line, 1)} a ${nf(c.odds, 2)} · acierta ${nf(c.p, 0)} %${c.implied ? ` (la casa cree ${nf(c.implied, 0)} %)` : ''} · ${val ? 'con valor' : 'sin valor'}</span></div>`; }).join('');
     return `${v2tr(x)}<td class="l">${esc(when(x.ts))}${v2tag(x)}</td><td class="l w">${esc(x.home)} – ${esc(x.away)}<div class="muted small">${esc(COMP[x.comp] || x.comp)}</div></td>
       <td class="l">${esc(KIND[x.type] || x.type)}${x.level === 'fuerte' ? ' · fuerte' : ''}<div class="muted small">${(x.type === 'cuarto' || x.type === 'racha') ? 'al acabar el minuto ' + nf(x.el) : 'minuto ' + nf(x.el)} · ${esc(x.score)}</div></td>
-      <td class="l w">${bets}${casa}</td><td>${x.res ? esc(x.final || '') : '<span class="muted">pendiente</span>'}</td><td class="${g == null ? '' : sgn(g)}">${g == null ? '–' : eur(g)}</td></tr>`; }).join('');
+      <td class="l w">${bets}${casa}</td><td>${x.res ? esc(x.final || '') : '<span class="muted">pendiente</span>'}</td></tr>`; }).join('');
 
   $('#view').innerHTML = `
   <section class="panel">
@@ -157,22 +172,27 @@ function render() {
     <div class="kpis">${capKpis}</div>
     <div class="muted small">Una sola apuesta por partido y línea: la del primer aviso que saltó en él (en directo no se sabe si vendrán más).
       Los avisos de un mismo partido suelen ganar o perder juntos; esta cartera muestra el resultado sin ese efecto acumulado.</div></section>
-  <section class="panel"><h2>Balance acumulado</h2>
-    <div class="legend">${LINES.map(([p, name]) => `<span><span class="sw" style="background:var(--c${p})"></span>${name}</span>`).join('')}</div>
-    ${done.length ? '<div class="chart" id="chart"></div>' : '<div class="empty">Aún no hay ninguna apuesta resuelta.</div>'}
-    <div class="muted small">${done.length} apuestas resueltas${open.length ? ` y ${open.length} pendientes (se resuelven al acabar su partido o su cuarto)` : ''}. Eje horizontal: avisos en el orden en que saltaron.</div>
+  <section class="panel"><h2>Balance acumulado: v1 y v2 por separado</h2>
+    <div class="legend">${SER5.map(p => `<span><span class="sw" style="background:${COL(p)}"></span>${p === 'casa' ? 'Tu casa: la línea que anotaste, a su cuota real' : LINES.find(l => l[0] === p)[1] + ' · cuota supuesta ' + odd(odds[p])}</span>`).join('')}</div>
+    ${[['v1', 'v1 · avisos hasta el 9-11-2026', d1], ['v2', 'v2 · avisos afinados, desde el 9-11-2026', d2]].map(([k, t, xs]) => { const r = runOf(xs);
+      return `<h3 style="margin:18px 0 6px">${t}</h3>${xs.length ? `<div class="chart" id="chart-${k}"></div>
+      <div class="scroll"><table><thead><tr><th class="l">Cartera</th><th>Apuestas</th><th>Ganadas</th><th>Balance</th></tr></thead><tbody>${SER5.map(p => `<tr><td class="l" style="color:${COL(p)}"><span class="sw" style="background:${COL(p)}"></span>${NM(p)}</td><td>${r.n[p]}</td><td>${r.n[p] ? `${r.ok[p]} (${nf(100 * r.ok[p] / r.n[p], 0)} %)` : '–'}</td><td class="${r.n[p] ? sgn(r.run[p][xs.length]) : ''}">${r.n[p] ? eur(r.run[p][xs.length]) : '–'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Aún no hay ninguna apuesta resuelta.</div>'}`; }).join('')}
+    <div class="muted small">${done.length} avisos resueltos${open.length ? ` y ${open.length} pendientes` : ''}. Eje horizontal: avisos en el orden en que saltaron. Las cuatro líneas de color usan la cuota supuesta de arriba.
+      La línea negra «Tu casa» es la única con cuotas reales: en cada aviso, la línea que anotaste de tu casa (si anotaste varias, la de más valor), con ${nf(stake)} €; en los avisos en que no anotaste ninguna no apuesta y la línea sigue plana.
+      Si la negra baja mientras las de color suben, lo que ofrece la casa está más ajustado de lo que nuestras líneas aguantan.</div>
   </section>
   ${types.length ? `<section class="panel"><h2>Por tipo de aviso</h2><div class="scroll"><table><thead><tr><th class="l">Aviso</th><th>Apuestas</th>${LINES.map(([p]) => `<th style="color:var(--c${p})">${LN(p)}: ganadas</th><th style="color:var(--c${p})">balance</th>`).join('')}</tr></thead><tbody>${byType}</tbody></table></div></section>` : ''}
   ${casaSummary()}
   ${speedSummary()}
   <section class="panel"><h2>Registro de apuestas simuladas</h2>
-    <div class="scroll"><table><thead><tr><th class="l">Cuándo</th><th class="l">Partido</th><th class="l">Aviso</th><th class="l">Apuesta</th><th>Final</th><th>Balance</th></tr></thead>
+    <div class="scroll"><table><thead><tr><th class="l">Cuándo</th><th class="l">Partido</th><th class="l">Aviso</th><th class="l">Apuesta y lo que deja cada línea</th><th>Final</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
     <div class="muted small">Cada aviso son cuatro apuestas, una por línea: <span class="sw" style="background:var(--c95)"></span>95 % · <span class="sw" style="background:var(--c90)"></span>90 % · <span class="sw" style="background:var(--c85)"></span>85 % (antes 80 %, cambiada el 10-11-2026) · <span class="sw" style="background:var(--c82)"></span>rebajada. La del 85 y la rebajada se calculan también sobre los avisos anteriores. ✓ ganada · ✗ perdida.
-      «Final»: marcador final o, en los de cuarto, el valor del periodo apostado (puntos, o diferencia en los de hándicap). «Balance»: lo que dejan las cuatro juntas.</div>
+      «Final»: marcador final o, en los de cuarto, el valor del periodo apostado (puntos, o diferencia en los de hándicap). Al lado de cada línea, lo que habría ganado o perdido ella sola con ${nf(stake)} € a su cuota supuesta; en «Tu casa», con la cuota real que anotaste.</div>
   </section>
   ${quietSummary()}`;
-  if (done.length) chart(run, done);
+  if (d1.length) chart('#chart-v1', runOf(d1).run, d1);
+  if (d2.length) chart('#chart-v2', runOf(d2).run, d2);
   document.querySelectorAll('#rbF select').forEach(sel => { sel.value = rbF[sel.dataset.k] || '';
     if (sel.value !== (rbF[sel.dataset.k] || '')) sel.selectedIndex = 0;
     sel.addEventListener('change', () => { rbF[sel.dataset.k] = sel.value; rbMax = 30; try { localStorage.setItem('banco-rebajada', JSON.stringify(rbF)); } catch (e) { /* */ } rbTable(); }); });
@@ -327,9 +347,9 @@ function speedSummary() {
 function save() { try { localStorage.setItem('banco-ajustes-2', JSON.stringify({ odds, stake })); } catch (e) { /* sin memoria del navegador */ } }
 
 // Gráfica de líneas: balance acumulado de cada cartera tras cada apuesta. Etiqueta directa al final de cada línea y cruz con detalle al pasar el ratón.
-function chart(run, done) {
-  const box = $('#chart'), W = Math.max(320, box.clientWidth), H = 300, m = { l: 56, r: 150, t: 12, b: 28 };
-  const SER = LINES.map(([p]) => p), n = done.length, all = [].concat(...SER.map(p => run[p])), nm = LN;
+function chart(sel, run, done) {
+  const box = $(sel), W = Math.max(320, box.clientWidth), H = 300, m = { l: 56, r: 150, t: 12, b: 28 };
+  const SER = SER5, n = done.length, all = [].concat(...SER.map(p => run[p])), nm = NM;
   let lo = Math.min(0, ...all), hi = Math.max(0, ...all); if (hi - lo < 10) { hi += 5; lo -= 5; }
   const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
   const x = i => m.l + (n ? i / n : 0) * (W - m.l - m.r), y = v => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
@@ -344,19 +364,19 @@ function chart(run, done) {
     <g class="axis">${ticks.map(v => `<text x="${m.l - 8}" y="${y(v) + 4}" text-anchor="end">${(v > 0 ? '+' : v < 0 ? '−' : '') + nf(Math.abs(v))} €</text>`).join('')}
       ${xt.map(i => `<text x="${x(i)}" y="${H - 8}" text-anchor="middle">${i}</text>`).join('')}</g>
     <line class="zero" x1="${m.l}" x2="${W - m.r}" y1="${y(0)}" y2="${y(0)}"></line>
-    ${SER.map(p => `<path class="ser" d="${path(p)}" style="stroke:var(--c${p})${p === '82' ? ';stroke-width:3' : ''}"></path>`).join('')}
-    ${SER.map(p => `<circle cx="${x(n)}" cy="${y(run[p][n])}" r="4" style="fill:var(--c${p});stroke:var(--surface);stroke-width:2"></circle>`).join('')}
+    ${SER.map(p => `<path class="ser" d="${path(p)}" style="stroke:${COL(p)}${p === '82' ? ';stroke-width:3' : p === 'casa' ? ';stroke-width:3;stroke-dasharray:7 4' : ''}"></path>`).join('')}
+    ${SER.map(p => `<circle cx="${x(n)}" cy="${y(run[p][n])}" r="4" style="fill:${COL(p)};stroke:var(--surface);stroke-width:2"></circle>`).join('')}
     ${ends.map(e => `<text class="lab" x="${x(n) + 10}" y="${e.yy + 4}">${nm(e.p)}: ${eur(e.v)}</text>`).join('')}
-    <line class="xh" id="xh" y1="${m.t}" y2="${H - m.b}" x1="-10" x2="-10"></line>
-    <rect x="${m.l}" y="0" width="${W - m.l - m.r}" height="${H}" fill="transparent" id="hit"></rect></svg><div class="tip" id="tip" hidden></div>`;
-  const hit = $('#hit'), tip = $('#tip'), xh = $('#xh');
+    <line class="xh" y1="${m.t}" y2="${H - m.b}" x1="-10" x2="-10"></line>
+    <rect x="${m.l}" y="0" width="${W - m.l - m.r}" height="${H}" fill="transparent" class="hit"></rect></svg><div class="tip" hidden></div>`;
+  const hit = box.querySelector('.hit'), tip = box.querySelector('.tip'), xh = box.querySelector('.xh');
   const move = ev => {
     const r = box.querySelector('svg').getBoundingClientRect(), px = (ev.clientX - r.left) * W / r.width;
     const i = Math.max(1, Math.min(n, Math.round((px - m.l) / (W - m.l - m.r) * n))), b = done[i - 1];
     xh.setAttribute('x1', x(i)); xh.setAttribute('x2', x(i));
     tip.innerHTML = `<div class="h">Apuesta ${i} · ${esc(when(b.ts))}</div><div>${esc(b.home)} – ${esc(b.away)}</div><div class="muted">${esc(KIND[b.type] || b.type)} · ${esc(betTxt(b))}</div>
-      ${SER.map(p => { const ok = p === '82' ? (b.rb ? b.rb.hit : null) : b.res[p];
-        return `<div><span class="sw" style="background:var(--c${p})"></span>${nm(p)}: ${ok == null ? 'sin línea' : ok ? 'ganada' : 'perdida'} · acumulado <strong>${eur(run[p][i])}</strong></div>`; }).join('')}`;
+      ${SER.map(p => { const c = p === 'casa' ? casaPick(b) : null, ok = p === 'casa' ? (c ? c.hit : null) : has(b, p) ? b.res[p] : null;
+        return `<div><span class="sw" style="background:${COL(p)}"></span>${nm(p)}${c ? ` (${nf(c.line, 1)} a ${nf(c.odds, 2)})` : ''}: ${ok == null ? 'sin línea' : ok ? 'ganada' : 'perdida'} · acumulado <strong>${eur(run[p][i])}</strong></div>`; }).join('')}`;
     tip.hidden = false;
     const left = x(i) * r.width / W; tip.style.left = Math.min(Math.max(0, left + 12), r.width - tip.offsetWidth) + 'px'; tip.style.top = '8px';
   };
