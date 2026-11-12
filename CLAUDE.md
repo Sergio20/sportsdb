@@ -182,6 +182,10 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   solo rehace la web, cola `sportsdb-web`; la guardia y el botón no lo cuentan como actualización). Antes el banco solo se
   rehacía con la actualización diaria o un push. En Telegram, desde ese día, la línea rebajada va en negrita y con 🟣 a los
   dos lados (`purple_bold`; Telegram no tiene texto de color) y los resultados llevan el círculo de cada línea.
+- Banco, 13-11-2026 (Sergio): en el registro ya no hay columna «Balance» con la suma de las líneas; cada línea lleva delante
+  lo que deja ella sola (y «Tu casa», con su cuota real: `casaGain`). «Balance acumulado» son dos gráficas, v1 y v2 por
+  separado (`runOf`, `SER5`), con una quinta serie negra discontinua «Tu casa»: en cada aviso, la línea anotada de la casa
+  con más valor (`casaPick`), a su cuota real; sin anotación no apuesta. A 12-11: v1 9 apuestas 5 ganadas −1.292 €; v2 8, 5, −795 €.
 - Partidos aplazados (`unstarted_step` en `vigilante.py`): si la ficha de acb.com dice aplazado (estado o fecha
   cambiada) manda «PARTIDO APLAZADO» por Telegram y deja de vigilarlo; si cualquier partido sigue sin empezar 40 min
   después de su hora (`LATE`) manda «¿PARTIDO APLAZADO?», lo revisa cada 3 min y avisa si arranca; a las 2 h 30
