@@ -11,10 +11,13 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: "vigilar = partidos de hoy · prueba = mensaje de prueba · ensayo = repetir el ASVEL-Valencia del minuto 16"
+        description: "vigilar = partidos de hoy · prueba = mensaje de prueba · ensayo = repetir el ASVEL-Valencia del minuto 16 · resultado = reenviar un resultado"
         type: choice
-        options: [vigilar, prueba, ensayo]
+        options: [vigilar, prueba, ensayo, resultado]
         default: prueba
+      apuesta:
+        description: "Solo con modo resultado: número de la apuesta v2, o «ultima» (la última con línea de tu casa anotada)"
+        default: ultima
 
 permissions:
   contents: write
@@ -22,7 +25,7 @@ permissions:
 
 concurrency:
   # Las pruebas y ensayos van en su propia cola: no esperan a la cadena de tandas ni la interrumpen
-  group: ${{ (github.event.inputs.modo == 'prueba' || github.event.inputs.modo == 'ensayo') && 'vigilante-prueba' || 'vigilante' }}
+  group: ${{ (github.event.inputs.modo == 'prueba' || github.event.inputs.modo == 'ensayo' || github.event.inputs.modo == 'resultado') && 'vigilante-prueba' || 'vigilante' }}
   cancel-in-progress: false
 
 jobs:
@@ -56,6 +59,12 @@ jobs:
           git show FETCH_HEAD:deportes_db.zip > /tmp/deportes_db.zip
           unzip -o -q /tmp/deportes_db.zip -d data
           if git fetch --depth=1 origin avisos; then git show FETCH_HEAD:avisos.json > avisos.json; fi
+
+      - name: Reenviar como prueba el resultado de una apuesta
+        if: github.event.inputs.modo == 'resultado'
+        env:
+          APUESTA: ${{ github.event.inputs.apuesta }}
+        run: python vigilante.py --log avisos.json --resultado "$APUESTA"
 
       - name: Ensayo con un partido ya jugado
         if: github.event.inputs.modo == 'ensayo'

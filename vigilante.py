@@ -76,7 +76,7 @@ def purple_bold(text):
     out, pos = [], 0
     for line in text.split("\n"):
         n = len(line.encode("utf-16-le")) // 2
-        if line.startswith("🟣"):
+        if line.startswith(("🟣", "👤", "⚪ SIN REGISTRAR", "🚫 TU CASA")):      # y el bloque de la casa de Sergio
             out.append({"type": "bold", "offset": pos, "length": n})
         pos += n + 1
     return out
@@ -187,13 +187,7 @@ def quarter_step(g, st, base, rules, log, save):
             continue
         res, value = r
         e.update(closed=True, res={str(p): bool(ok) for p, ok in res.items()}, value=value)
-        what = "la 2.ª parte" if al["target"] == "mitad" else f"el {avisos.ORD[int(al['target'])]} cuarto"
-        team = g["home"] if al["side"] == 1 else g["away"] if al["side"] == -1 else None
-        got = ((f"{team} ganó {what} por {value}" if value > 0 else f"{team} perdió {what} por {-value}" if value < 0 else f"{team} empató {what}")
-               if al["market"] == "hcap" else f"{team} metió {value} puntos en {what}" if al["market"] == "equipo"
-               else f"hubo {value} puntos entre los dos en {what}")
-        send(bet_tag(e.get("num")) + f"🏁 RESULTADO · {avisos.name_of(al).upper()}\n{g['home']} – {g['away']}\n\nAPOSTABAS A\n{avisos.bet_of(al, g['home'], g['away'])['market']}"
-             + f"\n\nLO QUE PASÓ\n{got[0].upper() + got[1:]}.\n\n" + "\n".join(avisos.result_lines(al, e["res"], g["home"], g["away"])))
+        send(quarter_result(e, g["home"], g["away"]))
         save()
     for e in g["quiet"].values():                      # callados de cuarto: se resuelven igual, sin mensaje
         al = e["alert"]
@@ -249,6 +243,68 @@ def lat_of(g, st):
     return dict(read=round(time.time() - st.get("read_at", time.time()), 1), poll=round(g.get("every") or 0))
 
 
+def casa_rows(e):
+    """Las líneas de su casa que Sergio anotó en un aviso y siguen valiendo (vale la última respuesta: un «no aparece»
+    posterior anula las líneas de antes; mismo criterio que `analisis._casa`)."""
+    rows = [c for c in e.get("casa") or [] if not c.get("anulado")]
+    last_none = max((i for i, c in enumerate(rows) if c.get("none")), default=-1)
+    last_line = max((i for i, c in enumerate(rows) if c.get("line") is not None and c.get("odds")), default=-1)
+    return [] if last_none > last_line else [c for c in rows if c.get("line") is not None and c.get("odds")]
+
+
+def casa_result(e, al, value, home, away):
+    """Para el mensaje de resultado (13-11-2026, Sergio: «nunca me dices si con mi línea y mi cuota habría acertado»):
+    cada línea que anotó de su casa, GANADA o PERDIDA, y lo que habría dejado por cada 100 € a esa cuota."""
+    rows = casa_rows(e)
+    if value is None:
+        return []
+    out = ["", "👤 TU CASA DE APUESTAS"]
+    if not rows:        # no contestó al aviso, o contestó que no había nada parecido: que se vea que falta ese dato
+        none = any(c.get("none") and not c.get("anulado") for c in e.get("casa") or [])
+        return out + (["🚫 TU CASA NO OFRECÍA NADA PARECIDO (lo anotaste tú)."] if none
+                      else ["⚪ SIN REGISTRAR: no anotaste la línea ni la cuota de tu casa en este aviso."])
+    for c in rows:
+        ok, odds = avisos.line_hits(al, c["line"], value), c["odds"]
+        cuota = avisos.num(odds, 3 if round(odds * 1000) % 10 else 2)
+        out.append(f"{'✅' if ok else '❌'} {what_of(al, e, c['line'])} a {cuota}: {'GANADA' if ok else 'PERDIDA'}\n"
+                   + (f"Con 100 € habrías ganado {avisos.num(100 * (odds - 1), 2)} € (cobras {avisos.num(100 * odds, 2)} €)." if ok
+                      else "Con 100 € habrías perdido los 100 €."))
+    return out
+
+
+def quarter_result(e, home, away):
+    """Mensaje de resultado de un aviso de cuarto ya resuelto (`res` y `value` en el registro)."""
+    al, value = e["alert"], e["value"]
+    what = "la 2.ª parte" if al["target"] == "mitad" else f"el {avisos.ORD[int(al['target'])]} cuarto"
+    team = home if al["side"] == 1 else away if al["side"] == -1 else None
+    got = ((f"{team} ganó {what} por {value}" if value > 0 else f"{team} perdió {what} por {-value}" if value < 0 else f"{team} empató {what}")
+           if al["market"] == "hcap" else f"{team} metió {value} puntos en {what}" if al["market"] == "equipo"
+           else f"hubo {value} puntos entre los dos en {what}")
+    return (bet_tag(e.get("num")) + f"🏁 RESULTADO · {avisos.name_of(al).upper()}\n{home} – {away}\n\nAPOSTABAS A\n{avisos.bet_of(al, home, away)['market']}"
+            + f"\n\nLO QUE PASÓ\n{got[0].upper() + got[1:]}.\n\n" + "\n".join(avisos.result_lines(al, e["res"], home, away) + casa_result(e, al, value, home, away)))
+
+
+def resend_result(log_path, which):
+    """Vuelve a mandar por Telegram, como PRUEBA, el resultado de una apuesta ya resuelta del registro: su número
+    («11») o «ultima» = la última resuelta en la que Sergio anotó una línea de su casa. No cambia el registro."""
+    log = json.loads(Path(log_path).read_text(encoding="utf-8")) if Path(log_path).exists() else []
+    done = [e for e in log if "alert" in e and not e.get("callado") and e.get("res")]
+    if which.isdigit():
+        done = [e for e in done if e.get("num") == int(which) and str(avisos.REBAJA) in {str(k) for k in e["alert"]["lines"]}]
+    else:
+        done = [e for e in done if casa_rows(e)]
+    if not done:
+        send(f"🧪 PRUEBA: no encuentro en el registro una apuesta resuelta ({which}). Si el partido sigue en juego, aún no está guardada.")
+        return 1
+    e = done[-1]
+    if e["alert"]["type"] == "cuarto":
+        text = quarter_result(e, e["home"], e["away"])
+    else:
+        hs, as_ = (int(x) for x in e["final"].split("-"))
+        text = result_message(dict(home=e["home"], away=e["away"]), [e], hs, as_)
+    return 0 if send("🧪 PRUEBA · así llegará el resultado desde ahora\n\n" + text) else 1
+
+
 def result_message(g, entries, hs, as_):
     """Resultado, al acabar el partido, de cada aviso que saltó en él (los de cuarto se resuelven aparte)."""
     out = [f"🏁 RESULTADO FINAL\n{g['home']} {hs}-{as_} {g['away']}"]
@@ -263,6 +319,7 @@ def result_message(g, entries, hs, as_):
         out += ["", (f"🎟️ Apuesta N.º {e['num']} · " if e.get("num") else "") + f"{avisos.NAMES[al['type']].upper()} · aviso del minuto {e['el']:.0f} ({e['score']})",
                 "Apostabas a: " + avisos.bet_of(al, g["home"], g["away"])["market"], "Lo que pasó: " + got]
         out += avisos.result_lines(al, res, g["home"], g["away"])
+        out += casa_result(e, al, avisos.bet_value(al, hs, as_), g["home"], g["away"])
     return "\n".join(out)
 
 
@@ -1116,7 +1173,10 @@ def main():
     ap.add_argument("--horas", type=float, default=4.5)
     ap.add_argument("--prueba", action="store_true")
     ap.add_argument("--repetir", nargs=3, metavar=("TEMPORADA", "PARTIDO", "MINUTO"))
+    ap.add_argument("--resultado", metavar="N", help="reenvía como prueba el resultado de la apuesta N.º N (o «ultima»)")
     a = ap.parse_args()
+    if a.resultado:
+        return resend_result(a.log, a.resultado)
     if a.prueba:
         ok = send("✅ SportsDB: los avisos por Telegram funcionan. Aquí llegarán los avisos de los partidos en directo de Euroliga, EuroCup y Liga Endesa.")
         return 0 if ok else 1
