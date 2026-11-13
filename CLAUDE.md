@@ -186,6 +186,11 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   lo que deja ella sola (y «Tu casa», con su cuota real: `casaGain`). «Balance acumulado» son dos gráficas, v1 y v2 por
   separado (`runOf`, `SER5`), con una quinta serie negra discontinua «Tu casa»: en cada aviso, la línea anotada de la casa
   con más valor (`casaPick`), a su cuota real; sin anotación no apuesta. A 12-11: v1 9 apuestas 5 ganadas −1.292 €; v2 8, 5, −795 €.
+- Resultado con la línea de su casa (13-11-2026, Sergio: «nunca me dices si con mi línea y mi cuota habría acertado»): el
+  mensaje de resultado acaba con «👤 TU CASA DE APUESTAS» (`vigilante.casa_result`, en negrita): cada línea que anotó, GANADA o
+  PERDIDA, y lo que deja por cada 100 € a su cuota; si no contestó, «⚪ SIN REGISTRAR»; si dijo que no había nada, «🚫 TU CASA NO
+  OFRECÍA NADA PARECIDO». Reenviar un resultado como prueba: `vigilante.yml` con modo `resultado` y `apuesta` = número o
+  «ultima» (`python vigilante.py --resultado N`, `resend_result`; lee la rama `avisos`, no cambia nada).
 - Partidos aplazados (`unstarted_step` en `vigilante.py`): si la ficha de acb.com dice aplazado (estado o fecha
   cambiada) manda «PARTIDO APLAZADO» por Telegram y deja de vigilarlo; si cualquier partido sigue sin empezar 40 min
   después de su hora (`LATE`) manda «¿PARTIDO APLAZADO?», lo revisa cada 3 min y avisa si arranca; a las 2 h 30
