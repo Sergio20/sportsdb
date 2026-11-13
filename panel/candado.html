@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>SportsDB</title>
+<style>
+:root { color-scheme: light dark; }
+body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f9f9f7; color: #0b0b0b;
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+@media (prefers-color-scheme: dark) { body { background: #0d0d0d; color: #fff; } input { background: #1a1a19; color: #fff; } }
+form { width: min(360px, 100vw - 32px); display: grid; gap: 12px; }
+[hidden] { display: none !important; }
+h1 { font-size: 20px; margin: 0; }
+input, button { font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(127,127,127,.4); }
+button { background: #0b0b0b; color: #fff; border-color: #0b0b0b; cursor: pointer; }
+@media (prefers-color-scheme: dark) { button { background: #fff; color: #0b0b0b; } }
+label { font-size: 14px; display: flex; gap: 8px; align-items: center; }
+#msg { font-size: 14px; min-height: 20px; color: #d03b3b; }
+</style>
+</head>
+<body>
+<form id="form" hidden>
+  <h1>Portal privado</h1>
+  <p style="margin:0;font-size:14px;opacity:.75">La misma contraseña que tu panel de control.</p>
+  <input id="pass" type="password" placeholder="Contraseña" autocomplete="current-password" autofocus>
+  <label><input id="keep" type="checkbox" checked style="padding:0"> Recordar en este dispositivo (se bloquea tras 7 días sin usarlo)</label>
+  <button type="submit">Entrar</button>
+  <div id="msg"></div>
+</form>
+<script>
+const SALT = "__SALT__", ITERATIONS = __ITERATIONS__, DATA = "__DATA__", STORE = "portal-clave", USO = "portal-uso";
+// La llave recordada caduca si el dispositivo pasa este tiempo sin abrir el portal.
+const CADUCA_MS = 7 * 24 * 3600 * 1000;
+const bytes = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+const unhex = text => Uint8Array.from(text.match(/../g), h => parseInt(h, 16));
+
+async function derive(passphrase) {
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(passphrase), "PBKDF2", false, ["deriveBits"]);
+  return crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: bytes(SALT), iterations: ITERATIONS }, base, 256);
+}
+async function open(rawKey) {
+  const key = await crypto.subtle.importKey("raw", rawKey, "AES-GCM", false, ["decrypt"]);
+  const raw = bytes(DATA);
+  const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: raw.slice(0, 12) }, key, raw.slice(12));
+  window.__clave = rawKey;  // el portal la reutiliza para releer los datos tras guardar
+  mount(new TextDecoder().decode(plain));
+}
+function mount(html) {
+  const app = new DOMParser().parseFromString(html, "text/html");
+  document.head.innerHTML = app.head.innerHTML;
+  document.body.replaceChildren();
+  for (const node of [...app.body.childNodes]) {
+    if (node.nodeName !== "SCRIPT") { document.body.appendChild(document.importNode(node, true)); continue; }
+    const script = document.createElement("script");  // los scripts hay que recrearlos para que se ejecuten
+    for (const attr of node.attributes) script.setAttribute(attr.name, attr.value);
+    script.textContent = node.textContent;
+    document.body.appendChild(script);
+  }
+}
+(async () => {
+  if (document.readyState === "loading") await new Promise(done => document.addEventListener("DOMContentLoaded", done, { once: true }));
+  const saved = localStorage.getItem(STORE), ultimoUso = +localStorage.getItem(USO) || 0;
+  if (saved && Date.now() - ultimoUso < CADUCA_MS) {
+    try { localStorage.setItem(USO, Date.now()); return await open(unhex(saved)); } catch (e) {}
+  }
+  localStorage.removeItem(STORE); localStorage.removeItem(USO);  // caducada, no válida o de antes de haber caducidad
+  document.getElementById("form").hidden = false;
+})();
+document.getElementById("form").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const msg = document.getElementById("msg"), keep = document.getElementById("keep").checked;
+  msg.textContent = "Comprobando…";
+  try {
+    const key = await derive(document.getElementById("pass").value);
+    if (keep) { localStorage.setItem(STORE, hex(key)); localStorage.setItem(USO, Date.now()); }
+    try { await open(key); } catch (e) { localStorage.removeItem(STORE); throw e; }
+  } catch (e) { msg.textContent = "Contraseña incorrecta."; }
+});
+</script>
+</body>
+</html>

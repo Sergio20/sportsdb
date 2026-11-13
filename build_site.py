@@ -8,6 +8,8 @@
     _site/funciona.html  comprobación del modelo con el histórico (export_informes.py)
     _site/pruebas.html   banco de pruebas: avisos de Telegram como apuestas simuladas (export_informes.py)
     _site/futbol.html    chuleta de fútbol en directo según el marcador al descanso (futbol.py)
+
+Todo sale cifrado con la contraseña del panel de control (candado.py); data.json se publica como data.enc.
 """
 from __future__ import annotations
 
@@ -16,6 +18,7 @@ import datetime as dt
 import shutil
 from pathlib import Path
 
+import candado
 import export_informes
 import export_live
 import export_panel
@@ -112,6 +115,7 @@ def build(db=DEFAULT_DB, out=ROOT / "_site"):
     live.write_text(html, encoding="utf-8")
     export_informes.export(db, out)
     stamp(out)
+    candado.cerrar(out)
     (out / ".nojekyll").write_text("", encoding="utf-8")
     print(f"Web construida en {out}: " + ", ".join(sorted(p.name for p in out.iterdir())))
 

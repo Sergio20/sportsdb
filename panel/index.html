@@ -560,7 +560,15 @@ function start(raw) {
   $('#updated').textContent = Object.keys(DB.leagues).join(' · ') + ' — datos actualizados el ' +(isNaN(d) ? DB.updated : d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) + ' a las ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }));
   setTab(); render();
 }
-fetch('data.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(start).catch(() => {
+// Publicada, la web va cifrada: los datos están en data.enc y se abren con la llave que dejó la pantalla de la contraseña.
+async function loadData() {
+  if (!window.__clave) { const r = await fetch('data.json'); if (!r.ok) throw new Error(r.status); return r.json(); }
+  const r = await fetch('data.enc', { cache: 'no-store' }); if (!r.ok) throw new Error(r.status);
+  const raw = Uint8Array.from(atob((await r.text()).trim()), c => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey('raw', window.__clave, 'AES-GCM', false, ['decrypt']);
+  return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: raw.slice(0, 12) }, key, raw.slice(12))));
+}
+loadData().then(start).catch(() => {
   $('#updated').textContent = 'No se han podido cargar los datos';
   $('#view').innerHTML = '<div class="empty">No se han podido cargar los datos del panel. Vuelve a abrir la página; si sigue igual, pide a Claude que revise la actualización diaria.</div>';
 });
