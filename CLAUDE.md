@@ -10,6 +10,13 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   El workflow la reescribe cada día con `--force`; no tiene historial a propósito.
   En `main` NO hay copia de la base (había una vieja del 3-10-2026 y el informe de las 08:00 la leía por error hasta el
   15-10: tras `git fetch origin data` hacía `git fetch origin main`, que cambia FETCH_HEAD). Leer siempre `origin/data`.
+- **Web con contraseña (13-11-2026, Sergio: privacidad frente a los jugadores de Rey de Pista)**: todas las páginas salen
+  cifradas con la MISMA contraseña y clave que su panel de control (`candado.py` + `panel/candado.html`, copia de
+  `portal/cifrado.py`/`candado.html` de portal-deportivo; sal en `clave.json`). Clave: secreto `PORTAL_KEY` de este repositorio
+  (en el PC, `~/.portal_deportivo/clave.key`). `data.json` se publica cifrado como `data.enc` (el panel y la portada lo
+  descifran). Mismo origen que el panel (sergio20.github.io): el navegador que ya entró allí entra aquí sin pedirla.
+  Sin clave se publica solo un aviso de «falta la clave», nunca en abierto. OJO: el repositorio y sus ramas `avisos`,
+  `vivo` y `data` siguen siendo públicos (la web en vivo lee `vivo.json` sin clave por la API de GitHub).
 - **`.github/workflows/actualizar.yml`**: cada día a las 04:10 UTC (06:10 en Madrid en verano) descarga la base de la rama
   `data`, ejecuta `update_db.py`, comprueba (`scripts/check_db.py`), construye la web
   (`build_site.py` → `_site/`), la publica en Pages y guarda la base en `data`.

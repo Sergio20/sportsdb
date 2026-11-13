@@ -61,7 +61,9 @@ jobs:
       - name: Comprobar la base de datos
         run: python scripts/check_db.py data/deportes.db --compare /tmp/antes.json
 
-      - name: Construir la web
+      - name: Construir la web (cifrada con la contraseña del panel de control)
+        env:
+          PORTAL_KEY: ${{ secrets.PORTAL_KEY }}
         run: python build_site.py
 
       - uses: actions/configure-pages@v5
