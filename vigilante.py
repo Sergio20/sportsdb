@@ -189,6 +189,7 @@ def quarter_step(g, st, base, rules, log, save):
         e.update(closed=True, res={str(p): bool(ok) for p, ok in res.items()}, value=value)
         send(quarter_result(e, g["home"], g["away"]))
         save()
+        BANCO.set()     # apuesta de cuarto resuelta: registro y banco al día sin esperar al final del partido
     for e in g["quiet"].values():                      # callados de cuarto: se resuelven igual, sin mensaje
         al = e["alert"]
         if al["type"] == "cuarto" and not e.get("closed"):
@@ -1174,7 +1175,10 @@ def main():
     ap.add_argument("--prueba", action="store_true")
     ap.add_argument("--repetir", nargs=3, metavar=("TEMPORADA", "PARTIDO", "MINUTO"))
     ap.add_argument("--resultado", metavar="N", help="reenvía como prueba el resultado de la apuesta N.º N (o «ultima»)")
+    ap.add_argument("--texto", help="manda este texto tal cual por Telegram (mensajes de prueba escritos a mano)")
     a = ap.parse_args()
+    if a.texto:
+        return 0 if send(a.texto.replace("\\n", "\n")) else 1
     if a.resultado:
         return resend_result(a.log, a.resultado)
     if a.prueba:

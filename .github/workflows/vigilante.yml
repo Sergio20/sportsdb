@@ -13,11 +13,14 @@ on:
       modo:
         description: "vigilar = partidos de hoy · prueba = mensaje de prueba · ensayo = repetir el ASVEL-Valencia del minuto 16 · resultado = reenviar un resultado"
         type: choice
-        options: [vigilar, prueba, ensayo, resultado]
+        options: [vigilar, prueba, ensayo, resultado, texto]
         default: prueba
       apuesta:
         description: "Solo con modo resultado: número de la apuesta v2, o «ultima» (la última con línea de tu casa anotada)"
         default: ultima
+      texto:
+        description: "Solo con modo texto: el mensaje que se manda tal cual (\\n = salto de línea)"
+        default: ""
 
 permissions:
   contents: write
@@ -25,7 +28,7 @@ permissions:
 
 concurrency:
   # Las pruebas y ensayos van en su propia cola: no esperan a la cadena de tandas ni la interrumpen
-  group: ${{ (github.event.inputs.modo == 'prueba' || github.event.inputs.modo == 'ensayo' || github.event.inputs.modo == 'resultado') && 'vigilante-prueba' || 'vigilante' }}
+  group: ${{ (github.event.inputs.modo == 'prueba' || github.event.inputs.modo == 'ensayo' || github.event.inputs.modo == 'resultado' || github.event.inputs.modo == 'texto') && 'vigilante-prueba' || 'vigilante' }}
   cancel-in-progress: false
 
 jobs:
@@ -51,8 +54,14 @@ jobs:
         if: github.event.inputs.modo == 'prueba'
         run: python vigilante.py --prueba
 
+      - name: Mandar un texto escrito a mano
+        if: github.event.inputs.modo == 'texto'
+        env:
+          TEXTO: ${{ github.event.inputs.texto }}
+        run: python vigilante.py --texto "$TEXTO"
+
       - name: Recuperar la base de datos y los avisos ya enviados
-        if: github.event.inputs.modo != 'prueba'
+        if: github.event.inputs.modo != 'prueba' && github.event.inputs.modo != 'texto'
         run: |
           mkdir -p data
           git fetch --depth=1 origin data
