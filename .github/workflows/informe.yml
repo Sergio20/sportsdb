@@ -1,16 +1,23 @@
-name: Informe semanal (Telegram)
+name: Informe semanal y mensual (Telegram)
 
-# Los lunes por la mañana: resumen del banco de pruebas por Telegram (scripts/informe_semanal.py).
+# Los lunes por la mañana, resumen de la semana; el día 1 de cada mes, resumen del mes anterior (scripts/informe_semanal.py).
 on:
   schedule:
     - cron: "37 7 * * 1"    # lunes 09:37 en Madrid en verano, 08:37 en invierno
+    - cron: "47 7 1 * *"    # día 1 de cada mes: informe mensual
   workflow_dispatch:
+    inputs:
+      periodo:
+        description: "semana = últimos 7 días · mes = el mes en curso (o el anterior, los 3 primeros días)"
+        type: choice
+        options: [semana, mes]
+        default: semana
 
 permissions:
   contents: read
 
 concurrency:
-  group: informe
+  group: informe-${{ (github.event.schedule == '47 7 1 * *' || github.event.inputs.periodo == 'mes') && 'mes' || 'semana' }}
   cancel-in-progress: true
 
 jobs:
@@ -33,4 +40,5 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python scripts/informe_semanal.py --db data/deportes.db --log data/avisos.json
+          MES: ${{ (github.event.schedule == '47 7 1 * *' || github.event.inputs.periodo == 'mes') && '--mes' || '' }}
+        run: python scripts/informe_semanal.py --db data/deportes.db --log data/avisos.json $MES
