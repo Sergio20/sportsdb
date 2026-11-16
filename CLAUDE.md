@@ -238,6 +238,8 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   🟢 85 · 🟣 rebajada en negrita, `bold_marks`), del periodo y de toda la v2, y «👤 TU CASA» (`casa_block`): líneas anotadas,
   cuota media, acierto medio nuestro frente al de la casa (100/cuota), cuántas con valor y balance apostando su línea a su
   cuota real. Después: por tipo, rapidez y freno. El mensual lanzado los 3 primeros días del mes cubre el mes anterior.
+- % de la rebajada (16-11-2026, Sergio): todo mensaje de Telegram que la nombre dice a qué % se apuesta (`avisos.rebaja_pct`:
+  su % real en la campana, 82-89, casi siempre 83-84): aviso, resultado («🧪 rebajada, la del 84 %»), informes e hito (media).
 - Otros modos de `vigilante.yml`: `texto` manda un mensaje escrito a mano. El banco también se rehace al resolverse una
   apuesta de cuarto (`BANCO.set()` en `quarter_step`), no solo al acabar el partido.
 - Estudios descartados (7-10-2026): cansancio (equipo con partido hace ≤2 días frente a rival con 3+): Liga Endesa +0,7 a

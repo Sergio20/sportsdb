@@ -501,7 +501,7 @@ def describe(al, home, away):
         out.append("Sentido: " + b["way"])
     out += ["", "ELIGE UNA LÍNEA (de más segura a más ajustada)"]
     for p, label, cond in b["lines"]:
-        out += [f"{ICON[p]} {label}" + ("  (🧪 REBAJADA: experimento)" if p == REBAJA else ""), f"     {cond}",
+        out += [f"{ICON[p]} {label}" + (f"  (🧪 REBAJADA, la del {rebaja_pct(al)} %: experimento)" if p == REBAJA else ""), f"     {cond}",
                 f"     acierta {p} de cada 100 · apuesta solo si la cuota es {num(100 / p, 2)} o más"]
     tab = line_table(al)
     if tab:
@@ -584,8 +584,7 @@ def compact(al, home, away, shot=None):
         if p not in SHOW:
             continue
         if p == REBAJA:             # su % real en la campana (al redondear a ,5 queda algo por encima del 82)
-            q = round(min(prob_of_line({"lines": {k: v for k, v in al["lines"].items() if int(k) != REBAJA}},
-                                                 float(al["lines"].get(REBAJA, al["lines"].get(str(REBAJA))))) or p, 89))
+            q = rebaja_pct(al)
             out.append(f"{ICON[p]} {label} · {q} % · cuota ≥ {num(100 / q, 2)} · 🧪 REBAJADA 🟣")
             continue
         out.append(f"{ICON[p]} {label} · {p} % · cuota ≥ {num(100 / p, 2)}")
@@ -594,8 +593,18 @@ def compact(al, home, away, shot=None):
     return "\n".join(out)
 
 
+def rebaja_pct(al):
+    """% real de la línea rebajada en la campana del aviso: al redondearla a ,5 hacia el lado seguro queda entre el 82 y
+    el 89. Sergio (16-11-2026): que todo mensaje que hable de la rebajada diga a qué % se apuesta."""
+    try:
+        line = float(al["lines"].get(REBAJA, al["lines"].get(str(REBAJA))))
+        return round(min(prob_of_line({"lines": {k: v for k, v in al["lines"].items() if int(k) != REBAJA}}, line) or REBAJA, 89))
+    except Exception:
+        return REBAJA
+
+
 def result_lines(al, res, home, away):
     """Para el mensaje de resultado: cada línea con su marca y GANADA / PERDIDA."""
     labels = {p: label for p, label, _ in bet_of(al, home, away)["lines"]}
-    return [f"{ICON.get(int(k), '')} {'✅' if res[k] else '❌'} {labels[int(k)]} ({'🧪 rebajada' if int(k) == REBAJA else f'la del {int(k)} %'}): {'GANADA' if res[k] else 'PERDIDA'}{' 🟣' if int(k) == REBAJA else ''}"
+    return [f"{ICON.get(int(k), '')} {'✅' if res[k] else '❌'} {labels[int(k)]} ({f'🧪 rebajada, la del {rebaja_pct(al)} %' if int(k) == REBAJA else f'la del {int(k)} %'}): {'GANADA' if res[k] else 'PERDIDA'}{' 🟣' if int(k) == REBAJA else ''}"
             for k in sorted(res, key=lambda k: -int(k)) if int(k) in SHOW]

@@ -60,6 +60,8 @@ def block(rows, title):
         if not xs:
             continue
         ok, okf = sum(bool(x["res"][p]) for x in xs), sum(bool(x["res"][p]) for x in fs)
+        if p == "82":       # a qué % se apuesta con la rebajada: la media del % real de cada aviso (entre 82 y 89)
+            name = f"Rebajada (la del {sum(avisos.rebaja_pct(x) for x in xs) / len(xs):.0f} % de media)"
         out.append(f"{icon} {name}: {ok}/{len(xs)} ({100 * ok / len(xs):.0f} %) {eur(g(xs))}{' 🟣' if p == '82' else ''}")
         out.append(f"      una por partido: {okf}/{len(fs)} {eur(g(fs))}")
     return out
