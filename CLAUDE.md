@@ -233,8 +233,13 @@ Base de datos deportiva + web de análisis orientada a apuestas, publicada con G
   partido; con `FRENO_MIN` = 40 partidos o más, si el límite alto del intervalo del 90 % de la línea del 90 no llega al
   `FRENO_TOPE` = 85 %, la regla se silencia (no manda avisos) y se avisa por Telegram; vuelve sola si mejora. Marcas
   `{freno, off}` en `avisos.json`.
-- Informe semanal por Telegram los lunes (`informe.yml` → `scripts/informe_semanal.py`): 7 días y total, por línea,
-  con tope por partido, por tipo, casa, rapidez y freno.
+- Informe semanal por Telegram los lunes y MENSUAL el día 1 (`informe.yml` → `scripts/informe_semanal.py`, `--mes`; a mano,
+  entrada `periodo` = semana/mes). Desde el 16-11-2026 (Sergio): solo las cuatro líneas en uso con su color (🔵 95 · 🟠 90 ·
+  🟢 85 · 🟣 rebajada en negrita, `bold_marks`), del periodo y de toda la v2, y «👤 TU CASA» (`casa_block`): líneas anotadas,
+  cuota media, acierto medio nuestro frente al de la casa (100/cuota), cuántas con valor y balance apostando su línea a su
+  cuota real. Después: por tipo, rapidez y freno. El mensual lanzado los 3 primeros días del mes cubre el mes anterior.
+- Otros modos de `vigilante.yml`: `texto` manda un mensaje escrito a mano. El banco también se rehace al resolverse una
+  apuesta de cuarto (`BANCO.set()` en `quarter_step`), no solo al acabar el partido.
 - Estudios descartados (7-10-2026): cansancio (equipo con partido hace ≤2 días frente a rival con 3+): Liga Endesa +0,7 a
   +1,1 puntos frente a lo esperado (sin efecto, n≈240-280), Euroliga/EuroCup +0,3. Ausencia de la estrella (máximo
   anotador con 22+ min en sus 10 partidos previos, `basket_player_stats`): −1,2 puntos frente a lo esperado (±0,8,
