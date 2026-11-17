@@ -850,7 +850,7 @@ def v2_step(log, save):
     send(f"🏁 HITO: {V2_META} AVISOS DE LA v2\nYa hay {V2_META} avisos con línea rebajada enviados y resueltos "
          f"(del {v2[0]['ts'][:10]} al {v2[-1]['ts'][:10]}). Toca revisarlos y decidir si pasamos a la v3.\n\n"
          f"🔵 Línea del 95: {k['95']} de {V2_META} acertadas\n🟠 Línea del 90: {k['90']} de {V2_META}\n"
-         f"🟢 Línea del 85: {k['85']} de {V2_META}\n🟣 Rebajada: {k[str(avisos.REBAJA)]} de {V2_META}\nAvisos con la cuota de tu casa anotada: {casa}\n\n"
+         f"🟢 Línea del 85: {k['85']} de {V2_META}\n🟣 Rebajada (la del {avisos.REBAJA}-89 %, de media {sum(avisos.rebaja_pct(e['alert']) for e in v2) / len(v2):.0f} %): {k[str(avisos.REBAJA)]} de {V2_META}\nAvisos con la cuota de tu casa anotada: {casa}\n\n"
          f"Escríbele a Claude en el proyecto: «revisa los {V2_META} avisos de la v2».\nDetalle: https://sergio20.github.io/sportsdb/pruebas.html")
     with LOCK:
         log.append(dict(hito_v2=V2_META, ts=now().isoformat(timespec="seconds")))
